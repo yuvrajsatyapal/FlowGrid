@@ -16,6 +16,7 @@ export default function CreateCardInline({ onSubmit }: Props) {
   }, [expanded])
 
   const handleSave = async () => {
+    if (saving) return
     const trimmed = value.trim()
     if (!trimmed) {
       setExpanded(false)

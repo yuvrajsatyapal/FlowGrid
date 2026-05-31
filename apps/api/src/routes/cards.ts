@@ -227,6 +227,10 @@ router.post("/reorder", validateJWT, async (req, res) => {
       return
     }
   }
+  if (new Set(cardIds).size !== cardIds.length) {
+    res.status(400).json({ error: { message: "cardIds must not contain duplicates", status: 400 } })
+    return
+  }
 
   try {
     const access = await resolveListAccess(res, listId, req.user!.id, true)
@@ -282,6 +286,10 @@ router.post("/move", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "cardIds (new order for target list) must be a non-empty array", status: 400 } })
     return
   }
+  if (new Set(cardIds).size !== cardIds.length) {
+    res.status(400).json({ error: { message: "cardIds must not contain duplicates", status: 400 } })
+    return
+  }
 
   try {
     const card = await prisma.card.findUnique({ where: { id: cardId } })
@@ -315,22 +323,19 @@ router.post("/move", validateJWT, async (req, res) => {
       return
     }
 
-    await prisma.$transaction(
-      [
-        // Move card to target list first
-        prisma.card.update({ where: { id: cardId }, data: { listId: targetListId } }),
-        // Assign positions in target list (cardIds includes the moved card at its new position)
-        ...cardIds.map((id, index) =>
-          prisma.card.update({
-            where: { id, listId: targetListId },
-            data: { position: String(index + 1).padStart(8, "0") },
-          }),
-        ),
-      ],
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    )
+    // Interactive transaction: await the listId update before position updates so
+    // the WHERE listId = targetListId predicate is satisfied for the moved card.
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.card.update({ where: { id: cardId }, data: { listId: targetListId } })
+      for (const [index, id] of cardIds.entries()) {
+        await tx.card.update({
+          where: { id, listId: targetListId },
+          data: { position: String(index + 1).padStart(8, "0") },
+        })
+      }
+      return tx.card.findUnique({ where: { id: cardId } })
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
-    const updated = await prisma.card.findUnique({ where: { id: cardId } })
     if (!updated) {
       res.status(404).json({ error: { message: "Card not found after move", status: 404 } })
       return
