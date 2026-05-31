@@ -77,6 +77,7 @@ export interface WorkspaceMember {
   updatedAt: Date
 }
 
+
 // ─── Board tier ───────────────────────────────────────────────────────────────
 
 export interface Board {
