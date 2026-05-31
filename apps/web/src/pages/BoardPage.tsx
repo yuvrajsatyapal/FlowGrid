@@ -17,6 +17,7 @@ import { cardsApi, type CardSummary } from "../api/cards"
 import ListColumn from "../components/boards/ListColumn"
 import CreateListInline from "../components/boards/CreateListInline"
 import CardItem from "../components/boards/CardItem"
+import CardDetailModal from "../components/boards/CardDetailModal"
 
 const LOCK_ICON = (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -42,6 +43,7 @@ export default function BoardPage() {
   const [lists, setLists] = useState<ListSummary[]>([])
   const [boardCards, setBoardCards] = useState<Record<string, CardSummary[]>>({})
   const [activeCard, setActiveCard] = useState<CardSummary | null>(null)
+  const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [loadingBoard, setLoadingBoard] = useState(true)
   const [loadingLists, setLoadingLists] = useState(true)
   const [error, setError] = useState("")
@@ -103,6 +105,23 @@ export default function BoardPage() {
       })
       .finally(() => setLoadingBoard(false))
   }, [boardId, loadLists])
+
+  // ─── Modal helpers ──────────────────────────────────────────────────────────
+
+  const openCard = openCardId
+    ? Object.values(boardCards).flat().find((c) => c.id === openCardId) ?? null
+    : null
+
+  function handleCardUpdated(updated: CardSummary) {
+    setBoardCards((prev) => {
+      const listCards = prev[updated.listId]
+      if (!listCards) return prev
+      return {
+        ...prev,
+        [updated.listId]: listCards.map((c) => (c.id === updated.id ? updated : c)),
+      }
+    })
+  }
 
   // ─── DnD helpers ────────────────────────────────────────────────────────────
 
@@ -356,6 +375,7 @@ export default function BoardPage() {
                 onRenamed={handleRenamed}
                 onDeleted={handleDeleted}
                 onCardCreated={handleCardCreated}
+                onCardClick={(id) => setOpenCardId(id)}
               />
             ))}
             {canEdit && <CreateListInline onSubmit={handleCreateList} />}
@@ -371,6 +391,17 @@ export default function BoardPage() {
           </DndContext>
         )}
       </div>
+
+      {openCard && board && workspaceId && (
+        <CardDetailModal
+          card={openCard}
+          boardId={board.id}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          onClose={() => setOpenCardId(null)}
+          onCardUpdated={handleCardUpdated}
+        />
+      )}
     </div>
   )
 }

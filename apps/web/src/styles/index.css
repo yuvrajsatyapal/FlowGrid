@@ -51,3 +51,46 @@
     font-family: var(--font-mono);
   }
 }
+
+/* TipTap / ProseMirror editor styles */
+.ProseMirror {
+  outline: none;
+  min-height: 100px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: oklch(var(--color-ink-3));
+  pointer-events: none;
+  height: 0;
+}
+
+.ProseMirror p {
+  margin: 0 0 8px;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 20px;
+  margin: 0 0 8px;
+}
+
+.ProseMirror code {
+  background: oklch(var(--color-paper-3));
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid oklch(var(--color-border));
+  padding-left: 12px;
+  color: oklch(var(--color-ink-2));
+  margin: 0 0 8px;
+}

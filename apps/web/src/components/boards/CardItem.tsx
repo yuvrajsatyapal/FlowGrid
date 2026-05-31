@@ -7,6 +7,7 @@ interface Props {
   card: CardSummary
   /** When true, renders as the DragOverlay clone — no transform/ref needed */
   overlay?: boolean
+  onCardClick?: (cardId: string) => void
 }
 
 const PRIORITY_DOT: Record<Priority, string | null> = {
@@ -79,7 +80,7 @@ function WarningIcon() {
   )
 }
 
-export default function CardItem({ card, overlay = false }: Props) {
+export default function CardItem({ card, overlay = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
   })
@@ -110,6 +111,11 @@ export default function CardItem({ card, overlay = false }: Props) {
         role="article"
         aria-label={`${card.title}${prioritySuffix}`}
         title={card.title}
+        onClick={(e) => {
+          if (overlay || isDragging) return
+          e.stopPropagation()
+          onCardClick?.(card.id)
+        }}
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",

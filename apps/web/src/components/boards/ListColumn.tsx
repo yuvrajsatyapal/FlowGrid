@@ -15,9 +15,10 @@ interface Props {
   onRenamed: (id: string, name: string) => void
   onDeleted: (id: string) => void
   onCardCreated: (listId: string, card: CardSummary) => void
+  onCardClick?: (cardId: string) => void
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -228,7 +229,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
-            <CardItem key={card.id} card={card} />
+            <CardItem key={card.id} card={card} onCardClick={onCardClick} />
           ))}
         </SortableContext>
       </div>
