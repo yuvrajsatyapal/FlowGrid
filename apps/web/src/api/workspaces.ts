@@ -1,20 +1,31 @@
 import { api } from "../lib/axiosInstance"
+import type { Role } from "@flowgrid/types"
 
 export interface WorkspaceSummary {
   id: string
   name: string
   slug: string
   organizationId: string
-  role?: string
+  role?: Role
 }
 
+// Shape returned by GET /workspaces/one — a lighter API response, not the full domain model
 export interface WorkspaceDetail extends WorkspaceSummary {
   description: string | null
   organization: { id: string; name: string; slug: string; ownerId: string }
   memberCount: number
   boardCount: number
-  role: string
+  role: Role
   createdAt: string
+}
+
+// Returned by POST /workspaces/update — includes description from backend select
+export interface WorkspaceUpdateResult {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  organizationId: string
 }
 
 interface CreateWorkspaceRequest {
@@ -42,8 +53,10 @@ export const workspacesApi = {
     return res.data.workspace
   },
 
-  async update(id: string, data: UpdateWorkspaceRequest): Promise<WorkspaceSummary> {
-    const res = await api.post<{ workspace: WorkspaceSummary }>("/workspaces/update", data, { params: { id } })
+  async update(id: string, data: UpdateWorkspaceRequest): Promise<WorkspaceUpdateResult> {
+    const res = await api.post<{ workspace: WorkspaceUpdateResult }>("/workspaces/update", data, {
+      params: { id },
+    })
     return res.data.workspace
   },
 

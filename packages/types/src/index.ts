@@ -77,12 +77,6 @@ export interface WorkspaceMember {
   updatedAt: Date
 }
 
-export interface WorkspaceDetail extends Workspace {
-  organization: { id: string; name: string; slug: string; ownerId: string }
-  memberCount: number
-  boardCount: number
-  role: Role
-}
 
 // ─── Board tier ───────────────────────────────────────────────────────────────
 

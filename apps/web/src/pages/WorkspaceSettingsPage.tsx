@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
@@ -173,8 +173,13 @@ export default function WorkspaceSettingsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
 
-  const nameFocused = useState(false)
-  const descFocused = useState(false)
+  const [nameFocused, setNameFocused] = useState(false)
+  const [descFocused, setDescFocused] = useState(false)
+  const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current)
+  }, [])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -204,10 +209,13 @@ export default function WorkspaceSettingsPage() {
         name: name.trim(),
         description: description.trim() || undefined,
       })
-      setDetail((prev) => (prev ? { ...prev, name: updated.name } : prev))
+      setDetail((prev) =>
+        prev ? { ...prev, name: updated.name, description: updated.description ?? prev.description } : prev
+      )
       updateWorkspace(workspaceId, { name: updated.name })
       setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2500)
+      if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current)
+      saveSuccessTimerRef.current = setTimeout(() => setSaveSuccess(false), 2500)
     } catch (err: unknown) {
       const e = err as Error
       setSaveError(e.message || "Failed to save changes")
@@ -299,14 +307,14 @@ export default function WorkspaceSettingsPage() {
                 type="text"
                 value={name}
                 onChange={(e) => { setName(e.target.value); setSaveSuccess(false) }}
-                onFocus={() => nameFocused[1](true)}
-                onBlur={() => nameFocused[1](false)}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
                 disabled={!canEdit || saving}
                 maxLength={100}
                 style={{
                   ...inputStyle,
-                  borderColor: nameFocused[0] ? "oklch(var(--color-accent))" : "oklch(var(--color-border))",
-                  boxShadow: nameFocused[0] ? "0 0 0 3px oklch(var(--color-accent-muted))" : "none",
+                  borderColor: nameFocused ? "oklch(var(--color-accent))" : "oklch(var(--color-border))",
+                  boxShadow: nameFocused ? "0 0 0 3px oklch(var(--color-accent-muted))" : "none",
                   opacity: !canEdit ? 0.6 : 1,
                 }}
               />
@@ -324,8 +332,8 @@ export default function WorkspaceSettingsPage() {
                 id="ws-description"
                 value={description}
                 onChange={(e) => { setDescription(e.target.value); setSaveSuccess(false) }}
-                onFocus={() => descFocused[1](true)}
-                onBlur={() => descFocused[1](false)}
+                onFocus={() => setDescFocused(true)}
+                onBlur={() => setDescFocused(false)}
                 disabled={!canEdit || saving}
                 rows={2}
                 maxLength={300}
@@ -333,8 +341,8 @@ export default function WorkspaceSettingsPage() {
                 style={{
                   ...inputStyle,
                   resize: "vertical",
-                  borderColor: descFocused[0] ? "oklch(var(--color-accent))" : "oklch(var(--color-border))",
-                  boxShadow: descFocused[0] ? "0 0 0 3px oklch(var(--color-accent-muted))" : "none",
+                  borderColor: descFocused ? "oklch(var(--color-accent))" : "oklch(var(--color-border))",
+                  boxShadow: descFocused ? "0 0 0 3px oklch(var(--color-accent-muted))" : "none",
                   opacity: !canEdit ? 0.6 : 1,
                 }}
               />

@@ -179,6 +179,10 @@ router.post("/update", validateJWT, async (req, res) => {
 
   const { name, description } = req.body as { name?: string; description?: string }
 
+  if (name === undefined && description === undefined) {
+    res.status(400).json({ error: { message: "At least one of name or description is required", status: 400 } })
+    return
+  }
   if (name !== undefined) {
     if (typeof name !== "string" || name.trim().length === 0) {
       res.status(400).json({ error: { message: "name must be a non-empty string", status: 400 } })
@@ -194,7 +198,11 @@ router.post("/update", validateJWT, async (req, res) => {
     const membership = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
     })
-    if (!membership || !["OWNER", "ADMIN"].includes(membership.role)) {
+    if (!membership) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+    if (!["OWNER", "ADMIN"].includes(membership.role)) {
       res.status(403).json({ error: { message: "You don't have permission to update this workspace", status: 403 } })
       return
     }
@@ -235,7 +243,11 @@ router.post("/delete", validateJWT, async (req, res) => {
     const membership = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
     })
-    if (!membership || membership.role !== "OWNER") {
+    if (!membership) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+    if (membership.role !== "OWNER") {
       res.status(403).json({ error: { message: "Only the workspace owner can delete it", status: 403 } })
       return
     }
