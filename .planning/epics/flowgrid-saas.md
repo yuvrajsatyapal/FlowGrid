@@ -26,8 +26,8 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 
 | # | Feature | Status | Spec | Plan | Depends On | Effort |
 |---|---------|--------|------|------|------------|--------|
-| 1 | Project Scaffold & Monorepo Setup | planned | specs/01-project-scaffold.md | plans/01-project-scaffold.md | — | S |
-| 2 | Database Schema & Prisma Models | todo | — | — | #1 | M |
+| 1 | Project Scaffold & Monorepo Setup | done | specs/01-project-scaffold.md | plans/01-project-scaffold.md | — | S |
+| 2 | Database Schema & Prisma Models | done | specs/02-database-schema-and-prisma-models.md | plans/02-database-schema-and-prisma-models.md | #1 | M |
 | 3 | Google OAuth + Authentication | todo | — | — | #1, #2 | M |
 | 4 | User Onboarding Flow | todo | — | — | #3 | S |
 | 5 | Organizations & Workspaces | todo | — | — | #3 | M |
