@@ -289,6 +289,15 @@ router.get("/members", validateJWT, async (req, res) => {
       return
     }
 
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { deletedAt: true },
+    })
+    if (!workspace || workspace.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+
     const memberships = await prisma.workspaceMember.findMany({
       where: { workspaceId },
       include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },

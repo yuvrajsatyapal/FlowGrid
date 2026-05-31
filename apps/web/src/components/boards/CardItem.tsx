@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary } from "../../api/cards"
+import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 interface Props {
   card: CardSummary
@@ -16,26 +17,6 @@ const PRIORITY_DOT: Record<Priority, string | null> = {
   MEDIUM: "oklch(0.77 0.15 85)",
   HIGH: "oklch(0.67 0.19 48)",
   URGENT: "oklch(0.59 0.22 27)",
-}
-
-function hashCode(str: string): number {
-  let h = 0
-  for (let i = 0; i < str.length; i++) {
-    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
-  }
-  return h
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return (parts[0].slice(0, 2) || "?").toUpperCase()
-  return ((parts[0][0] ?? "") + (parts[parts.length - 1][0] ?? "")).toUpperCase() || "?"
-}
-
-function getAvatarBg(id: string): string {
-  const hue = Math.abs(hashCode(id)) % 360
-  return `hsl(${hue}, 55%, 48%)`
 }
 
 function formatDueDate(iso: string): string {

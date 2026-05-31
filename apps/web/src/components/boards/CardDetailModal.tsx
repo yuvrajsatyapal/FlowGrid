@@ -7,6 +7,7 @@ import type { CardSummary, CardLabel } from "../../api/cards"
 import { cardsApi } from "../../api/cards"
 import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
+import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 interface Props {
   card: CardSummary
@@ -38,26 +39,6 @@ const LABEL_COLORS = [
   { name: "Slate", value: "#64748b" },
 ]
 
-function hashCode(str: string): number {
-  let h = 0
-  for (let i = 0; i < str.length; i++) {
-    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
-  }
-  return h
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return (parts[0].slice(0, 2) || "?").toUpperCase()
-  return ((parts[0][0] ?? "") + (parts[parts.length - 1][0] ?? "")).toUpperCase() || "?"
-}
-
-function getAvatarBg(id: string): string {
-  const hue = Math.abs(hashCode(id)) % 360
-  return `hsl(${hue}, 55%, 48%)`
-}
-
 export default function CardDetailModal({ card, boardId, workspaceId, canEdit, onClose, onCardUpdated }: Props) {
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -87,33 +68,6 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
     labelsApi.list(boardId).then(setBoardLabels).catch(() => setBoardLabels([]))
   }, [workspaceId, boardId])
 
-  // ─── Escape key + backdrop ────────────────────────────────────────────────
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") flushAndClose()
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function handleOverlayClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) flushAndClose()
-  }
-
-  function flushAndClose() {
-    if (descDebounceRef.current) {
-      clearTimeout(descDebounceRef.current)
-      descDebounceRef.current = null
-      if (pendingDescRef.current !== null) {
-        void saveField({ description: pendingDescRef.current })
-        pendingDescRef.current = null
-      }
-    }
-    onClose()
-  }
-
   // ─── Save helpers ─────────────────────────────────────────────────────────
 
   function showSaved() {
@@ -134,7 +88,42 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
       setSaveState("error")
       setSaveError((err as Error).message || "Failed to save")
     }
-  }, [localCard.id, onCardUpdated]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [localCard.id, onCardUpdated])
+
+  // ─── Escape key + backdrop ────────────────────────────────────────────────
+
+  // Ref holds the latest flushAndClose so the keydown listener never captures a stale closure
+  const flushAndCloseRef = useRef<() => Promise<void>>(async () => { onClose() })
+
+  const flushAndClose = useCallback(async () => {
+    if (descDebounceRef.current) {
+      clearTimeout(descDebounceRef.current)
+      descDebounceRef.current = null
+      if (pendingDescRef.current !== null) {
+        const desc = pendingDescRef.current
+        pendingDescRef.current = null
+        await saveField({ description: desc })
+      }
+    }
+    onClose()
+  }, [saveField, onClose])
+
+  // Keep ref in sync with the latest callback
+  useEffect(() => {
+    flushAndCloseRef.current = flushAndClose
+  })
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") void flushAndCloseRef.current()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
+
+  function handleOverlayClick(e: React.MouseEvent) {
+    if (e.target === overlayRef.current) void flushAndClose()
+  }
 
   // ─── TipTap editor ───────────────────────────────────────────────────────
 
@@ -159,7 +148,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
     },
   })
 
-  // Cleanup on unmount — flush pending description save
+  // Cleanup on unmount — fire-and-forget flush (component is being destroyed, no UI to show errors)
   useEffect(() => {
     return () => {
       if (descDebounceRef.current) {
@@ -170,6 +159,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
       }
       if (savedTimer.current) clearTimeout(savedTimer.current)
     }
+    // localCard.id is stable for the lifetime of the modal — intentionally not in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -222,6 +212,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
     e.preventDefault()
     if (!newLabelName.trim()) return
     setCreatingLabel(true)
+    setSaveState("saving")
+    setSaveError("")
     try {
       const created = await labelsApi.create(boardId, newLabelName.trim(), newLabelColor)
       setBoardLabels((prev) => [...prev, created])

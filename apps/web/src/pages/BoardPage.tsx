@@ -112,7 +112,7 @@ export default function BoardPage() {
     ? Object.values(boardCards).flat().find((c) => c.id === openCardId) ?? null
     : null
 
-  function handleCardUpdated(updated: CardSummary) {
+  const handleCardUpdated = useCallback((updated: CardSummary) => {
     setBoardCards((prev) => {
       const listCards = prev[updated.listId]
       if (!listCards) return prev
@@ -121,7 +121,7 @@ export default function BoardPage() {
         [updated.listId]: listCards.map((c) => (c.id === updated.id ? updated : c)),
       }
     })
-  }
+  }, [])
 
   // ─── DnD helpers ────────────────────────────────────────────────────────────
 
