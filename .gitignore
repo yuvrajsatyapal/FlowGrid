@@ -20,6 +20,7 @@ out/
 
 # Prisma generated
 apps/api/src/generated/
+apps/api/generated/
 
 # IDE
 .vscode/

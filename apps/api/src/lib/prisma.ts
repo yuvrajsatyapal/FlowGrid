@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient } from "../../generated/prisma"
 import { env } from "../config/env"
 
 // Singleton pattern — prevents exhausting DB connections in dev hot-reload
