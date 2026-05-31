@@ -1,14 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
-
-const BOARD_PLACEHOLDER_ICON = (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-    <rect x="1" y="1" width="7" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
-    <rect x="11" y="1" width="8" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.25" />
-  </svg>
-)
+import { boardsApi, type BoardSummary } from "../api/boards"
+import BoardCard from "../components/boards/BoardCard"
+import CreateBoardModal from "../components/boards/CreateBoardModal"
 
 const MEMBERS_ICON = (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -19,25 +15,65 @@ const MEMBERS_ICON = (
   </svg>
 )
 
+const PLUS_ICON = (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { activeWorkspace } = useWorkspaceStore()
-  const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
 
-  useEffect(() => {
+  const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
+  const [boards, setBoards] = useState<BoardSummary[]>([])
+  const [loadingWorkspace, setLoadingWorkspace] = useState(true)
+  const [loadingBoards, setLoadingBoards] = useState(true)
+  const [error, setError] = useState("")
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
+  const canManage = detail?.role === "OWNER" || detail?.role === "ADMIN"
+
+  const fetchDetail = useCallback(async () => {
     if (!workspaceId) return
-    setLoading(true)
+    setLoadingWorkspace(true)
     setError("")
-    workspacesApi
-      .getOne(workspaceId)
-      .then(setDetail)
-      .catch((err: Error) => setError(err.message || "Failed to load workspace"))
-      .finally(() => setLoading(false))
+    try {
+      const d = await workspacesApi.getOne(workspaceId)
+      setDetail(d)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
+      setError(axiosErr?.response?.data?.error?.message ?? "Failed to load workspace")
+    } finally {
+      setLoadingWorkspace(false)
+    }
   }, [workspaceId])
 
-  if (loading) {
+  const fetchBoards = useCallback(async () => {
+    if (!workspaceId) return
+    setLoadingBoards(true)
+    try {
+      const list = await boardsApi.list(workspaceId)
+      setBoards(list)
+    } catch {
+      setBoards([])
+    } finally {
+      setLoadingBoards(false)
+    }
+  }, [workspaceId])
+
+  useEffect(() => {
+    fetchDetail()
+    fetchBoards()
+  }, [fetchDetail, fetchBoards])
+
+  function handleBoardCreated(board: BoardSummary) {
+    setBoards((prev) => [...prev, board])
+    setShowCreateModal(false)
+  }
+
+  if (loadingWorkspace) {
     return (
       <div style={centerStyle}>
         <span className="animate-pulse" style={{ color: "oklch(var(--color-ink-2))", fontSize: "var(--text-sm)" }}>
@@ -58,98 +94,248 @@ export default function WorkspacePage() {
   const ws = detail ?? activeWorkspace
 
   return (
-    <div style={{ padding: "32px 36px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
-        <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "var(--text-2xl)",
-              fontWeight: 600,
-              letterSpacing: "-0.02em",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            {ws?.name ?? "Workspace"}
-          </h1>
-          {detail?.description && (
-            <p style={{ margin: "6px 0 0", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))" }}>
-              {detail.description}
-            </p>
-          )}
-          {detail && (
-            <div style={{ display: "flex", gap: "16px", marginTop: "10px" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                {MEMBERS_ICON}
-                {detail.memberCount} {detail.memberCount === 1 ? "member" : "members"}
-              </span>
-              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                {detail.role}
-              </span>
-            </div>
+    <>
+      <div style={{ padding: "32px 36px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
+        {/* Workspace header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
+          <div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "var(--text-2xl)",
+                fontWeight: 600,
+                letterSpacing: "-0.02em",
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              {ws?.name ?? "Workspace"}
+            </h1>
+            {detail?.description && (
+              <p style={{ margin: "6px 0 0", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))" }}>
+                {detail.description}
+              </p>
+            )}
+            {detail && (
+              <div style={{ display: "flex", gap: "16px", marginTop: "10px" }}>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    fontSize: "var(--text-xs)",
+                    color: "oklch(var(--color-ink-3))",
+                  }}
+                >
+                  {MEMBERS_ICON}
+                  {detail.memberCount} {detail.memberCount === 1 ? "member" : "members"}
+                </span>
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                  {detail.role}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {workspaceId && (
+            <Link
+              to={`/${workspaceId}/settings`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "7px 14px",
+                borderRadius: "var(--radius-button)",
+                border: "1px solid oklch(var(--color-border))",
+                background: "transparent",
+                color: "oklch(var(--color-ink-2))",
+                fontSize: "var(--text-sm)",
+                fontWeight: 500,
+                textDecoration: "none",
+                transition: "background var(--dur-fast)",
+              }}
+            >
+              Settings
+            </Link>
           )}
         </div>
 
-        {workspaceId && (
-          <Link
-            to={`/${workspaceId}/settings`}
+        {/* Boards section */}
+        <div>
+          <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              borderRadius: "var(--radius-button)",
-              border: "1px solid oklch(var(--color-border))",
-              background: "transparent",
-              color: "oklch(var(--color-ink-2))",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-              textDecoration: "none",
-              transition: "background var(--dur-fast)",
+              justifyContent: "space-between",
+              marginBottom: "16px",
             }}
           >
-            Settings
-          </Link>
-        )}
-      </div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "var(--text-base)",
+                fontWeight: 600,
+                color: "oklch(var(--color-ink))",
+              }}
+            >
+              Boards
+            </h2>
 
-      {/* Boards placeholder */}
-      <div>
-        <h2
-          style={{
-            margin: "0 0 16px",
-            fontSize: "var(--text-base)",
-            fontWeight: 600,
-            color: "oklch(var(--color-ink))",
-          }}
-        >
-          Boards
-        </h2>
+            {canManage && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "var(--radius-button)",
+                  border: "none",
+                  background: "oklch(var(--color-accent))",
+                  color: "#fff",
+                  fontSize: "var(--text-sm)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                  transition: "background var(--dur-fast)",
+                }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-accent-hover))"
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-accent))"
+                }}
+              >
+                {PLUS_ICON}
+                New board
+              </button>
+            )}
+          </div>
 
-        {/* Empty state — boards come in Feature #7 */}
-        <div
-          style={{
-            border: "1px dashed oklch(var(--color-border))",
-            borderRadius: "var(--radius-card)",
-            padding: "48px 24px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "12px",
-            color: "oklch(var(--color-ink-3))",
-          }}
-        >
-          <div style={{ color: "oklch(var(--color-muted))" }}>{BOARD_PLACEHOLDER_ICON}</div>
-          <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
-            No boards yet
-          </p>
-          <p style={{ margin: 0, fontSize: "var(--text-xs)", textAlign: "center", maxWidth: "280px" }}>
-            Create your first board to start organizing tasks. Boards are coming in the next update.
-          </p>
+          {loadingBoards ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: "110px",
+                    borderRadius: "var(--radius-card)",
+                    background: "oklch(var(--color-paper-2))",
+                    opacity: 0.6,
+                  }}
+                />
+              ))}
+            </div>
+          ) : boards.length === 0 ? (
+            <div
+              style={{
+                border: "1px dashed oklch(var(--color-border))",
+                borderRadius: "var(--radius-card)",
+                padding: "48px 24px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "12px",
+                color: "oklch(var(--color-ink-3))",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
+                No boards yet
+              </p>
+              <p style={{ margin: 0, fontSize: "var(--text-xs)", textAlign: "center", maxWidth: "280px" }}>
+                {canManage
+                  ? "Create your first board to start organizing tasks."
+                  : "No boards have been created in this workspace yet."}
+              </p>
+              {canManage && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  style={{
+                    marginTop: "4px",
+                    padding: "8px 18px",
+                    borderRadius: "var(--radius-button)",
+                    border: "none",
+                    background: "oklch(var(--color-accent))",
+                    color: "#fff",
+                    fontSize: "var(--text-sm)",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  Create first board
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {boards.map((board) => (
+                <BoardCard key={board.id} board={board} workspaceId={workspaceId!} />
+              ))}
+
+              {canManage && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  style={{
+                    all: "unset",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    borderRadius: "var(--radius-card)",
+                    border: "1px dashed oklch(var(--color-border))",
+                    background: "transparent",
+                    minHeight: "110px",
+                    color: "oklch(var(--color-ink-3))",
+                    fontSize: "var(--text-sm)",
+                    fontWeight: 500,
+                    transition: "border-color var(--dur-base), background var(--dur-base), color var(--dur-base)",
+                    boxSizing: "border-box",
+                    padding: "16px",
+                    textAlign: "center",
+                  }}
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = "oklch(var(--color-accent))"
+                    ;(e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-accent))"
+                    ;(e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-accent-muted))"
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = "oklch(var(--color-border))"
+                    ;(e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))"
+                    ;(e.currentTarget as HTMLButtonElement).style.background = "transparent"
+                  }}
+                  aria-label="Create new board"
+                >
+                  {PLUS_ICON}
+                  New board
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {showCreateModal && workspaceId && (
+        <CreateBoardModal
+          workspaceId={workspaceId}
+          onCreated={handleBoardCreated}
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
+    </>
   )
 }
 

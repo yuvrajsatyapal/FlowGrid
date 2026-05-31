@@ -8,6 +8,7 @@ import DashboardPage from "./pages/DashboardPage"
 import OnboardingPage from "./pages/OnboardingPage"
 import WorkspacePage from "./pages/WorkspacePage"
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage"
+import BoardPage from "./pages/BoardPage"
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/:workspaceId" element={<WorkspacePage />} />
               <Route path="/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
+              <Route path="/:workspaceId/:boardId" element={<BoardPage />} />
               {/* /:workspaceId/members — Feature #6 */}
             </Route>
           </Route>
