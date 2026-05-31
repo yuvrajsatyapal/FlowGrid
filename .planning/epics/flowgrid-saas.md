@@ -32,7 +32,7 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 4 | User Onboarding Flow | done | — | — | #3 | S |
 | 5 | Organizations & Workspaces | done | — | — | #3 | M |
 | 6 | Team Invites, Roles & Permissions | todo | — | — | #5 | M |
-| 7 | Boards CRUD | todo | — | — | #5 | S |
+| 7 | Boards CRUD | done | — | — | #5 | S |
 | 8 | Lists / Columns CRUD | todo | — | — | #7 | S |
 | 9 | Cards / Tasks CRUD + Drag & Drop | todo | — | — | #8 | L |
 | 10 | Card Details (rich text, due dates, labels, priority) | todo | — | — | #9 | M |
