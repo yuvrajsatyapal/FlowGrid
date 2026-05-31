@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express"
+import { env } from "../config/env"
 
 export interface AppError extends Error {
   statusCode?: number
@@ -22,7 +23,7 @@ export function errorHandler(
     error: {
       message,
       code: err.code ?? "INTERNAL_ERROR",
-      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+      ...(env.NODE_ENV === "development" && { stack: err.stack }),
     },
   })
 }

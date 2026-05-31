@@ -6,14 +6,15 @@ const router = Router()
 router.get("/health", async (_req, res) => {
   try {
     await redis.ping()
-    res.json({
+    res.status(200).json({
       status: "ok",
       redis: "connected",
       timestamp: new Date().toISOString(),
     })
   } catch {
-    // Return degraded (not 500) so load balancers don't kill the pod on Redis hiccup
-    res.json({
+    // HTTP 200 intentionally — returning 500 would cause load balancers to
+    // kill the pod over a transient Redis hiccup. Use redis:"error" for alerting.
+    res.status(200).json({
       status: "degraded",
       redis: "error",
       timestamp: new Date().toISOString(),

@@ -1,7 +1,13 @@
 import axios from "axios"
 
+// In dev the Vite proxy intercepts /api/* → http://localhost:3001.
+// In production set VITE_API_BASE_URL=https://api.yourdomain.com
+const baseURL = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : "/api"
+
 export const api = axios.create({
-  baseURL: "/api", // Vite proxy routes /api/* → http://localhost:3001
+  baseURL,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",

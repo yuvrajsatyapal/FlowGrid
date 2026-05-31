@@ -137,7 +137,7 @@ flowgrid/
 }
 ```
 
-**Response 500 (Redis down):**
+**Response 200 (Redis degraded):**
 ```json
 {
   "status": "degraded",
@@ -145,6 +145,8 @@ flowgrid/
   "timestamp": "2026-05-31T12:00:00.000Z"
 }
 ```
+
+HTTP status is **always 200** — returning 500 would cause load balancers to kill the pod on a transient Redis hiccup. Use `redis: "error"` to trigger alerts in monitoring.
 
 No auth required. Used by deployment health checks.
 
