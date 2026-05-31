@@ -205,13 +205,16 @@ export default function WorkspaceSettingsPage() {
     setSaveError("")
     setSaveSuccess(false)
     try {
+      // Send null explicitly to allow clearing the description field
       const updated = await workspacesApi.update(workspaceId, {
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim() || null,
       })
       setDetail((prev) =>
-        prev ? { ...prev, name: updated.name, description: updated.description ?? prev.description } : prev
+        prev ? { ...prev, name: updated.name, description: updated.description } : prev
       )
+      // Sync form field from server response so the textarea reflects what was actually saved
+      setDescription(updated.description ?? "")
       updateWorkspace(workspaceId, { name: updated.name })
       setSaveSuccess(true)
       if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current)

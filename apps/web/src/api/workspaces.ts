@@ -34,7 +34,7 @@ interface CreateWorkspaceRequest {
 
 interface UpdateWorkspaceRequest {
   name?: string
-  description?: string
+  description?: string | null
 }
 
 export const workspacesApi = {
