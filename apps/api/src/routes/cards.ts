@@ -8,6 +8,9 @@ const router = Router()
 const VALID_PRIORITIES = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"] as const
 type CardPriority = (typeof VALID_PRIORITIES)[number]
 
+type CardAssignee = { id: string; name: string | null; avatarUrl: string | null }
+type CardLabelItem = { id: string; name: string; color: string }
+
 // Resolve list → board → workspace membership, checking PRIVATE board access.
 // Returns { list, board, membership } or writes a 404/403 and returns null.
 async function resolveListAccess(
@@ -60,20 +63,24 @@ async function resolveListAccess(
   return { list, board, membership }
 }
 
-function formatCard(card: {
-  id: string
-  listId: string
-  title: string
-  description: string | null
-  position: string
-  priority: CardPriority
-  dueDate: Date | null
-  assigneeId: string | null
-  coverColor: string | null
-  createdAt: Date
-  updatedAt: Date
-  deletedAt: Date | null
-}) {
+function formatCard(
+  card: {
+    id: string
+    listId: string
+    title: string
+    description: string | null
+    position: string
+    priority: CardPriority
+    dueDate: Date | null
+    assigneeId: string | null
+    coverColor: string | null
+    createdAt: Date
+    updatedAt: Date
+    deletedAt: Date | null
+  },
+  assignee?: CardAssignee | null,
+  labels?: CardLabelItem[],
+) {
   return {
     id: card.id,
     listId: card.listId,
@@ -83,6 +90,8 @@ function formatCard(card: {
     priority: card.priority,
     dueDate: card.dueDate,
     assigneeId: card.assigneeId,
+    assignee: assignee ?? null,
+    labels: labels ?? [],
     coverColor: card.coverColor,
     createdAt: card.createdAt,
     updatedAt: card.updatedAt,
@@ -131,6 +140,7 @@ router.post("/", validateJWT, async (req, res) => {
 })
 
 // GET /api/cards?listId=xxx — non-deleted cards ordered by position (any board member)
+// Response includes nested assignee and labels for the card face redesign.
 router.get("/", validateJWT, async (req, res) => {
   const listId = req.query.listId as string | undefined
   if (!listId) {
@@ -145,9 +155,25 @@ router.get("/", validateJWT, async (req, res) => {
     const cards = await prisma.card.findMany({
       where: { listId, deletedAt: null },
       orderBy: { position: "asc" },
+      include: {
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        labels: { include: { label: true } },
+      },
     })
 
-    res.json({ cards: cards.map(formatCard) })
+    const formatted = cards.map((card) => {
+      const assignee: CardAssignee | null = card.assignee
+        ? { id: card.assignee.id, name: card.assignee.name, avatarUrl: card.assignee.avatarUrl }
+        : null
+      const labels: CardLabelItem[] = card.labels.map((cl) => ({
+        id: cl.label.id,
+        name: cl.label.name,
+        color: cl.label.color,
+      }))
+      return formatCard(card, assignee, labels)
+    })
+
+    res.json({ cards: formatted })
   } catch {
     res.status(500).json({ error: { message: "Failed to fetch cards", status: 500 } })
   }
