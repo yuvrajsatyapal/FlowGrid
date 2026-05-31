@@ -34,12 +34,13 @@ enum BoardVisibility {
 // ─── User tier ────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  avatarUrl String?
-  createdAt DateTime @default(now()) @db.Timestamptz()
-  updatedAt DateTime @updatedAt @db.Timestamptz()
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  name                String?
+  avatarUrl           String?
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now()) @db.Timestamptz()
+  updatedAt           DateTime @updatedAt @db.Timestamptz()
 
   accounts             OAuthAccount[]
   ownedOrganizations   Organization[]       @relation("OrgOwner")
