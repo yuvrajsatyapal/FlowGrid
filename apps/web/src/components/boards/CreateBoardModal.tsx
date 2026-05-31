@@ -33,6 +33,14 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
     nameInputRef.current?.focus()
   }, [])
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [onClose])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = name.trim()
@@ -46,8 +54,7 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
       const board = await boardsApi.create({ workspaceId, name: trimmed, visibility, coverColor })
       onCreated(board)
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
-      setError(axiosErr?.response?.data?.error?.message ?? "Failed to create board")
+      setError((err as Error).message || "Failed to create board")
     } finally {
       setSubmitting(false)
     }

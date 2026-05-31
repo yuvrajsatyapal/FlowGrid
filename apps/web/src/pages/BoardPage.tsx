@@ -34,8 +34,7 @@ export default function BoardPage() {
       .getOne(boardId)
       .then(setBoard)
       .catch((err: unknown) => {
-        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
-        setError(axiosErr?.response?.data?.error?.message ?? "Board not found")
+        setError((err as Error).message || "Board not found")
       })
       .finally(() => setLoading(false))
   }, [boardId])

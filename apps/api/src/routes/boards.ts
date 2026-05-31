@@ -4,6 +4,9 @@ import { validateJWT } from "../middleware/auth"
 
 const router = Router()
 
+const VALID_VISIBILITIES = ["WORKSPACE", "PRIVATE", "PUBLIC"] as const
+type BoardVisibility = (typeof VALID_VISIBILITIES)[number]
+
 // POST /api/boards — create board in workspace (OWNER | ADMIN)
 router.post("/", validateJWT, async (req, res) => {
   const { workspaceId, name, visibility, coverColor } = req.body as {
@@ -26,11 +29,17 @@ router.post("/", validateJWT, async (req, res) => {
     return
   }
 
-  const validVisibilities = ["WORKSPACE", "PRIVATE", "PUBLIC"]
-  const boardVisibility = visibility ?? "WORKSPACE"
-  if (!validVisibilities.includes(boardVisibility)) {
+  const boardVisibility: BoardVisibility = (visibility as BoardVisibility) ?? "WORKSPACE"
+  if (!VALID_VISIBILITIES.includes(boardVisibility)) {
     res.status(400).json({ error: { message: "visibility must be WORKSPACE, PRIVATE, or PUBLIC", status: 400 } })
     return
+  }
+
+  if (coverColor !== undefined && coverColor !== null) {
+    if (typeof coverColor !== "string" || coverColor.trim().length > 50) {
+      res.status(400).json({ error: { message: "coverColor must be 50 characters or fewer", status: 400 } })
+      return
+    }
   }
 
   try {
@@ -56,7 +65,7 @@ router.post("/", validateJWT, async (req, res) => {
       data: {
         workspaceId,
         name: name.trim(),
-        visibility: boardVisibility as "WORKSPACE" | "PRIVATE" | "PUBLIC",
+        visibility: boardVisibility,
         coverColor: coverColor?.trim() || null,
       },
     })
@@ -79,7 +88,8 @@ router.post("/", validateJWT, async (req, res) => {
   }
 })
 
-// GET /api/boards?workspaceId=xxx — list non-deleted boards in workspace (any member)
+// GET /api/boards?workspaceId=xxx — list boards (any workspace member)
+// PRIVATE boards are only visible to users with a BoardMember row for that board.
 router.get("/", validateJWT, async (req, res) => {
   const workspaceId = req.query.workspaceId as string | undefined
   if (!workspaceId) {
@@ -97,7 +107,14 @@ router.get("/", validateJWT, async (req, res) => {
     }
 
     const boards = await prisma.board.findMany({
-      where: { workspaceId, deletedAt: null },
+      where: {
+        workspaceId,
+        deletedAt: null,
+        OR: [
+          { visibility: { not: "PRIVATE" } },
+          { members: { some: { userId: req.user!.id } } },
+        ],
+      },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -132,7 +149,7 @@ router.get("/", validateJWT, async (req, res) => {
   }
 })
 
-// GET /api/boards/one?id=xxx — board detail (any workspace member)
+// GET /api/boards/one?id=xxx — board detail (workspace member; BoardMember required for PRIVATE boards)
 router.get("/one", validateJWT, async (req, res) => {
   const boardId = req.query.id as string | undefined
   if (!boardId) {
@@ -143,22 +160,29 @@ router.get("/one", validateJWT, async (req, res) => {
   try {
     const board = await prisma.board.findUnique({
       where: { id: boardId },
-      include: {
-        _count: { select: { lists: true } },
-      },
+      include: { _count: { select: { lists: true } } },
     })
     if (!board || board.deletedAt !== null) {
       res.status(404).json({ error: { message: "Board not found", status: 404 } })
       return
     }
 
-    // Verify user is a member of the workspace
     const membership = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId: board.workspaceId, userId: req.user!.id } },
     })
     if (!membership) {
       res.status(404).json({ error: { message: "Board not found", status: 404 } })
       return
+    }
+
+    if (board.visibility === "PRIVATE") {
+      const boardMembership = await prisma.boardMember.findUnique({
+        where: { boardId_userId: { boardId: board.id, userId: req.user!.id } },
+      })
+      if (!boardMembership) {
+        res.status(404).json({ error: { message: "Board not found", status: 404 } })
+        return
+      }
     }
 
     res.json({
@@ -210,10 +234,16 @@ router.post("/update", validateJWT, async (req, res) => {
     }
   }
 
-  const validVisibilities = ["WORKSPACE", "PRIVATE", "PUBLIC"]
-  if (visibility !== undefined && !validVisibilities.includes(visibility)) {
+  if (visibility !== undefined && !VALID_VISIBILITIES.includes(visibility as BoardVisibility)) {
     res.status(400).json({ error: { message: "visibility must be WORKSPACE, PRIVATE, or PUBLIC", status: 400 } })
     return
+  }
+
+  if (coverColor !== undefined && coverColor !== null) {
+    if (typeof coverColor !== "string" || coverColor.trim().length > 50) {
+      res.status(400).json({ error: { message: "coverColor must be 50 characters or fewer", status: 400 } })
+      return
+    }
   }
 
   try {
@@ -240,7 +270,6 @@ router.post("/update", validateJWT, async (req, res) => {
     if (visibility !== undefined) updateData.visibility = visibility
     if (coverColor !== undefined) updateData.coverColor = coverColor === null ? null : coverColor.trim() || null
 
-    // No-op guard
     const noChange =
       (name === undefined || name.trim() === board.name) &&
       (visibility === undefined || visibility === board.visibility) &&

@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
 import { useParams, Link } from "react-router-dom"
-import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
 import { boardsApi, type BoardSummary } from "../api/boards"
 import BoardCard from "../components/boards/BoardCard"
@@ -24,8 +23,6 @@ const PLUS_ICON = (
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { activeWorkspace } = useWorkspaceStore()
-
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
   const [boards, setBoards] = useState<BoardSummary[]>([])
   const [loadingWorkspace, setLoadingWorkspace] = useState(true)
@@ -37,14 +34,14 @@ export default function WorkspacePage() {
 
   const fetchDetail = useCallback(async () => {
     if (!workspaceId) return
+    setDetail(null)
     setLoadingWorkspace(true)
     setError("")
     try {
       const d = await workspacesApi.getOne(workspaceId)
       setDetail(d)
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
-      setError(axiosErr?.response?.data?.error?.message ?? "Failed to load workspace")
+      setError((err as Error).message || "Failed to load workspace")
     } finally {
       setLoadingWorkspace(false)
     }
@@ -52,6 +49,7 @@ export default function WorkspacePage() {
 
   const fetchBoards = useCallback(async () => {
     if (!workspaceId) return
+    setBoards([])
     setLoadingBoards(true)
     try {
       const list = await boardsApi.list(workspaceId)
@@ -91,8 +89,6 @@ export default function WorkspacePage() {
     )
   }
 
-  const ws = detail ?? activeWorkspace
-
   return (
     <>
       <div style={{ padding: "32px 36px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
@@ -108,7 +104,7 @@ export default function WorkspacePage() {
                 fontFamily: "var(--font-display)",
               }}
             >
-              {ws?.name ?? "Workspace"}
+              {detail?.name ?? "Workspace"}
             </h1>
             {detail?.description && (
               <p style={{ margin: "6px 0 0", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))" }}>
