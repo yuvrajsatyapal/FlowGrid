@@ -20,7 +20,8 @@ export default function AuthCallbackPage() {
       .refresh()
       .then((data) => {
         setTokenAndUser(data.accessToken, data.user)
-        navigate("/dashboard", { replace: true })
+        const dest = data.user.onboardingCompleted ? "/dashboard" : "/onboarding"
+        navigate(dest, { replace: true })
       })
       .catch(() => {
         navigate("/login?error=auth_failed", { replace: true })
