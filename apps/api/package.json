@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
+    "postinstall": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio"
@@ -23,6 +24,9 @@
     "morgan": "^1.10.0",
     "socket.io": "^4.7.5",
     "zod": "^3.23.8"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@flowgrid/eslint-config": "workspace:*",

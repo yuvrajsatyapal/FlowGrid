@@ -19,7 +19,7 @@ out/
 .env.*.local
 
 # Prisma generated
-apps/api/src/generated/
+apps/api/generated/
 
 # IDE
 .vscode/
