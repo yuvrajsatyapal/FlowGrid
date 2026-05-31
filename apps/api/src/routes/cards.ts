@@ -227,8 +227,23 @@ router.post("/update", validateJWT, async (req, res) => {
     if (description !== undefined) updateData.description = description === null ? null : description.trim() || null
     if (priority !== undefined) updateData.priority = priority
 
-    const updated = await prisma.card.update({ where: { id: cardId }, data: updateData })
-    res.json({ card: formatCard(updated) })
+    const updated = await prisma.card.update({
+      where: { id: cardId },
+      data: updateData,
+      include: {
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        labels: { include: { label: true } },
+      },
+    })
+    const updatedAssignee: CardAssignee | null = updated.assignee
+      ? { id: updated.assignee.id, name: updated.assignee.name, avatarUrl: updated.assignee.avatarUrl }
+      : null
+    const updatedLabels: CardLabelItem[] = updated.labels.map((cl) => ({
+      id: cl.label.id,
+      name: cl.label.name,
+      color: cl.label.color,
+    }))
+    res.json({ card: formatCard(updated, updatedAssignee, updatedLabels) })
   } catch {
     res.status(500).json({ error: { message: "Failed to update card", status: 500 } })
   }
@@ -351,7 +366,7 @@ router.post("/move", validateJWT, async (req, res) => {
 
     // Interactive transaction: await the listId update before position updates so
     // the WHERE listId = targetListId predicate is satisfied for the moved card.
-    const updated = await prisma.$transaction(async (tx) => {
+    const moved = await prisma.$transaction(async (tx) => {
       await tx.card.update({ where: { id: cardId }, data: { listId: targetListId } })
       for (const [index, id] of cardIds.entries()) {
         await tx.card.update({
@@ -359,14 +374,28 @@ router.post("/move", validateJWT, async (req, res) => {
           data: { position: String(index + 1).padStart(8, "0") },
         })
       }
-      return tx.card.findUnique({ where: { id: cardId } })
+      return tx.card.findUnique({
+        where: { id: cardId },
+        include: {
+          assignee: { select: { id: true, name: true, avatarUrl: true } },
+          labels: { include: { label: true } },
+        },
+      })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
-    if (!updated) {
+    if (!moved) {
       res.status(404).json({ error: { message: "Card not found after move", status: 404 } })
       return
     }
-    res.json({ card: formatCard(updated) })
+    const movedAssignee: CardAssignee | null = moved.assignee
+      ? { id: moved.assignee.id, name: moved.assignee.name, avatarUrl: moved.assignee.avatarUrl }
+      : null
+    const movedLabels: CardLabelItem[] = moved.labels.map((cl) => ({
+      id: cl.label.id,
+      name: cl.label.name,
+      color: cl.label.color,
+    }))
+    res.json({ card: formatCard(moved, movedAssignee, movedLabels) })
   } catch {
     res.status(500).json({ error: { message: "Failed to move card", status: 500 } })
   }

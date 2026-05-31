@@ -123,8 +123,10 @@ export default function CardItem({ card, overlay = false }: Props) {
           if (overlay || isDragging) return
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = "oklch(var(--color-accent-muted))"
-          el.style.transform = "translateY(-1px)"
-          el.style.boxShadow = "0 2px 8px oklch(0% 0 0 / 0.08)"
+          if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            el.style.transform = "translateY(-1px)"
+            el.style.boxShadow = "0 2px 8px oklch(0% 0 0 / 0.08)"
+          }
         }}
         onMouseLeave={(e) => {
           if (overlay || isDragging) return
