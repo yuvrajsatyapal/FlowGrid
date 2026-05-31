@@ -232,6 +232,18 @@ router.post("/reorder", validateJWT, async (req, res) => {
     const access = await resolveListAccess(res, listId, req.user!.id, true)
     if (!access) return
 
+    // Validate that all cardIds belong to this list
+    const existing = await prisma.card.findMany({
+      where: { listId, deletedAt: null },
+      select: { id: true },
+    })
+    const existingSet = new Set(existing.map((c) => c.id))
+    const invalid = cardIds.filter((id) => !existingSet.has(id))
+    if (invalid.length > 0) {
+      res.status(400).json({ error: { message: `cardIds contains unknown cards: ${invalid.join(", ")}`, status: 400 } })
+      return
+    }
+
     // SERIALIZABLE: assign fresh sequential positions to prevent overlap with concurrent creates
     await prisma.$transaction(
       cardIds.map((id, index) =>
@@ -291,14 +303,26 @@ router.post("/move", validateJWT, async (req, res) => {
       return
     }
 
+    // Validate that all cardIds are either the moved card or belong to the target list
+    const targetExisting = await prisma.card.findMany({
+      where: { listId: targetListId, deletedAt: null },
+      select: { id: true },
+    })
+    const targetSet = new Set([cardId, ...targetExisting.map((c) => c.id)])
+    const invalid = cardIds.filter((id) => !targetSet.has(id))
+    if (invalid.length > 0) {
+      res.status(400).json({ error: { message: `cardIds contains unknown cards: ${invalid.join(", ")}`, status: 400 } })
+      return
+    }
+
     await prisma.$transaction(
       [
-        // Move card to target list
+        // Move card to target list first
         prisma.card.update({ where: { id: cardId }, data: { listId: targetListId } }),
-        // Assign positions in target list (cardIds includes the moved card in its new position)
+        // Assign positions in target list (cardIds includes the moved card at its new position)
         ...cardIds.map((id, index) =>
           prisma.card.update({
-            where: { id, listId: id === cardId ? targetListId : targetListId },
+            where: { id, listId: targetListId },
             data: { position: String(index + 1).padStart(8, "0") },
           }),
         ),
@@ -307,7 +331,11 @@ router.post("/move", validateJWT, async (req, res) => {
     )
 
     const updated = await prisma.card.findUnique({ where: { id: cardId } })
-    res.json({ card: formatCard(updated!) })
+    if (!updated) {
+      res.status(404).json({ error: { message: "Card not found after move", status: 404 } })
+      return
+    }
+    res.json({ card: formatCard(updated) })
   } catch {
     res.status(500).json({ error: { message: "Failed to move card", status: 500 } })
   }

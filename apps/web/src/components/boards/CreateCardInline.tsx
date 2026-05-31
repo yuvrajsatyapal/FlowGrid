@@ -8,6 +8,7 @@ export default function CreateCardInline({ onSubmit }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [value, setValue] = useState("")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -22,12 +23,13 @@ export default function CreateCardInline({ onSubmit }: Props) {
       return
     }
     setSaving(true)
+    setError("")
     try {
       await onSubmit(trimmed)
       setValue("")
       setExpanded(false)
-    } catch {
-      // keep expanded so user can retry
+    } catch (err) {
+      setError((err as Error).message || "Failed to create card")
     } finally {
       setSaving(false)
     }
@@ -73,6 +75,7 @@ export default function CreateCardInline({ onSubmit }: Props) {
           if (e.key === "Escape") {
             setExpanded(false)
             setValue("")
+            setError("")
           }
         }}
         onBlur={handleSave}
@@ -95,6 +98,11 @@ export default function CreateCardInline({ onSubmit }: Props) {
           opacity: saving ? 0.6 : 1,
         }}
       />
+      {error && (
+        <p style={{ margin: "4px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>
+          {error}
+        </p>
+      )}
     </div>
   )
 }
