@@ -13,8 +13,8 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "name" TEXT,
     "avatarUrl" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -27,9 +27,9 @@ CREATE TABLE "OAuthAccount" (
     "providerAccountId" TEXT NOT NULL,
     "accessToken" TEXT,
     "refreshToken" TEXT,
-    "expiresAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "expiresAt" TIMESTAMPTZ,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "OAuthAccount_pkey" PRIMARY KEY ("id")
 );
@@ -41,8 +41,8 @@ CREATE TABLE "Organization" (
     "slug" TEXT NOT NULL,
     "logoUrl" TEXT,
     "ownerId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
 );
@@ -53,8 +53,8 @@ CREATE TABLE "OrganizationMember" (
     "organizationId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'MEMBER',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("id")
 );
@@ -66,9 +66,9 @@ CREATE TABLE "Workspace" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "description" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+    "deletedAt" TIMESTAMPTZ,
 
     CONSTRAINT "Workspace_pkey" PRIMARY KEY ("id")
 );
@@ -79,8 +79,8 @@ CREATE TABLE "WorkspaceMember" (
     "workspaceId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'MEMBER',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "WorkspaceMember_pkey" PRIMARY KEY ("id")
 );
@@ -93,9 +93,9 @@ CREATE TABLE "Board" (
     "description" TEXT,
     "visibility" "BoardVisibility" NOT NULL DEFAULT 'WORKSPACE',
     "coverColor" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+    "deletedAt" TIMESTAMPTZ,
 
     CONSTRAINT "Board_pkey" PRIMARY KEY ("id")
 );
@@ -106,8 +106,8 @@ CREATE TABLE "BoardMember" (
     "boardId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'MEMBER',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "BoardMember_pkey" PRIMARY KEY ("id")
 );
@@ -118,9 +118,9 @@ CREATE TABLE "List" (
     "boardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "position" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+    "deletedAt" TIMESTAMPTZ,
 
     CONSTRAINT "List_pkey" PRIMARY KEY ("id")
 );
@@ -133,12 +133,12 @@ CREATE TABLE "Card" (
     "description" TEXT,
     "position" TEXT NOT NULL,
     "priority" "Priority" NOT NULL DEFAULT 'NONE',
-    "dueDate" TIMESTAMP(3),
+    "dueDate" TIMESTAMPTZ,
     "assigneeId" TEXT,
     "coverColor" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+    "deletedAt" TIMESTAMPTZ,
 
     CONSTRAINT "Card_pkey" PRIMARY KEY ("id")
 );
@@ -149,8 +149,8 @@ CREATE TABLE "Label" (
     "boardId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "color" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "Label_pkey" PRIMARY KEY ("id")
 );
@@ -160,7 +160,7 @@ CREATE TABLE "CardLabel" (
     "id" TEXT NOT NULL,
     "cardId" TEXT NOT NULL,
     "labelId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "CardLabel_pkey" PRIMARY KEY ("id")
 );
@@ -171,9 +171,9 @@ CREATE TABLE "Comment" (
     "cardId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+    "deletedAt" TIMESTAMPTZ,
 
     CONSTRAINT "Comment_pkey" PRIMARY KEY ("id")
 );
@@ -187,8 +187,8 @@ CREATE TABLE "Attachment" (
     "url" TEXT NOT NULL,
     "mimeType" TEXT,
     "size" INTEGER,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "Attachment_pkey" PRIMARY KEY ("id")
 );
@@ -202,7 +202,7 @@ CREATE TABLE "Notification" (
     "body" TEXT,
     "data" JSONB,
     "read" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
 );
@@ -215,7 +215,7 @@ CREATE TABLE "Activity" (
     "userId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
     "metadata" JSONB NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Activity_pkey" PRIMARY KEY ("id")
 );
@@ -270,6 +270,9 @@ CREATE INDEX "Card_assigneeId_idx" ON "Card"("assigneeId");
 
 -- CreateIndex
 CREATE INDEX "Label_boardId_idx" ON "Label"("boardId");
+
+-- CreateIndex
+CREATE INDEX "CardLabel_labelId_idx" ON "CardLabel"("labelId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "CardLabel_cardId_labelId_key" ON "CardLabel"("cardId", "labelId");
@@ -363,3 +366,4 @@ ALTER TABLE "Activity" ADD CONSTRAINT "Activity_cardId_fkey" FOREIGN KEY ("cardI
 
 -- AddForeignKey
 ALTER TABLE "Activity" ADD CONSTRAINT "Activity_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+

@@ -38,8 +38,8 @@ model User {
   email     String   @unique
   name      String?
   avatarUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
 
   accounts             OAuthAccount[]
   ownedOrganizations   Organization[]       @relation("OrgOwner")
@@ -59,9 +59,9 @@ model OAuthAccount {
   providerAccountId String
   accessToken       String?
   refreshToken      String?
-  expiresAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  expiresAt         DateTime? @db.Timestamptz()
+  createdAt         DateTime  @default(now()) @db.Timestamptz()
+  updatedAt         DateTime  @updatedAt @db.Timestamptz()
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -77,8 +77,8 @@ model Organization {
   slug      String   @unique
   logoUrl   String?
   ownerId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
 
   owner      User                 @relation("OrgOwner", fields: [ownerId], references: [id])
   members    OrganizationMember[]
@@ -90,8 +90,8 @@ model OrganizationMember {
   organizationId String
   userId         String
   role           Role     @default(MEMBER)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @db.Timestamptz()
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -108,9 +108,9 @@ model Workspace {
   name           String
   slug           String
   description    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+  createdAt      DateTime  @default(now()) @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @db.Timestamptz()
+  deletedAt      DateTime? @db.Timestamptz()
 
   organization Organization     @relation(fields: [organizationId], references: [id])
   members      WorkspaceMember[]
@@ -125,8 +125,8 @@ model WorkspaceMember {
   workspaceId String
   userId      String
   role        Role     @default(MEMBER)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @db.Timestamptz()
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -144,9 +144,9 @@ model Board {
   description String?
   visibility  BoardVisibility @default(WORKSPACE)
   coverColor  String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  deletedAt   DateTime?
+  createdAt   DateTime        @default(now()) @db.Timestamptz()
+  updatedAt   DateTime        @updatedAt @db.Timestamptz()
+  deletedAt   DateTime?       @db.Timestamptz()
 
   workspace  Workspace     @relation(fields: [workspaceId], references: [id])
   members    BoardMember[]
@@ -165,8 +165,8 @@ model BoardMember {
   boardId   String
   userId    String
   role      Role     @default(MEMBER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
 
   board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -182,9 +182,9 @@ model List {
   boardId   String
   name      String
   position  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards Card[]
@@ -201,12 +201,12 @@ model Card {
   description String?
   position    String
   priority    Priority  @default(NONE)
-  dueDate     DateTime?
+  dueDate     DateTime? @db.Timestamptz()
   assigneeId  String?
   coverColor  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  createdAt   DateTime  @default(now()) @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @db.Timestamptz()
+  deletedAt   DateTime? @db.Timestamptz()
 
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   assignee    User?        @relation("CardAssignee", fields: [assigneeId], references: [id])
@@ -226,8 +226,8 @@ model Label {
   boardId   String
   name      String
   color     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
 
   board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards CardLabel[]
@@ -239,12 +239,13 @@ model CardLabel {
   id        String   @id @default(cuid())
   cardId    String
   labelId   String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz()
 
   card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
   label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@unique([cardId, labelId])
+  @@index([labelId])
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
@@ -254,9 +255,9 @@ model Comment {
   cardId    String
   userId    String
   content   String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @db.Timestamptz()
+  deletedAt DateTime? @db.Timestamptz()
 
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])
@@ -274,8 +275,8 @@ model Attachment {
   url       String
   mimeType  String?
   size      Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz()
+  updatedAt DateTime @updatedAt @db.Timestamptz()
 
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
@@ -292,7 +293,7 @@ model Notification {
   body      String?
   data      Json?
   read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz()
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -309,7 +310,7 @@ model Activity {
   userId    String
   action    String
   metadata  Json
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz()
 
   board Board? @relation(fields: [boardId], references: [id])
   card  Card?  @relation(fields: [cardId], references: [id])

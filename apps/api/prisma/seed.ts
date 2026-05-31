@@ -5,7 +5,8 @@ const prisma = new PrismaClient()
 async function main() {
   console.log("Seeding database...")
 
-  // Clean up existing seed data
+  // Delete in reverse-dependency order (children before parents).
+  // Organization must be deleted before its ownerId User — ON DELETE RESTRICT on Organization.ownerId.
   await prisma.activity.deleteMany()
   await prisma.notification.deleteMany()
   await prisma.attachment.deleteMany()
