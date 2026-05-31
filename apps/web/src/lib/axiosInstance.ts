@@ -1,4 +1,5 @@
 import axios from "axios"
+import { getAccessToken } from "../contexts/AuthContext"
 
 // In dev the Vite proxy intercepts /api/* → http://localhost:3001.
 // In production set VITE_API_BASE_URL=https://api.yourdomain.com
@@ -12,6 +13,15 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+})
+
+// Attach the in-memory access token to every request
+api.interceptors.request.use((config) => {
+  const token = getAccessToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // Extract backend error message — never show raw Axios "Request failed with status 4xx"
