@@ -1,0 +1,53 @@
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    overflow-x: clip; /* Prevents horizontal scroll without hiding overflow-y */
+    min-height: 100vh;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: oklch(var(--color-paper));
+    color: oklch(var(--color-ink));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  *:focus-visible {
+    outline: 2px solid oklch(var(--color-focus));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Remove default focus ring — replaced by focus-visible above */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Improve long-word wrapping in headings */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    overflow-wrap: anywhere;
+    min-width: 0;
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
