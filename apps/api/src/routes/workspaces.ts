@@ -85,7 +85,7 @@ router.post("/", validateJWT, async (req, res) => {
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       // Slug collision — extremely unlikely with UUID suffix, but handle gracefully
-      res.status(409).json({ error: { message: "A workspace with a similar name already exists. Try a different name.", status: 409 } })
+      res.status(409).json({ error: { message: "A workspace with that name already exists. Try a different name.", status: 409 } })
       return
     }
     console.warn("[workspaces] create failed:", err instanceof Error ? err.message : err)

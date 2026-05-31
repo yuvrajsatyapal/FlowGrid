@@ -38,7 +38,7 @@ router.patch("/me", validateJWT, async (req, res) => {
       where: { id: req.user!.id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(avatarUrl !== undefined && { avatarUrl: avatarUrl.trim() }),
       },
       select: { id: true, email: true, name: true, avatarUrl: true, onboardingCompleted: true },
     })
