@@ -1,6 +1,14 @@
 import { api } from "../lib/axiosInstance"
 import type { Role } from "@flowgrid/types"
 
+export interface WorkspaceMember {
+  id: string
+  name: string | null
+  email: string
+  avatarUrl: string | null
+  role: Role
+}
+
 export interface WorkspaceSummary {
   id: string
   name: string
@@ -62,5 +70,10 @@ export const workspacesApi = {
 
   async deleteWorkspace(id: string): Promise<void> {
     await api.post("/workspaces/delete", {}, { params: { id } })
+  },
+
+  async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+    const res = await api.get<{ members: WorkspaceMember[] }>("/workspaces/members", { params: { workspaceId } })
+    return res.data.members
   },
 }
