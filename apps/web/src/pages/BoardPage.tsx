@@ -1,9 +1,22 @@
 import { useEffect, useState, useCallback } from "react"
 import { useParams, Link } from "react-router-dom"
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { arrayMove } from "@dnd-kit/sortable"
 import { boardsApi, type BoardDetail } from "../api/boards"
 import { listsApi, type ListSummary } from "../api/lists"
+import { cardsApi, type CardSummary } from "../api/cards"
 import ListColumn from "../components/boards/ListColumn"
 import CreateListInline from "../components/boards/CreateListInline"
+import CardItem from "../components/boards/CardItem"
 
 const LOCK_ICON = (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -27,6 +40,8 @@ export default function BoardPage() {
 
   const [board, setBoard] = useState<BoardDetail | null>(null)
   const [lists, setLists] = useState<ListSummary[]>([])
+  const [boardCards, setBoardCards] = useState<Record<string, CardSummary[]>>({})
+  const [activeCard, setActiveCard] = useState<CardSummary | null>(null)
   const [loadingBoard, setLoadingBoard] = useState(true)
   const [loadingLists, setLoadingLists] = useState(true)
   const [error, setError] = useState("")
@@ -34,18 +49,39 @@ export default function BoardPage() {
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
 
-  const loadLists = useCallback(async (bid: string) => {
-    setLoadingLists(true)
-    setListsError("")
-    try {
-      const data = await listsApi.list(bid)
-      setLists(data)
-    } catch (err) {
-      setListsError((err as Error).message || "Failed to load lists")
-    } finally {
-      setLoadingLists(false)
-    }
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  )
+
+  const loadCards = useCallback(async (listIds: string[]) => {
+    const results = await Promise.allSettled(
+      listIds.map((id) => cardsApi.list(id).then((cards) => ({ id, cards }))),
+    )
+    setBoardCards((prev) => {
+      const next = { ...prev }
+      for (const r of results) {
+        if (r.status === "fulfilled") next[r.value.id] = r.value.cards
+      }
+      return next
+    })
   }, [])
+
+  const loadLists = useCallback(
+    async (bid: string) => {
+      setLoadingLists(true)
+      setListsError("")
+      try {
+        const data = await listsApi.list(bid)
+        setLists(data)
+        await loadCards(data.map((l) => l.id))
+      } catch (err) {
+        setListsError((err as Error).message || "Failed to load lists")
+      } finally {
+        setLoadingLists(false)
+      }
+    },
+    [loadCards],
+  )
 
   useEffect(() => {
     if (!boardId) return
@@ -53,6 +89,7 @@ export default function BoardPage() {
     setError("")
     setBoard(null)
     setLists([])
+    setBoardCards({})
     boardsApi
       .getOne(boardId)
       .then((b) => {
@@ -67,10 +104,90 @@ export default function BoardPage() {
       .finally(() => setLoadingBoard(false))
   }, [boardId, loadLists])
 
+  // ─── DnD helpers ────────────────────────────────────────────────────────────
+
+  const findListIdForCard = (cardId: string): string | undefined =>
+    Object.keys(boardCards).find((listId) => boardCards[listId].some((c) => c.id === cardId))
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const card = Object.values(boardCards)
+      .flat()
+      .find((c) => c.id === active.id)
+    setActiveCard(card ?? null)
+  }
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveCard(null)
+    if (!over || active.id === over.id) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    const sourceListId = findListIdForCard(activeId)
+    if (!sourceListId) return
+
+    // over.id is either a listId (dropped on empty list) or a cardId
+    const destListId = boardCards[overId] !== undefined ? overId : findListIdForCard(overId)
+    if (!destListId) return
+
+    if (sourceListId === destListId) {
+      const items = boardCards[sourceListId]
+      const oldIndex = items.findIndex((c) => c.id === activeId)
+      const newIndex = items.findIndex((c) => c.id === overId)
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
+
+      const reordered = arrayMove(items, oldIndex, newIndex)
+      setBoardCards((prev) => ({ ...prev, [sourceListId]: reordered }))
+      cardsApi.reorder(sourceListId, reordered.map((c) => c.id)).catch(() => {
+        // Rollback on failure
+        setBoardCards((prev) => ({ ...prev, [sourceListId]: items }))
+      })
+    } else {
+      const sourceCards = boardCards[sourceListId]
+      const destCards = boardCards[destListId]
+      const card = sourceCards.find((c) => c.id === activeId)
+      if (!card) return
+
+      const newSourceCards = sourceCards.filter((c) => c.id !== activeId)
+      const insertAt =
+        boardCards[overId] !== undefined
+          ? destCards.length // dropped on list id → append
+          : destCards.findIndex((c) => c.id === overId)
+
+      const newDestCards = [...destCards]
+      newDestCards.splice(insertAt === -1 ? destCards.length : insertAt, 0, {
+        ...card,
+        listId: destListId,
+      })
+
+      setBoardCards((prev) => ({
+        ...prev,
+        [sourceListId]: newSourceCards,
+        [destListId]: newDestCards,
+      }))
+
+      cardsApi
+        .move(activeId, destListId, newDestCards.map((c) => c.id))
+        .catch(() => {
+          // Rollback on failure
+          setBoardCards((prev) => ({
+            ...prev,
+            [sourceListId]: sourceCards,
+            [destListId]: destCards,
+          }))
+        })
+    }
+  }
+
+  const handleDragCancel = () => setActiveCard(null)
+
+  // ─── List / card mutations ───────────────────────────────────────────────────
+
   const handleCreateList = async (name: string) => {
     if (!boardId) return
     const newList = await listsApi.create(boardId, name)
     setLists((prev) => [...prev, newList])
+    setBoardCards((prev) => ({ ...prev, [newList.id]: [] }))
   }
 
   const handleRenamed = (id: string, name: string) => {
@@ -79,7 +196,18 @@ export default function BoardPage() {
 
   const handleDeleted = (id: string) => {
     setLists((prev) => prev.filter((l) => l.id !== id))
+    setBoardCards((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }
+
+  const handleCardCreated = (listId: string, card: CardSummary) => {
+    setBoardCards((prev) => ({ ...prev, [listId]: [...(prev[listId] ?? []), card] }))
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (loadingBoard) {
     return (
@@ -212,14 +340,22 @@ export default function BoardPage() {
             {listsError}
           </div>
         ) : (
-          <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
             {lists.map((list) => (
               <ListColumn
                 key={list.id}
                 list={list}
                 canEdit={canEdit}
+                cards={boardCards[list.id] ?? []}
                 onRenamed={handleRenamed}
                 onDeleted={handleDeleted}
+                onCardCreated={handleCardCreated}
               />
             ))}
             {canEdit && <CreateListInline onSubmit={handleCreateList} />}
@@ -228,7 +364,11 @@ export default function BoardPage() {
                 This board has no lists yet.
               </div>
             )}
-          </>
+
+            <DragOverlay dropAnimation={null}>
+              {activeCard ? <CardItem card={activeCard} overlay /> : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </div>
     </div>

@@ -13,6 +13,7 @@ import { usersRouter } from "./routes/users"
 import { workspacesRouter } from "./routes/workspaces"
 import { boardsRouter } from "./routes/boards"
 import { listsRouter } from "./routes/lists"
+import { cardsRouter } from "./routes/cards"
 import "./lib/passport"
 
 const app = express()
@@ -39,6 +40,7 @@ app.use("/api/users", usersRouter)
 app.use("/api/workspaces", workspacesRouter)
 app.use("/api/boards", boardsRouter)
 app.use("/api/lists", listsRouter)
+app.use("/api/cards", cardsRouter)
 
 // Error handler — must be last
 app.use(errorHandler)

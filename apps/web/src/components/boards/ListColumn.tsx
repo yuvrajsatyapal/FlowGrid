@@ -1,15 +1,23 @@
 import { useState, useRef, useEffect } from "react"
+import { useDroppable } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { ListSummary } from "../../api/lists"
 import { listsApi } from "../../api/lists"
+import type { CardSummary } from "../../api/cards"
+import { cardsApi } from "../../api/cards"
+import CardItem from "./CardItem"
+import CreateCardInline from "./CreateCardInline"
 
 interface Props {
   list: ListSummary
   canEdit: boolean
+  cards: CardSummary[]
   onRenamed: (id: string, name: string) => void
   onDeleted: (id: string) => void
+  onCardCreated: (listId: string, card: CardSummary) => void
 }
 
-export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -17,6 +25,8 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
   const [deleteError, setDeleteError] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const { setNodeRef: setDropRef } = useDroppable({ id: list.id })
 
   useEffect(() => {
     if (renaming) inputRef.current?.select()
@@ -54,6 +64,11 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
     } finally {
       setDeleting(false)
     }
+  }
+
+  const handleCreateCard = async (title: string) => {
+    const card = await cardsApi.create(list.id, title)
+    onCardCreated(list.id, card)
   }
 
   return (
@@ -136,7 +151,7 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
             flexShrink: 0,
           }}
         >
-          {list.cardCount}
+          {cards.length}
         </span>
 
         {canEdit && (
@@ -202,14 +217,28 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
         </p>
       )}
 
-      {/* Card area placeholder — Feature #9 */}
+      {/* Cards area */}
       <div
+        ref={setDropRef}
         style={{
-          minHeight: 32,
           flex: 1,
-          padding: "0 8px 8px",
+          padding: "0 8px",
+          minHeight: 40,
         }}
-      />
+      >
+        <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          {cards.map((card) => (
+            <CardItem key={card.id} card={card} />
+          ))}
+        </SortableContext>
+      </div>
+
+      {/* Add card */}
+      {canEdit && (
+        <div style={{ padding: "4px 4px 6px" }}>
+          <CreateCardInline onSubmit={handleCreateCard} />
+        </div>
+      )}
     </div>
   )
 }
