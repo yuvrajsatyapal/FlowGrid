@@ -4,10 +4,8 @@ import { env } from "../config/env"
 import { prisma } from "./prisma"
 import type { Prisma } from "../../generated/prisma"
 
-const GOOGLE_CALLBACK_URL =
-  env.NODE_ENV === "production"
-    ? `https://api.flowgrid.app/api/auth/google/callback`
-    : `http://localhost:${env.PORT}/api/auth/google/callback`
+const base = env.API_BASE_URL ?? `http://localhost:${env.PORT}`
+const GOOGLE_CALLBACK_URL = `${base}/api/auth/google/callback`
 
 passport.use(
   new GoogleStrategy(

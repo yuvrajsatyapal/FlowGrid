@@ -1,26 +1,21 @@
 import { useEffect } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import { authApi } from "../api/auth"
 
 /**
  * Landing page after Google OAuth redirect.
- * The backend redirects here with ?token=<accessToken>.
- * We capture the token, fetch the user profile, store in AuthContext, then navigate to dashboard.
+ * The backend sets the httpOnly refresh cookie and redirects here with no query params —
+ * the access token is never placed in the URL to avoid browser history / Referer leakage.
+ * We call /api/auth/refresh using the cookie to retrieve the access token and user profile.
  */
 export default function AuthCallbackPage() {
-  const [searchParams] = useSearchParams()
   const { setTokenAndUser } = useAuth()
   const navigate = useNavigate()
 
+  // Intentionally runs once on mount — this is a one-shot OAuth landing page.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const token = searchParams.get("token")
-    if (!token) {
-      navigate("/login?error=missing_token", { replace: true })
-      return
-    }
-
-    // Exchange for user profile via a refresh (the refresh cookie was already set by the backend)
     authApi
       .refresh()
       .then((data) => {
