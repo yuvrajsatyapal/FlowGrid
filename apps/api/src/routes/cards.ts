@@ -187,14 +187,16 @@ router.post("/update", validateJWT, async (req, res) => {
     return
   }
 
-  const { title, description, priority } = req.body as {
+  const { title, description, priority, dueDate, assigneeId } = req.body as {
     title?: string
     description?: string | null
     priority?: string
+    dueDate?: string | null
+    assigneeId?: string | null
   }
 
-  if (title === undefined && description === undefined && priority === undefined) {
-    res.status(400).json({ error: { message: "At least one of title, description, or priority is required", status: 400 } })
+  if (title === undefined && description === undefined && priority === undefined && dueDate === undefined && assigneeId === undefined) {
+    res.status(400).json({ error: { message: "At least one field is required", status: 400 } })
     return
   }
   if (title !== undefined) {
@@ -211,6 +213,12 @@ router.post("/update", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "priority must be NONE, LOW, MEDIUM, HIGH, or URGENT", status: 400 } })
     return
   }
+  if (dueDate !== undefined && dueDate !== null) {
+    if (typeof dueDate !== "string" || isNaN(Date.parse(dueDate))) {
+      res.status(400).json({ error: { message: "dueDate must be a valid ISO date string", status: 400 } })
+      return
+    }
+  }
 
   try {
     const card = await prisma.card.findUnique({ where: { id: cardId } })
@@ -222,10 +230,22 @@ router.post("/update", validateJWT, async (req, res) => {
     const access = await resolveListAccess(res, card.listId, req.user!.id, true)
     if (!access) return
 
+    if (assigneeId !== undefined && assigneeId !== null) {
+      const member = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId: access.board.workspaceId, userId: assigneeId } },
+      })
+      if (!member) {
+        res.status(400).json({ error: { message: "assigneeId must be a workspace member", status: 400 } })
+        return
+      }
+    }
+
     const updateData: Record<string, unknown> = {}
     if (title !== undefined) updateData.title = title.trim()
     if (description !== undefined) updateData.description = description === null ? null : description.trim() || null
     if (priority !== undefined) updateData.priority = priority
+    if (dueDate !== undefined) updateData.dueDate = dueDate === null ? null : new Date(dueDate)
+    if (assigneeId !== undefined) updateData.assigneeId = assigneeId
 
     const updated = await prisma.card.update({
       where: { id: cardId },
@@ -423,6 +443,77 @@ router.post("/delete", validateJWT, async (req, res) => {
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete card", status: 500 } })
+  }
+})
+
+// POST /api/cards/labels/add — assign a label to a card (OWNER | ADMIN)
+// Body: { cardId, labelId } — idempotent (no-op if already assigned)
+router.post("/labels/add", validateJWT, async (req, res) => {
+  const { cardId, labelId } = req.body as { cardId?: string; labelId?: string }
+  if (!cardId || typeof cardId !== "string") {
+    res.status(400).json({ error: { message: "cardId is required", status: 400 } })
+    return
+  }
+  if (!labelId || typeof labelId !== "string") {
+    res.status(400).json({ error: { message: "labelId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const card = await prisma.card.findUnique({ where: { id: cardId } })
+    if (!card || card.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Card not found", status: 404 } })
+      return
+    }
+
+    const access = await resolveListAccess(res, card.listId, req.user!.id, true)
+    if (!access) return
+
+    // Verify label belongs to the same board
+    const label = await prisma.label.findUnique({ where: { id: labelId } })
+    if (!label || label.boardId !== access.board.id) {
+      res.status(400).json({ error: { message: "Label not found on this board", status: 400 } })
+      return
+    }
+
+    await prisma.cardLabel.upsert({
+      where: { cardId_labelId: { cardId, labelId } },
+      create: { cardId, labelId },
+      update: {},
+    })
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to add label", status: 500 } })
+  }
+})
+
+// POST /api/cards/labels/remove — unassign a label from a card (OWNER | ADMIN)
+// Body: { cardId, labelId }
+router.post("/labels/remove", validateJWT, async (req, res) => {
+  const { cardId, labelId } = req.body as { cardId?: string; labelId?: string }
+  if (!cardId || typeof cardId !== "string") {
+    res.status(400).json({ error: { message: "cardId is required", status: 400 } })
+    return
+  }
+  if (!labelId || typeof labelId !== "string") {
+    res.status(400).json({ error: { message: "labelId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const card = await prisma.card.findUnique({ where: { id: cardId } })
+    if (!card || card.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Card not found", status: 404 } })
+      return
+    }
+
+    const access = await resolveListAccess(res, card.listId, req.user!.id, true)
+    if (!access) return
+
+    await prisma.cardLabel.deleteMany({ where: { cardId, labelId } })
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to remove label", status: 500 } })
   }
 })
 

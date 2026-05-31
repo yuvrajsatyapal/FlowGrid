@@ -272,4 +272,41 @@ router.post("/delete", validateJWT, async (req, res) => {
   }
 })
 
+// GET /api/workspaces/members?workspaceId=xxx — list members for assignee picker (any member)
+router.get("/members", validateJWT, async (req, res) => {
+  const workspaceId = req.query.workspaceId as string | undefined
+  if (!workspaceId) {
+    res.status(400).json({ error: { message: "workspaceId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+    })
+    if (!membership) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { workspaceId },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      orderBy: { user: { name: "asc" } },
+    })
+
+    const members = memberships.map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      avatarUrl: m.user.avatarUrl,
+      role: m.role,
+    }))
+
+    res.json({ members })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to fetch members", status: 500 } })
+  }
+})
+
 export { router as workspacesRouter }
