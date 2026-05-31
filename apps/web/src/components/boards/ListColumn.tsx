@@ -13,6 +13,8 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -42,11 +44,15 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
 
   const handleDelete = async () => {
     setMenuOpen(false)
+    setDeleting(true)
+    setDeleteError("")
     try {
       await listsApi.deleteList(list.id)
       onDeleted(list.id)
-    } catch {
-      // silently ignore — user can retry
+    } catch (err) {
+      setDeleteError((err as Error).message || "Failed to delete list")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -136,8 +142,9 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
         {canEdit && (
           <div style={{ position: "relative", flexShrink: 0 }}>
             <button
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={() => !deleting && setMenuOpen((v) => !v)}
               aria-label="List options"
+              disabled={deleting}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -148,12 +155,13 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
                 border: "none",
                 background: "none",
                 color: "oklch(var(--color-ink-3))",
-                cursor: "pointer",
+                cursor: deleting ? "not-allowed" : "pointer",
                 fontSize: 16,
                 lineHeight: 1,
+                opacity: deleting ? 0.5 : 1,
               }}
             >
-              ···
+              {deleting ? "…" : "···"}
             </button>
             {menuOpen && (
               <div
@@ -187,6 +195,12 @@ export default function ListColumn({ list, canEdit, onRenamed, onDeleted }: Prop
           </div>
         )}
       </div>
+
+      {deleteError && (
+        <p style={{ margin: "0 12px 8px", fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>
+          {deleteError}
+        </p>
+      )}
 
       {/* Card area placeholder — Feature #9 */}
       <div

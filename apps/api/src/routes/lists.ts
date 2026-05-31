@@ -68,16 +68,18 @@ router.post("/", validateJWT, async (req, res) => {
     const access = await resolveBoardAccess(res, boardId, req.user!.id, true)
     if (!access) return
 
-    // Find highest existing position to append at the end
-    const last = await prisma.list.findFirst({
-      where: { boardId, deletedAt: null },
-      orderBy: { position: "desc" },
-      select: { position: true },
-    })
-    const nextPos = last ? String(Number(last.position) + 1).padStart(4, "0") : "0001"
-
-    const list = await prisma.list.create({
-      data: { boardId, name: name.trim(), position: nextPos },
+    // Wrap findFirst + create in a transaction to prevent two concurrent requests
+    // from computing the same position. 8-digit zero-pad avoids lexicographic overflow.
+    const list = await prisma.$transaction(async (tx) => {
+      const last = await tx.list.findFirst({
+        where: { boardId, deletedAt: null },
+        orderBy: { position: "desc" },
+        select: { position: true },
+      })
+      const nextPos = last ? String(Number(last.position) + 1).padStart(8, "0") : "00000001"
+      return tx.list.create({
+        data: { boardId, name: name.trim(), position: nextPos },
+      })
     })
 
     res.status(201).json({
@@ -86,6 +88,7 @@ router.post("/", validateJWT, async (req, res) => {
         boardId: list.boardId,
         name: list.name,
         position: list.position,
+        cardCount: 0,
         createdAt: list.createdAt,
         updatedAt: list.updatedAt,
         deletedAt: list.deletedAt,
@@ -119,7 +122,7 @@ router.get("/", validateJWT, async (req, res) => {
         createdAt: true,
         updatedAt: true,
         deletedAt: true,
-        _count: { select: { cards: true } },
+        _count: { select: { cards: { where: { deletedAt: null } } } },
       },
     })
 
@@ -228,9 +231,11 @@ router.post("/reorder", validateJWT, async (req, res) => {
     const access = await resolveBoardAccess(res, boardId, req.user!.id, true)
     if (!access) return
 
+    // Add boardId to the where clause so a position payload with foreign list IDs
+    // is silently ignored (update matches nothing) rather than mutating unrelated lists.
     await prisma.$transaction(
       positions.map(({ id, position }) =>
-        prisma.list.update({ where: { id }, data: { position } }),
+        prisma.list.update({ where: { id, boardId }, data: { position } }),
       ),
     )
 

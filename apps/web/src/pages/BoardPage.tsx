@@ -30,16 +30,18 @@ export default function BoardPage() {
   const [loadingBoard, setLoadingBoard] = useState(true)
   const [loadingLists, setLoadingLists] = useState(true)
   const [error, setError] = useState("")
+  const [listsError, setListsError] = useState("")
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
 
   const loadLists = useCallback(async (bid: string) => {
     setLoadingLists(true)
+    setListsError("")
     try {
       const data = await listsApi.list(bid)
       setLists(data)
-    } catch {
-      // lists failed to load — non-fatal, show empty state
+    } catch (err) {
+      setListsError((err as Error).message || "Failed to load lists")
     } finally {
       setLoadingLists(false)
     }
@@ -204,6 +206,10 @@ export default function BoardPage() {
                 }}
               />
             ))}
+          </div>
+        ) : listsError ? (
+          <div style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)" }}>
+            {listsError}
           </div>
         ) : (
           <>
