@@ -30,7 +30,7 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 2 | Database Schema & Prisma Models | done | specs/02-database-schema-and-prisma-models.md | plans/02-database-schema-and-prisma-models.md | #1 | M |
 | 3 | Google OAuth + Authentication | done | specs/03-google-oauth-and-auth.md | plans/03-google-oauth-and-auth.md | #1, #2 | M |
 | 4 | User Onboarding Flow | done | — | — | #3 | S |
-| 5 | Organizations & Workspaces | todo | — | — | #3 | M |
+| 5 | Organizations & Workspaces | done | — | — | #3 | M |
 | 6 | Team Invites, Roles & Permissions | todo | — | — | #5 | M |
 | 7 | Boards CRUD | todo | — | — | #5 | S |
 | 8 | Lists / Columns CRUD | todo | — | — | #7 | S |
