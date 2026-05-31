@@ -9,6 +9,8 @@ import { errorHandler } from "./middleware/errorHandler"
 import { requestLogger } from "./middleware/requestLogger"
 import { healthRouter } from "./routes/health"
 import { authRouter } from "./routes/auth"
+import { usersRouter } from "./routes/users"
+import { workspacesRouter } from "./routes/workspaces"
 import "./lib/passport"
 
 const app = express()
@@ -31,6 +33,8 @@ app.use(requestLogger)
 // Routes
 app.use("/api", healthRouter)
 app.use("/api/auth", authRouter)
+app.use("/api/users", usersRouter)
+app.use("/api/workspaces", workspacesRouter)
 
 // Error handler — must be last
 app.use(errorHandler)

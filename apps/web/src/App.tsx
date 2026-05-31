@@ -4,6 +4,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute"
 import LoginPage from "./pages/LoginPage"
 import AuthCallbackPage from "./pages/AuthCallbackPage"
 import DashboardPage from "./pages/DashboardPage"
+import OnboardingPage from "./pages/OnboardingPage"
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
 
           {/* Protected */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
 

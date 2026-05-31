@@ -91,7 +91,16 @@ router.post("/refresh", authRateLimit, async (req, res) => {
     await redis.set(redisKeys.refresh(newJti), user.id, { ex: REFRESH_TOKEN_TTL_SECONDS })
 
     res.cookie(REFRESH_COOKIE, newRefresh, COOKIE_OPTIONS)
-    res.json({ accessToken, user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl } })
+    res.json({
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        onboardingCompleted: user.onboardingCompleted,
+      },
+    })
   } catch (err) {
     console.warn("[auth] refresh failed:", err instanceof Error ? err.message : "unknown")
     res.status(401).json({ error: { message: "Invalid or expired refresh token", status: 401 } })
