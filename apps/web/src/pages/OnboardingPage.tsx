@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
+import { authApi } from "../api/auth"
 import { usersApi } from "../api/users"
 import { workspacesApi } from "../api/workspaces"
 
@@ -250,7 +251,7 @@ function StepCreateWorkspace({ displayName, onBack, onComplete }: Step2Props) {
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={`${displayName.split(" ")[0]}'s Workspace`}
+          placeholder={`${displayName.split(" ")[0] || "My"}'s Workspace`}
           autoFocus
           autoComplete="off"
           disabled={loading}
@@ -306,15 +307,14 @@ function StepCreateWorkspace({ displayName, onBack, onComplete }: Step2Props) {
 // ── Main OnboardingPage ───────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
-  const { user, setTokenAndUser, accessToken } = useAuth()
+  const { user, setTokenAndUser } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [displayName, setDisplayName] = useState("")
 
-  // If already completed onboarding, redirect to dashboard
+  // Idiomatic React Router redirect — avoids calling navigate() in the render phase
   if (user?.onboardingCompleted) {
-    navigate("/dashboard", { replace: true })
-    return null
+    return <Navigate to="/dashboard" replace />
   }
 
   const handleNameNext = (name: string) => {
@@ -324,14 +324,15 @@ export default function OnboardingPage() {
 
   const handleComplete = async (workspaceName: string) => {
     // 1. Save the display name
-    const updatedUser = await usersApi.updateMe({ name: displayName })
+    await usersApi.updateMe({ name: displayName })
 
     // 2. Create workspace — this marks onboardingCompleted = true server-side
     await workspacesApi.create({ name: workspaceName })
 
-    // 3. Sync auth context: re-fetch the updated user profile
-    const finalUser = { ...updatedUser, onboardingCompleted: true }
-    setTokenAndUser(accessToken!, finalUser)
+    // 3. Re-issue tokens via /refresh so the auth context gets a fresh, accurate user object.
+    //    This avoids reconstructing the user manually and eliminates the accessToken! assertion.
+    const data = await authApi.refresh()
+    setTokenAndUser(data.accessToken, data.user)
 
     navigate("/dashboard", { replace: true })
   }

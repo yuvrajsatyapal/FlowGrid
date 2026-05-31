@@ -12,6 +12,26 @@ router.patch("/me", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "name must be a non-empty string", status: 400 } })
     return
   }
+  if (name !== undefined && name.trim().length > 100) {
+    res.status(400).json({ error: { message: "name must be 100 characters or fewer", status: 400 } })
+    return
+  }
+  if (avatarUrl !== undefined) {
+    if (typeof avatarUrl !== "string" || avatarUrl.trim().length === 0) {
+      res.status(400).json({ error: { message: "avatarUrl must be a non-empty string", status: 400 } })
+      return
+    }
+    // Only allow https:// URLs — prevents javascript: URIs and protocol-relative URLs
+    try {
+      const parsed = new URL(avatarUrl.trim())
+      if (parsed.protocol !== "https:") {
+        throw new Error("protocol not https")
+      }
+    } catch {
+      res.status(400).json({ error: { message: "avatarUrl must be a valid https:// URL", status: 400 } })
+      return
+    }
+  }
 
   try {
     const updated = await prisma.user.update({

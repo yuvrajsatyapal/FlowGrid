@@ -1,6 +1,8 @@
 import { Router } from "express"
+import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
+import crypto from "crypto"
 
 const router = Router()
 
@@ -20,23 +22,32 @@ router.post("/", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "name is required", status: 400 } })
     return
   }
+  if (name.trim().length > 100) {
+    res.status(400).json({ error: { message: "name must be 100 characters or fewer", status: 400 } })
+    return
+  }
 
   const workspaceName = name.trim()
   const userId = req.user!.id
 
-  try {
-    // Build a unique slug — append short random suffix on collision
-    const baseSlug = toSlug(workspaceName) || "workspace"
-    let slug = baseSlug
-    const existing = await prisma.organization.findUnique({ where: { slug } })
-    if (existing) {
-      slug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`
-    }
+  // Idempotency guard — prevent duplicate workspace creation after onboarding
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { onboardingCompleted: true },
+  })
+  if (currentUser?.onboardingCompleted) {
+    res.status(409).json({ error: { message: "Onboarding already completed", status: 409 } })
+    return
+  }
 
-    // Transaction: create org + workspace + memberships + mark onboarding done
+  // Build slug inside the transaction to avoid TOCTOU race; catch P2002 on collision
+  const baseSlug = toSlug(workspaceName) || "workspace"
+  const candidateSlug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`
+
+  try {
     const result = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: workspaceName, slug, ownerId: userId },
+        data: { name: workspaceName, slug: candidateSlug, ownerId: userId },
       })
 
       await tx.organizationMember.create({
@@ -47,7 +58,7 @@ router.post("/", validateJWT, async (req, res) => {
         data: {
           organizationId: org.id,
           name: workspaceName,
-          slug: toSlug(workspaceName) || "workspace",
+          slug: candidateSlug,
         },
       })
 
@@ -72,6 +83,11 @@ router.post("/", validateJWT, async (req, res) => {
       },
     })
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      // Slug collision — extremely unlikely with UUID suffix, but handle gracefully
+      res.status(409).json({ error: { message: "A workspace with a similar name already exists. Try a different name.", status: 409 } })
+      return
+    }
     console.warn("[workspaces] create failed:", err instanceof Error ? err.message : err)
     res.status(500).json({ error: { message: "Failed to create workspace", status: 500 } })
   }
