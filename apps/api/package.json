@@ -25,6 +25,9 @@
     "socket.io": "^4.7.5",
     "zod": "^3.23.8"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@flowgrid/eslint-config": "workspace:*",
     "@types/cors": "^2.8.17",
