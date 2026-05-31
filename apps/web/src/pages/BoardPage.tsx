@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams, Link } from "react-router-dom"
 import { boardsApi, type BoardDetail } from "../api/boards"
+import { listsApi, type ListSummary } from "../api/lists"
+import ListColumn from "../components/boards/ListColumn"
+import CreateListInline from "../components/boards/CreateListInline"
 
 const LOCK_ICON = (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -23,23 +26,62 @@ export default function BoardPage() {
   const { workspaceId, boardId } = useParams<{ workspaceId: string; boardId: string }>()
 
   const [board, setBoard] = useState<BoardDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [lists, setLists] = useState<ListSummary[]>([])
+  const [loadingBoard, setLoadingBoard] = useState(true)
+  const [loadingLists, setLoadingLists] = useState(true)
   const [error, setError] = useState("")
+  const [listsError, setListsError] = useState("")
+
+  const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
+
+  const loadLists = useCallback(async (bid: string) => {
+    setLoadingLists(true)
+    setListsError("")
+    try {
+      const data = await listsApi.list(bid)
+      setLists(data)
+    } catch (err) {
+      setListsError((err as Error).message || "Failed to load lists")
+    } finally {
+      setLoadingLists(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!boardId) return
-    setLoading(true)
+    setLoadingBoard(true)
     setError("")
+    setBoard(null)
+    setLists([])
     boardsApi
       .getOne(boardId)
-      .then(setBoard)
+      .then((b) => {
+        setBoard(b)
+        loadLists(boardId)
+      })
       .catch((err: unknown) => {
         setError((err as Error).message || "Board not found")
+        setLoadingBoard(false)
+        setLoadingLists(false)
       })
-      .finally(() => setLoading(false))
-  }, [boardId])
+      .finally(() => setLoadingBoard(false))
+  }, [boardId, loadLists])
 
-  if (loading) {
+  const handleCreateList = async (name: string) => {
+    if (!boardId) return
+    const newList = await listsApi.create(boardId, name)
+    setLists((prev) => [...prev, newList])
+  }
+
+  const handleRenamed = (id: string, name: string) => {
+    setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)))
+  }
+
+  const handleDeleted = (id: string) => {
+    setLists((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  if (loadingBoard) {
     return (
       <div style={centerStyle}>
         <span className="animate-pulse" style={{ color: "oklch(var(--color-ink-2))", fontSize: "var(--text-sm)" }}>
@@ -59,11 +101,7 @@ export default function BoardPage() {
           {workspaceId && (
             <Link
               to={`/${workspaceId}`}
-              style={{
-                fontSize: "var(--text-sm)",
-                color: "oklch(var(--color-accent))",
-                textDecoration: "none",
-              }}
+              style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-accent))", textDecoration: "none" }}
             >
               ← Back to workspace
             </Link>
@@ -77,7 +115,7 @@ export default function BoardPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "var(--font-body)" }}>
-      {/* Board header with cover color strip */}
+      {/* Board header */}
       <div
         style={{
           background: coverBg,
@@ -140,31 +178,58 @@ export default function BoardPage() {
         )}
       </div>
 
-      {/* Lists area — Feature #8 */}
+      {/* Kanban columns area */}
       <div
         style={{
           flex: 1,
+          overflowX: "auto",
+          overflowY: "hidden",
+          padding: "20px 24px",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "oklch(var(--color-ink-3))",
+          alignItems: "flex-start",
+          gap: 12,
         }}
       >
-        <div style={{ textAlign: "center" }}>
-          <p
-            style={{
-              margin: "0 0 6px",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-              color: "oklch(var(--color-ink-2))",
-            }}
-          >
-            Lists coming soon
-          </p>
-          <p style={{ margin: 0, fontSize: "var(--text-xs)" }}>
-            Lists and cards will be added in the next update.
-          </p>
-        </div>
+        {loadingLists ? (
+          <div style={{ display: "flex", gap: 12 }}>
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                style={{
+                  width: 272,
+                  height: 80,
+                  flexShrink: 0,
+                  borderRadius: "var(--radius-card)",
+                  background: "oklch(var(--color-paper-2))",
+                  opacity: 0.6,
+                  animation: "pulse 1.5s ease-in-out infinite",
+                }}
+              />
+            ))}
+          </div>
+        ) : listsError ? (
+          <div style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)" }}>
+            {listsError}
+          </div>
+        ) : (
+          <>
+            {lists.map((list) => (
+              <ListColumn
+                key={list.id}
+                list={list}
+                canEdit={canEdit}
+                onRenamed={handleRenamed}
+                onDeleted={handleDeleted}
+              />
+            ))}
+            {canEdit && <CreateListInline onSubmit={handleCreateList} />}
+            {!canEdit && lists.length === 0 && (
+              <div style={{ color: "oklch(var(--color-ink-3))", fontSize: "var(--text-sm)" }}>
+                This board has no lists yet.
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
