@@ -1,12 +1,15 @@
 import "dotenv/config"
 import express from "express"
 import cors from "cors"
+import cookieParser from "cookie-parser"
 import { createServer } from "http"
 import { Server } from "socket.io"
 import { env } from "./config/env"
 import { errorHandler } from "./middleware/errorHandler"
 import { requestLogger } from "./middleware/requestLogger"
 import { healthRouter } from "./routes/health"
+import { authRouter } from "./routes/auth"
+import "./lib/passport"
 
 const app = express()
 const httpServer = createServer(app)
@@ -22,11 +25,12 @@ const io = new Server(httpServer, {
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(express.json({ limit: "10mb" }))
 app.use(express.urlencoded({ extended: true }))
+app.use(cookieParser())
 app.use(requestLogger)
 
 // Routes
 app.use("/api", healthRouter)
-// Additional routes mounted here in future features
+app.use("/api/auth", authRouter)
 
 // Error handler — must be last
 app.use(errorHandler)
