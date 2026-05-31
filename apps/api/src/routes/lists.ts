@@ -1,4 +1,5 @@
 import { Router } from "express"
+import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 
@@ -68,8 +69,8 @@ router.post("/", validateJWT, async (req, res) => {
     const access = await resolveBoardAccess(res, boardId, req.user!.id, true)
     if (!access) return
 
-    // Wrap findFirst + create in a transaction to prevent two concurrent requests
-    // from computing the same position. 8-digit zero-pad avoids lexicographic overflow.
+    // SERIALIZABLE isolation ensures the findFirst→create pair is race-free:
+    // two concurrent creates cannot both read the same last position before either commits.
     const list = await prisma.$transaction(async (tx) => {
       const last = await tx.list.findFirst({
         where: { boardId, deletedAt: null },
@@ -80,7 +81,7 @@ router.post("/", validateJWT, async (req, res) => {
       return tx.list.create({
         data: { boardId, name: name.trim(), position: nextPos },
       })
-    })
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     res.status(201).json({
       list: {
