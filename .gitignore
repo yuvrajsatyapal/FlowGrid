@@ -4,9 +4,11 @@ node_modules/
 
 # Build outputs
 dist/
+dist-node/
 build/
 .next/
 out/
+*.tsbuildinfo
 
 # Turbo
 .turbo/
