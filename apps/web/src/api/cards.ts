@@ -1,6 +1,18 @@
 import { api } from "../lib/axiosInstance"
 import type { Priority } from "@flowgrid/types"
 
+export interface CardAssignee {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+}
+
+export interface CardLabel {
+  id: string
+  name: string
+  color: string
+}
+
 export interface CardSummary {
   id: string
   listId: string
@@ -10,6 +22,8 @@ export interface CardSummary {
   priority: Priority
   dueDate: string | null
   assigneeId: string | null
+  assignee: CardAssignee | null
+  labels: CardLabel[]
   coverColor: string | null
   createdAt: string
   updatedAt: string
