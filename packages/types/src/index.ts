@@ -283,6 +283,7 @@ export interface ActivityResponse {
 export interface CardSearchResult {
   id: string
   title: string
+  descriptionSnippet: string | null
   boardId: string
   boardName: string
   listId: string

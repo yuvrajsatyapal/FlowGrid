@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import type { CardSearchResult } from "@flowgrid/types"
 import { useSearch } from "../../hooks/useSearch"
@@ -16,20 +16,9 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const highlightedIndexRef = useRef(0)
-  const highlightedIndexState = useRef(0)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
-  // Sync highlight index to state-like ref
-  const setHighlightedIndex = (idx: number) => {
-    highlightedIndexRef.current = idx
-    highlightedIndexState.current = idx
-    // Force re-render by updating the input's data attribute (cheap)
-    if (listRef.current) {
-      listRef.current.setAttribute("data-hi", String(idx))
-    }
-  }
-
-  // Reset state when modal opens/closes
+  // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setQuery("")
@@ -37,6 +26,24 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
       setTimeout(() => inputRef.current?.focus(), 0)
     }
   }, [isOpen, setQuery])
+
+  // Reset highlight when results change
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [results])
+
+  const handleSelect = useCallback(
+    (card: CardSearchResult) => {
+      onClose()
+      navigate(`/workspaces/${workspaceId}/boards/${card.boardId}`)
+    },
+    [onClose, navigate, workspaceId],
+  )
+
+  function scrollResultIntoView(index: number) {
+    const el = listRef.current?.children[index] as HTMLElement | undefined
+    el?.scrollIntoView({ block: "nearest" })
+  }
 
   // Keyboard navigation
   useEffect(() => {
@@ -50,39 +57,31 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
       if (results.length === 0) return
       if (e.key === "ArrowDown") {
         e.preventDefault()
-        const next = Math.min(highlightedIndexRef.current + 1, results.length - 1)
-        setHighlightedIndex(next)
-        scrollResultIntoView(next)
+        setHighlightedIndex((prev) => {
+          const next = Math.min(prev + 1, results.length - 1)
+          scrollResultIntoView(next)
+          return next
+        })
       } else if (e.key === "ArrowUp") {
         e.preventDefault()
-        const next = Math.max(highlightedIndexRef.current - 1, 0)
-        setHighlightedIndex(next)
-        scrollResultIntoView(next)
+        setHighlightedIndex((prev) => {
+          const next = Math.max(prev - 1, 0)
+          scrollResultIntoView(next)
+          return next
+        })
       } else if (e.key === "Enter") {
         e.preventDefault()
-        const card = results[highlightedIndexRef.current]
-        if (card) handleSelect(card)
+        setHighlightedIndex((prev) => {
+          const card = results[prev]
+          if (card) handleSelect(card)
+          return prev
+        })
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, results, onClose]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function scrollResultIntoView(index: number) {
-    const el = listRef.current?.children[index] as HTMLElement | undefined
-    el?.scrollIntoView({ block: "nearest" })
-  }
-
-  function handleSelect(card: CardSearchResult) {
-    onClose()
-    navigate(`/workspaces/${workspaceId}/boards/${card.boardId}`)
-  }
-
-  // Reset highlighted index when results change
-  useEffect(() => {
-    setHighlightedIndex(0)
-  }, [results])
+  }, [isOpen, results, onClose, handleSelect])
 
   if (!isOpen) return null
 
@@ -231,14 +230,13 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
               ref={listRef}
               role="listbox"
               aria-label="Search results"
-              data-hi="0"
               style={{ padding: "6px" }}
             >
               {results.map((card, i) => (
                 <SearchResult
                   key={card.id}
                   card={card}
-                  isHighlighted={i === highlightedIndexRef.current}
+                  isHighlighted={i === highlightedIndex}
                   onSelect={handleSelect}
                 />
               ))}
