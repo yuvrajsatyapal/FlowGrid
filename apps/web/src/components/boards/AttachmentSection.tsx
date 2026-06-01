@@ -100,10 +100,14 @@ export function AttachmentSection({ cardId, canEdit }: Props) {
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    // Process one file at a time — upload the first valid file only when idle,
-    // queue the rest. This prevents state overwrites when multiple files are selected.
-    if (uploadMutation.isPending) return
+    if (uploadMutation.isPending) {
+      setUploadError("Please wait for the current upload to finish before adding another file.")
+      return
+    }
     validateAndUpload(files[0])
+    if (files.length > 1) {
+      setUploadError(`Only one file at a time — ${files.length - 1} file(s) were skipped. Please add them individually.`)
+    }
   }
 
   return (

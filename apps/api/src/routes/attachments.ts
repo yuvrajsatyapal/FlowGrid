@@ -16,7 +16,7 @@ const BLOCKED_EXTENSIONS = new Set([
   ".pkg", ".deb", ".rpm", ".msi", ".vbs", ".jar",
 ])
 
-// Second layer: mimeType blocklist (in case extension was renamed)
+// Second layer: mimeType blocklist (catches obvious browser-reported types)
 const BLOCKED_MIMETYPES = new Set([
   "application/x-msdownload",
   "application/x-msdos-program",
@@ -33,6 +33,19 @@ const BLOCKED_MIMETYPES = new Set([
   "text/vbscript",
   "application/x-apple-diskimage",
 ])
+
+// Third layer: magic byte check — catches executables renamed to safe extensions.
+// Browser-reported MIME is untrustworthy; file contents are authoritative.
+function hasExecutableMagicBytes(buf: Buffer): boolean {
+  if (buf.length < 4) return false
+  // Windows PE (EXE/DLL/SYS/SCR): "MZ" header
+  if (buf[0] === 0x4d && buf[1] === 0x5a) return true
+  // ELF (Linux/Unix executables): \x7fELF
+  if (buf[0] === 0x7f && buf[1] === 0x45 && buf[2] === 0x4c && buf[3] === 0x46) return true
+  // Java class file: 0xCAFEBABE
+  if (buf[0] === 0xca && buf[1] === 0xfe && buf[2] === 0xba && buf[3] === 0xbe) return true
+  return false
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -196,6 +209,11 @@ router.post(
 
     const reportedMime = req.file.mimetype?.toLowerCase() ?? ""
     if (reportedMime && BLOCKED_MIMETYPES.has(reportedMime)) {
+      res.status(400).json({ error: { message: "File type not allowed", status: 400 } })
+      return
+    }
+
+    if (hasExecutableMagicBytes(req.file.buffer)) {
       res.status(400).json({ error: { message: "File type not allowed", status: 400 } })
       return
     }
