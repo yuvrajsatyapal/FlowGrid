@@ -1,49 +1,57 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
-import { authApi } from "../api/auth"
 
 /**
  * Landing page after Google OAuth redirect.
- * The backend sets the httpOnly refresh cookie and redirects here with no query params —
- * the access token is never placed in the URL to avoid browser history / Referer leakage.
- * We call /api/auth/refresh using the cookie to retrieve the access token and user profile.
+ *
+ * The backend sets an httpOnly refresh cookie and redirects here.
+ * AuthProvider already fires a silent refresh on mount — calling
+ * authApi.refresh() here a second time races against it. Since the
+ * backend rotates the refresh token on every use (deletes the old jti),
+ * the second concurrent call always gets a 401, clearing auth state
+ * and causing a login loop.
+ *
+ * Fix: let AuthProvider's mount refresh own the token exchange.
+ * This page just waits for isLoading → false, then navigates.
  */
 export default function AuthCallbackPage() {
-  const { setTokenAndUser } = useAuth()
+  const { isLoading, isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
+  // Guard against double-navigation in React StrictMode double-invoke
+  const navigated = useRef(false)
 
-  // Intentionally runs once on mount — this is a one-shot OAuth landing page.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    authApi
-      .refresh()
-      .then((data) => {
-        setTokenAndUser(data.accessToken, data.user)
+    if (isLoading) return
+    if (navigated.current) return
+    // Once we commit a direction, don't re-navigate if auth state changes again.
+    // AuthProvider has no retry path — a failed refresh means the user must re-login.
+    navigated.current = true
 
-        // If user was redirected here from an invite link, return them there.
-        // Same-origin check prevents open redirect — we only follow paths starting with "/".
-        const inviteNext = sessionStorage.getItem("invite_next")
-        if (inviteNext) {
-          sessionStorage.removeItem("invite_next")
-          try {
-            const url = new URL(inviteNext)
-            if (url.origin === window.location.origin) {
-              navigate(url.pathname + url.search, { replace: true })
-              return
-            }
-          } catch {
-            // Malformed URL — fall through to default redirect
-          }
+    if (!isAuthenticated) {
+      navigate("/login?error=auth_failed", { replace: true })
+      return
+    }
+
+    // If user was redirected here from an invite link, return them there.
+    // Same-origin check prevents open redirect.
+    const inviteNext = sessionStorage.getItem("invite_next")
+    if (inviteNext) {
+      sessionStorage.removeItem("invite_next")
+      try {
+        const url = new URL(inviteNext)
+        if (url.origin === window.location.origin) {
+          navigate(url.pathname + url.search, { replace: true })
+          return
         }
+      } catch {
+        // Malformed URL — fall through to default redirect
+      }
+    }
 
-        const dest = data.user.onboardingCompleted ? "/dashboard" : "/onboarding"
-        navigate(dest, { replace: true })
-      })
-      .catch(() => {
-        navigate("/login?error=auth_failed", { replace: true })
-      })
-  }, [])
+    const dest = user?.onboardingCompleted ? "/dashboard" : "/onboarding"
+    navigate(dest, { replace: true })
+  }, [isLoading, isAuthenticated, user, navigate])
 
   return (
     <div
