@@ -1,6 +1,7 @@
 import "dotenv/config"
 import path from "path"
 import express from "express"
+import helmet from "helmet"
 import cors from "cors"
 import cookieParser from "cookie-parser"
 import { createServer } from "http"
@@ -24,6 +25,7 @@ import { attachmentsRouter } from "./routes/attachments"
 import { searchRouter } from "./routes/search"
 import { analyticsRouter } from "./routes/analytics"
 import passport from "./lib/passport"
+import logger from "./lib/logger"
 
 const app = express()
 const httpServer = createServer(app)
@@ -39,6 +41,14 @@ if (env.STORAGE_PROVIDER === "local") {
     },
   }))
 }
+
+// Security headers — Helmet must come before CORS so CSP doesn't conflict
+app.use(helmet({
+  // CSP disabled here; add a project-specific policy when the frontend is on the same origin
+  contentSecurityPolicy: false,
+  // Cross-Origin-Embedder-Policy breaks Google OAuth redirect; disable for API
+  crossOriginEmbedderPolicy: false,
+}))
 
 // Middleware
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
@@ -69,5 +79,5 @@ app.use("/api/analytics", analyticsRouter)
 app.use(errorHandler)
 
 httpServer.listen(env.PORT, () => {
-  console.warn(`[FlowGrid] API running at http://localhost:${env.PORT} (${env.NODE_ENV})`)
+  logger.info(`FlowGrid API started`, { port: env.PORT, env: env.NODE_ENV })
 })

@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+**/node_modules
+**/.pnpm-store
+
+# Build outputs
+apps/api/dist
+apps/web/dist
+
+# Env files — never bake secrets into images
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dev & test artifacts
+.worktrees
+**/*.log
+coverage
+.nyc_output
+
+# Editor
+.vscode
+.idea
+**/.DS_Store
+
+# Prisma
+apps/api/generated
