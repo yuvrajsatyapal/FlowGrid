@@ -4,6 +4,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
 import { workspacesApi } from "../../api/workspaces"
 import WorkspaceSwitcher from "./WorkspaceSwitcher"
+import { NotificationBell } from "../notifications/NotificationBell"
 
 // ── Nav icons ──────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,11 @@ export default function AppLayout() {
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
+
+        {/* Notifications bell */}
+        <div style={{ padding: "0 4px" }}>
+          <NotificationBell />
+        </div>
 
         {/* Divider */}
         <div
