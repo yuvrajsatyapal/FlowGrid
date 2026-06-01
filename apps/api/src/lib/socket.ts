@@ -82,8 +82,9 @@ export function initSocket(httpServer: http.Server): Server {
     })
 
     socket.on("disconnect", async () => {
-      // socket.rooms still contains joined rooms at disconnect time
-      const boardIds = [...socket.rooms].filter((r) => r !== socket.id)
+      // socket.rooms still contains joined rooms at disconnect time.
+      // Exclude socket.id (default room) and userId (notification room — not a board).
+      const boardIds = [...socket.rooms].filter((r) => r !== socket.id && r !== userId)
       for (const boardId of boardIds) {
         const users = await removePresence(boardId, userId)
         io.to(boardId).emit("board:presence", { boardId, users })
