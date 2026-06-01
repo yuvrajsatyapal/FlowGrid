@@ -113,9 +113,11 @@ async function resolveCardAccess(res, cardId, userId, requireWriteRole = false) 
   // 2. list.findUnique on card.listId
   // 3. board.findUnique on list.boardId — check workspace membership
   // 4. PRIVATE board → check boardMember row
-  // 5. requireWriteRole → check membership.role === "OWNER" | "ADMIN"
+  // 5. requireWriteRole → canWrite(membership.role) — blocks VIEWER, allows MEMBER+
 }
 ```
+
+After Feature #6: `requireWriteRole = true` blocks only VIEWER (not MEMBER). `canWrite(role)` is defined in `apps/api/src/lib/roles.ts` as `role !== "VIEWER"`.
 
 Currently in `comments.ts` and `activities.ts`. If a third route needs it, extract to `apps/api/src/lib/cardAccess.ts`.
 
@@ -139,3 +141,59 @@ if (textOnly.length === 0) {
 ```
 
 Uses `sanitize-html` itself for text extraction — no extra dependency needed. Apply to both create AND update handlers.
+
+---
+
+## 8. Fire-and-forget email with graceful no-key degradation
+
+**Context:** Transactional email triggered as a side-effect of a mutation (e.g. invite email after `POST /api/invites`).
+
+**Rule:** Use `void sendInviteEmail(...)` — never `await`. The `sendInviteEmail` helper in `apps/api/src/lib/email.ts` wraps `resend.emails.send()` in `try/catch` and never throws. If `RESEND_API_KEY` is not set, the function logs a warning and returns immediately — server starts fine without it in dev.
+
+```ts
+// After primary operation succeeds:
+void sendInviteEmail({ to, inviterName, workspaceName, role, inviteUrl })
+res.json({ invite })
+```
+
+Pattern: optional env key check at init (`const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null`), `if (!resend) { warn + return }` at call time.
+
+---
+
+## 9. Invite upsert with composite unique constraint
+
+**Context:** One invite record per email per workspace, regardless of how many times the owner sends or resends.
+
+**Schema**: `@@unique([workspaceId, email])` on `WorkspaceInvite`.
+
+**Pattern:** `POST /api/invites` always does `prisma.workspaceInvite.upsert({ where: { workspaceId_email: ... }, create: {...}, update: { token, expiresAt, status: "PENDING" } })`. No "check for existing invite then branch" — the upsert is atomic. Resend reuses this same upsert path.
+
+---
+
+## 10. Defense-in-depth guard ordering for role mutations
+
+**Context:** Any endpoint that modifies a member's role or removes a member.
+
+**Correct ordering** (prevents all privilege escalation vectors):
+
+```ts
+// 1. Target exists?
+if (!target) return 404
+
+// 2. Actor has management permission?
+if (!isOwnerOrAdmin(actorMembership.role)) return 403
+
+// 3. Actor cannot assign a role above their own (for role-change endpoints)?
+if (!roleAtLeast(actorMembership.role, newRole)) return 403
+
+// 4. Actor cannot touch an OWNER row unless actor is also an OWNER?
+if (target.role === "OWNER" && actorMembership.role !== "OWNER") return 403
+
+// 5. Last-owner invariant — count owners, block if removing the last one?
+if (target.role === "OWNER") {
+  const count = await prisma.workspaceMember.count({ where: { workspaceId, role: "OWNER" } })
+  if (count <= 1) return 403 LAST_OWNER
+}
+```
+
+Steps 4 and 5 are separate. Step 4 prevents ADMIN from touching OWNER rows at all. Step 5 prevents an OWNER from locking themselves out. Both are needed.
