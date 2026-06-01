@@ -20,6 +20,23 @@ export default function AuthCallbackPage() {
       .refresh()
       .then((data) => {
         setTokenAndUser(data.accessToken, data.user)
+
+        // If user was redirected here from an invite link, return them there.
+        // Same-origin check prevents open redirect — we only follow paths starting with "/".
+        const inviteNext = sessionStorage.getItem("invite_next")
+        if (inviteNext) {
+          sessionStorage.removeItem("invite_next")
+          try {
+            const url = new URL(inviteNext)
+            if (url.origin === window.location.origin) {
+              navigate(url.pathname + url.search, { replace: true })
+              return
+            }
+          } catch {
+            // Malformed URL — fall through to default redirect
+          }
+        }
+
         const dest = data.user.onboardingCompleted ? "/dashboard" : "/onboarding"
         navigate(dest, { replace: true })
       })

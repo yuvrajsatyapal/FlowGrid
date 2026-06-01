@@ -8,6 +8,8 @@ import DashboardPage from "./pages/DashboardPage"
 import OnboardingPage from "./pages/OnboardingPage"
 import WorkspacePage from "./pages/WorkspacePage"
 import WorkspaceSettingsPage from "./pages/WorkspaceSettingsPage"
+import WorkspaceMembersPage from "./pages/WorkspaceMembersPage"
+import InviteAcceptPage from "./pages/InviteAcceptPage"
 import BoardPage from "./pages/BoardPage"
 
 export default function App() {
@@ -18,6 +20,8 @@ export default function App() {
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          {/* Invite accept — handles auth redirect internally */}
+          <Route path="/invite/accept" element={<InviteAcceptPage />} />
 
           {/* Protected — no layout (full-screen flows) */}
           <Route element={<ProtectedRoute />}>
@@ -30,8 +34,8 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/:workspaceId" element={<WorkspacePage />} />
               <Route path="/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
+              <Route path="/:workspaceId/members" element={<WorkspaceMembersPage />} />
               <Route path="/:workspaceId/:boardId" element={<BoardPage />} />
-              {/* /:workspaceId/members — Feature #6 */}
             </Route>
           </Route>
 
