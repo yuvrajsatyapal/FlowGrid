@@ -1,6 +1,6 @@
 import { prisma } from "./prisma"
 import { emitToUser } from "./socket"
-import type { Prisma } from "../../generated/prisma"
+import { Prisma } from "../../generated/prisma"
 
 export async function createNotification(params: {
   userId: string
@@ -16,7 +16,7 @@ export async function createNotification(params: {
         type: params.type,
         title: params.title,
         body: params.body ?? null,
-        data: (params.data ?? null) as Prisma.InputJsonValue | null,
+        data: (params.data ?? Prisma.JsonNull) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput,
       },
     })
     emitToUser(params.userId, "notification:new", {

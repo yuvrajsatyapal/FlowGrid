@@ -40,11 +40,11 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 12 | Attachments & File Uploads | done | specs/12-attachments-file-uploads.md | plans/12-attachments-file-uploads.md | #10 | M |
 | 13 | Real-time Collaboration (WebSockets) | done | specs/13-realtime-collaboration-websockets.md | plans/13-realtime-collaboration-websockets.md | #9 | L |
 | 14 | Notifications System | done | specs/14-notifications-system.md | plans/14-notifications-system.md | #13 | M |
-| 15 | Search Functionality | todo | — | — | #9 | M |
+| 15 | Search Functionality | done | — | — | #9 | M |
 | 16 | Calendar & Timeline Views | todo | — | — | #10 | L |
-| 17 | Analytics Dashboard & Insights | todo | — | — | #9 | M |
+| 17 | Analytics Dashboard & Insights | done | — | — | #9 | M |
 | 18 | Advanced Features (deps, recurring, slash cmds, shortcuts) | todo | — | — | #10, #13 | L |
-| 19 | UI Polish (Dark Mode, Mobile Responsive, Animations) | todo | — | — | #9 | M |
+| 19 | UI Polish (Dark Mode, Mobile Responsive, Animations) | done | — | — | #9 | M |
 | 20 | Production Infrastructure (Docker, CI/CD, monitoring) | todo | — | — | #1 | L |
 
 ---

@@ -113,7 +113,8 @@ async function addPresence(boardId: string, user: PresenceUser): Promise<Presenc
   const usersKey = redisKeys.boardPresenceUsers(boardId)
   const countsKey = redisKeys.boardPresenceCounts(boardId)
   await redis.hincrby(countsKey, user.userId, 1)
-  await redis.hset(usersKey, { [user.userId]: JSON.stringify(user) })
+  // Upstash auto-serializes objects to JSON — don't double-stringify
+  await redis.hset(usersKey, { [user.userId]: user })
   // Refresh TTL so stale keys (from unclean server shutdown) expire automatically
   await redis.expire(usersKey, PRESENCE_TTL_SECONDS)
   await redis.expire(countsKey, PRESENCE_TTL_SECONDS)
@@ -133,7 +134,8 @@ async function removePresence(boardId: string, userId: string): Promise<Presence
 
 async function getPresence(boardId: string): Promise<PresenceUser[]> {
   const usersKey = redisKeys.boardPresenceUsers(boardId)
-  const raw = await redis.hgetall<Record<string, string>>(usersKey)
+  const raw = await redis.hgetall<Record<string, PresenceUser>>(usersKey)
   if (!raw) return []
-  return Object.values(raw).map((v) => JSON.parse(v) as PresenceUser)
+  // Upstash already deserializes JSON values — no JSON.parse needed
+  return Object.values(raw)
 }
