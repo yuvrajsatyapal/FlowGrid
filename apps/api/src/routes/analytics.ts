@@ -6,6 +6,8 @@ import type { Priority } from "../../generated/prisma"
 
 export const analyticsRouter = Router()
 
+const PRIORITY_ORDER: Priority[] = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]
+
 // GET /api/analytics?workspace_id=<id>
 analyticsRouter.get("/", validateJWT, async (req, res) => {
   const userId = req.user?.id
@@ -43,7 +45,6 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
 
     // Short-circuit: no boards → empty analytics (avoids $queryRaw with empty array)
     if (boardIds.length === 0) {
-      const PRIORITY_ORDER: Priority[] = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]
       res.json({
         totals: { totalCards: 0, totalBoards: 0, totalMembers, totalActivities: 0 },
         cardsByPriority: PRIORITY_ORDER.map((p) => ({ priority: p, count: 0 })),
@@ -134,7 +135,6 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
     ])
 
     // Shape responses
-    const PRIORITY_ORDER: Priority[] = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]
     const priorityMap = Object.fromEntries(
       (rawCardsByPriority as { priority: Priority; _count: { id: number } }[]).map((r) => [r.priority, r._count.id])
     )
