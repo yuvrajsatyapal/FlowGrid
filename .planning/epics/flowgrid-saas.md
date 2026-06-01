@@ -37,7 +37,7 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 9 | Cards / Tasks CRUD + Drag & Drop | done | — | — | #8 | L |
 | 10 | Card Details (rich text, due dates, labels, priority) | done | — | — | #9 | M |
 | 11 | Comments & Activity History | done | specs/11-comments-and-activity.md | plans/11-comments-and-activity.md | #10 | M |
-| 12 | Attachments & File Uploads | todo | — | — | #10 | M |
+| 12 | Attachments & File Uploads | done | specs/12-attachments-file-uploads.md | plans/12-attachments-file-uploads.md | #10 | M |
 | 13 | Real-time Collaboration (WebSockets) | done | specs/13-realtime-collaboration-websockets.md | plans/13-realtime-collaboration-websockets.md | #9 | L |
 | 14 | Notifications System | done | specs/14-notifications-system.md | plans/14-notifications-system.md | #13 | M |
 | 15 | Search Functionality | todo | — | — | #9 | M |
