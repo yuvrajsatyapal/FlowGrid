@@ -20,11 +20,11 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
 
   // Reset state when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setQuery("")
-      setHighlightedIndex(0)
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
+    if (!isOpen) return
+    setQuery("")
+    setHighlightedIndex(0)
+    const id = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(id)
   }, [isOpen, setQuery])
 
   // Reset highlight when results change
@@ -71,17 +71,14 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
         })
       } else if (e.key === "Enter") {
         e.preventDefault()
-        setHighlightedIndex((prev) => {
-          const card = results[prev]
-          if (card) handleSelect(card)
-          return prev
-        })
+        const card = results[highlightedIndex]
+        if (card) handleSelect(card)
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, results, onClose, handleSelect])
+  }, [isOpen, results, highlightedIndex, onClose, handleSelect])
 
   if (!isOpen) return null
 
