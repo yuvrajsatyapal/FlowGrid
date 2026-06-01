@@ -1,0 +1,36 @@
+import { prisma } from "./prisma"
+import { emitToUser } from "./socket"
+import type { Prisma } from "../../generated/prisma"
+
+export async function createNotification(params: {
+  userId: string
+  type: string
+  title: string
+  body?: string
+  data?: Record<string, unknown>
+}): Promise<void> {
+  try {
+    const n = await prisma.notification.create({
+      data: {
+        userId: params.userId,
+        type: params.type,
+        title: params.title,
+        body: params.body ?? null,
+        data: (params.data ?? null) as Prisma.InputJsonValue | null,
+      },
+    })
+    emitToUser(params.userId, "notification:new", {
+      id: n.id,
+      userId: n.userId,
+      type: n.type,
+      title: n.title,
+      body: n.body,
+      data: n.data,
+      read: n.read,
+      createdAt: n.createdAt,
+    })
+  } catch (err) {
+    // Notification creation must never block primary actions
+    console.error("[notification] failed to create:", params.type, err)
+  }
+}

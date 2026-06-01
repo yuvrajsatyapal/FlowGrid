@@ -18,6 +18,7 @@ import { labelsRouter } from "./routes/labels"
 import { commentsRouter } from "./routes/comments"
 import { activitiesRouter } from "./routes/activities"
 import { invitesRouter } from "./routes/invites"
+import { notificationsRouter } from "./routes/notifications"
 import "./lib/passport"
 
 const app = express()
@@ -44,6 +45,7 @@ app.use("/api/labels", labelsRouter)
 app.use("/api/comments", commentsRouter)
 app.use("/api/activities", activitiesRouter)
 app.use("/api/invites", invitesRouter)
+app.use("/api/notifications", notificationsRouter)
 
 // Error handler — must be last
 app.use(errorHandler)

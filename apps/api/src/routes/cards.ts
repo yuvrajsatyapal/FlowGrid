@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
+import { createNotification } from "../lib/notifications"
 import { canWrite } from "../lib/roles"
 import { emitBoardEvent } from "../lib/socket"
 
@@ -306,6 +307,15 @@ router.post("/update", validateJWT, async (req, res) => {
     }
     if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
       void logActivity({ cardId: cardId, userId: req.user!.id, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
+      // Notify new assignee — skip if self-assignment or unassigning
+      if (assigneeId && assigneeId !== req.user!.id) {
+        void createNotification({
+          userId: assigneeId,
+          type: "CARD_ASSIGNED",
+          title: `You were assigned to "${updated.title}"`,
+          data: { cardId: card.id, boardId: access.board.id, workspaceId: access.board.workspaceId },
+        })
+      }
     }
 
     const formatted = formatCard(updated, updatedAssignee, updatedLabels)

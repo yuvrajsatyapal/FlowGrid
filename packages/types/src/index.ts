@@ -219,6 +219,21 @@ export interface Attachment {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
+export type NotificationType = 'CARD_ASSIGNED' | 'COMMENT_ADDED' | 'INVITE_ACCEPTED'
+
+export interface AppNotification {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  body: string | null
+  data: Record<string, unknown> | null
+  read: boolean
+  createdAt: string
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
 export interface Notification {
   id: string
   userId: string

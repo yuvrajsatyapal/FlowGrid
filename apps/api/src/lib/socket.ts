@@ -30,6 +30,9 @@ export function initSocket(httpServer: http.Server): Server {
     const userId = socket.data.user?.id as string | undefined
     if (!userId) return
 
+    // Per-user room for notification:new events
+    socket.join(userId)
+
     socket.on("board:join", async ({ boardId }: { boardId: string }) => {
       if (!boardId || typeof boardId !== "string") return
 
@@ -94,6 +97,11 @@ export function initSocket(httpServer: http.Server): Server {
 export function emitBoardEvent(boardId: string, event: string, payload: unknown): void {
   if (!io) return
   io.to(boardId).emit(event, payload)
+}
+
+export function emitToUser(userId: string, event: string, payload: unknown): void {
+  if (!io) return
+  io.to(userId).emit(event, payload)
 }
 
 // ── Presence helpers ──────────────────────────────────────────────────────────

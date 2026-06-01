@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { sendInviteEmail } from "../lib/email"
+import { createNotification } from "../lib/notifications"
 import { isOwnerOrAdmin, roleAtLeast } from "../lib/roles"
 import { env } from "../config/env"
 import type { Role } from "../../generated/prisma"
@@ -202,6 +203,23 @@ router.post("/accept", validateJWT, async (req, res) => {
       }),
       prisma.workspaceInvite.update({ where: { id: invite.id }, data: { status: "ACCEPTED" } }),
     ])
+
+    // Notify workspace OWNER + ADMINs that someone joined
+    const inviteeId = req.user!.id
+    const admins = await prisma.workspaceMember.findMany({
+      where: { workspaceId: invite.workspaceId, role: { in: ["OWNER", "ADMIN"] } },
+      select: { userId: true },
+    })
+    const inviteeName = user.email
+    for (const admin of admins) {
+      if (admin.userId === inviteeId) continue
+      void createNotification({
+        userId: admin.userId,
+        type: "INVITE_ACCEPTED",
+        title: `${inviteeName} joined ${invite.workspace.name}`,
+        data: { workspaceId: invite.workspaceId },
+      })
+    }
 
     res.json({ workspaceId: invite.workspaceId, workspaceName: invite.workspace.name, role: invite.role })
   } catch {

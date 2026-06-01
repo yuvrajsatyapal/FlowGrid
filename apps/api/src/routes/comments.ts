@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
+import { createNotification } from "../lib/notifications"
 import { canWrite } from "../lib/roles"
 import { emitBoardEvent } from "../lib/socket"
 
@@ -165,6 +166,23 @@ router.post("/", validateJWT, async (req, res) => {
     })
 
     void logActivity({ cardId, userId: req.user!.id, action: "comment_added", metadata: { commentId: comment.id } })
+
+    // Notify card assignee (if different from commenter)
+    const cardForNotify = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { assigneeId: true, title: true },
+    })
+    if (cardForNotify?.assigneeId && cardForNotify.assigneeId !== req.user!.id) {
+      const snippet = textOnly.slice(0, 80)
+      void createNotification({
+        userId: cardForNotify.assigneeId,
+        type: "COMMENT_ADDED",
+        title: `New comment on "${cardForNotify.title}"`,
+        body: snippet || undefined,
+        data: { cardId, boardId: access.board.id, workspaceId: access.board.workspaceId },
+      })
+    }
+
     emitBoardEvent(access.board.id, "comment:created", formatComment(comment))
     res.status(201).json({ comment: formatComment(comment) })
   } catch {
