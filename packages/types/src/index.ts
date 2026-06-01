@@ -278,6 +278,30 @@ export interface ActivityResponse {
   createdAt: string
 }
 
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+export interface CardSearchResult {
+  id: string
+  title: string
+  descriptionSnippet: string | null
+  boardId: string
+  boardName: string
+  listId: string
+  listName: string
+  priority: Priority
+  labels: { id: string; name: string; color: string }[]
+  assignees: { id: string; name: string | null; avatarUrl: string | null }[]
+  dueDate: string | null
+  rank: number
+}
+
+export interface SearchResponse {
+  cards: CardSearchResult[]
+  total: number
+  limit: number
+  offset: number
+}
+
 // ─── Real-time Presence ───────────────────────────────────────────────────────
 
 export interface PresenceUser {
