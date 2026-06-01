@@ -38,6 +38,8 @@ export default function DashboardPage() {
         setLoadError(true)
       })
     }
+    // Intentional empty deps — one-shot mount redirect. Re-running when workspaces
+    // changes would fight the Zustand store and cause a redirect loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

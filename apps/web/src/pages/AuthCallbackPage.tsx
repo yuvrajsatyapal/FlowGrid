@@ -24,6 +24,8 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     if (isLoading) return
     if (navigated.current) return
+    // Once we commit a direction, don't re-navigate if auth state changes again.
+    // AuthProvider has no retry path — a failed refresh means the user must re-login.
     navigated.current = true
 
     if (!isAuthenticated) {
