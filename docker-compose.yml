@@ -1,4 +1,5 @@
 services:
+  # ── Local PostgreSQL (replaces Neon in dev) ──────────────────────────────────
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -15,6 +16,44 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── API (Express + Prisma) ───────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    # Copy apps/api/.env.example → apps/api/.env and fill in secrets before running.
+    # Upstash credentials must be real — @upstash/redis uses HTTP REST, not TCP,
+    # so there is no local Redis container to substitute.
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      # Always override DATABASE_URL to point at the local postgres service.
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/flowgrid
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Web (Vite → nginx) ────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # In the docker-compose setup the web nginx proxies /api to the api service
+        # directly, so VITE_API_BASE_URL is left unset (relative /api path is used).
+        # For production with a separate API domain set this to https://api.yourdomain.com
+        VITE_API_BASE_URL: ""
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

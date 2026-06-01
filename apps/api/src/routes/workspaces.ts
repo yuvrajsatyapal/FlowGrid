@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { isOwnerOrAdmin, roleAtLeast } from "../lib/roles"
 import crypto from "crypto"
+import logger from "../lib/logger"
 import type { Role } from "../../generated/prisma"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
@@ -92,7 +93,7 @@ router.post("/", validateJWT, async (req, res) => {
       res.status(409).json({ error: { message: "A workspace with that name already exists. Try a different name.", status: 409 } })
       return
     }
-    console.warn("[workspaces] create failed:", err instanceof Error ? err.message : err)
+    logger.warn("Workspace create failed", { error: err instanceof Error ? err.message : err })
     res.status(500).json({ error: { message: "Failed to create workspace", status: 500 } })
   }
 })
