@@ -160,6 +160,24 @@ export interface Comment {
   deletedAt: Date | null
 }
 
+// API response shapes (string ISO dates, enriched author/user objects)
+
+export interface CommentAuthor {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+}
+
+export interface CommentResponse {
+  id: string
+  cardId: string
+  author: CommentAuthor | null // null if user deleted
+  content: string              // sanitized TipTap HTML
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
 export interface Attachment {
   id: string
   cardId: string
@@ -196,4 +214,19 @@ export interface Activity {
   metadata: Record<string, unknown>
   createdAt: Date
   // No updatedAt — append-only, never modified
+}
+
+export interface ActivityUser {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+}
+
+export interface ActivityResponse {
+  id: string
+  cardId: string | null
+  user: ActivityUser | null // null if user deleted
+  action: string
+  metadata: Record<string, unknown>
+  createdAt: string
 }
