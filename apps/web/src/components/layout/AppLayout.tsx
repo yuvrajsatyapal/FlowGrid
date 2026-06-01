@@ -37,6 +37,14 @@ const MembersIcon = () => (
   </svg>
 )
 
+const AnalyticsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="1" y="9" width="3" height="6" rx="1" stroke="currentColor" strokeWidth="1.25" />
+    <rect x="6" y="5" width="3" height="10" rx="1" stroke="currentColor" strokeWidth="1.25" />
+    <rect x="11" y="1" width="3" height="14" rx="1" stroke="currentColor" strokeWidth="1.25" />
+  </svg>
+)
+
 const SignOutIcon = () => (
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
     <path d="M6 2H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
@@ -230,6 +238,11 @@ export default function AppLayout() {
               to={`/${activeWorkspace.id}/members`}
               icon={<MembersIcon />}
               label="Members"
+            />
+            <NavItem
+              to={`/${activeWorkspace.id}/analytics`}
+              icon={<AnalyticsIcon />}
+              label="Analytics"
             />
           </nav>
         )}

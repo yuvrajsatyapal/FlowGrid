@@ -309,3 +309,43 @@ export interface PresenceUser {
   name: string | null
   avatarUrl: string | null
 }
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export interface AnalyticsTotals {
+  totalCards: number
+  totalBoards: number
+  totalMembers: number
+  totalActivities: number
+}
+
+export interface CardsByPriority {
+  priority: Priority
+  count: number
+}
+
+export interface CardsByBoard {
+  boardId: string
+  boardName: string
+  count: number
+}
+
+export interface ActivityByDay {
+  date: string   // ISO date string "YYYY-MM-DD"
+  count: number
+}
+
+export interface TopMember {
+  userId: string
+  name: string | null
+  avatarUrl: string | null
+  count: number
+}
+
+export interface AnalyticsData {
+  totals: AnalyticsTotals
+  cardsByPriority: CardsByPriority[]
+  cardsByBoard: CardsByBoard[]
+  activityOverTime: ActivityByDay[]
+  topMembers: TopMember[]
+}
