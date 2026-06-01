@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react"
+import { motion } from "framer-motion"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -249,9 +250,13 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
     : ""
 
   return (
-    <div
+    <motion.div
       ref={overlayRef}
       onClick={handleOverlayClick}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
       style={{
         position: "fixed",
         inset: 0,
@@ -264,10 +269,14 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
         overflowY: "auto",
       }}
     >
-      <div
+      <motion.div
         role="dialog"
         aria-modal="true"
         aria-labelledby="card-modal-title"
+        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-modal)",
@@ -710,8 +719,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

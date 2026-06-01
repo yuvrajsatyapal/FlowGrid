@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { motion } from "framer-motion"
 import type { BoardVisibility } from "@flowgrid/types"
 import { boardsApi, type BoardSummary } from "../../api/boards"
 
@@ -65,9 +66,13 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
   }
 
   return (
-    <div
+    <motion.div
       ref={overlayRef}
       onClick={handleOverlayClick}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
       style={{
         position: "fixed",
         inset: 0,
@@ -75,14 +80,18 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 200,
+        zIndex: 210,
         padding: "16px",
       }}
     >
-      <div
+      <motion.div
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-board-title"
+        initial={{ opacity: 0, y: 16, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 8, scale: 0.97 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-modal)",
@@ -290,7 +299,7 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

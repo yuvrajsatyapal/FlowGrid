@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { AnimatePresence } from "framer-motion"
 import { useParams, Link } from "react-router-dom"
 import {
   DndContext,
@@ -472,18 +473,21 @@ export default function BoardPage() {
         )}
       </div>
 
-      {openCard && board && workspaceId && (
-        <CardDetailModal
-          card={openCard}
-          boardId={board.id}
-          workspaceId={workspaceId}
-          canEdit={canEdit}
-          userRole={board.role}
-          socket={socket}
-          onClose={() => setOpenCardId(null)}
-          onCardUpdated={handleCardUpdated}
-        />
-      )}
+      <AnimatePresence>
+        {openCard && board && workspaceId && (
+          <CardDetailModal
+            key={openCard.id}
+            card={openCard}
+            boardId={board.id}
+            workspaceId={workspaceId}
+            canEdit={canEdit}
+            userRole={board.role}
+            socket={socket}
+            onClose={() => setOpenCardId(null)}
+            onCardUpdated={handleCardUpdated}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

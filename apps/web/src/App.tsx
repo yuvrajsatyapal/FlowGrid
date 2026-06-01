@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider } from "./contexts/AuthContext"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import ProtectedRoute from "./components/auth/ProtectedRoute"
 import AppLayout from "./components/layout/AppLayout"
 import LoginPage from "./pages/LoginPage"
@@ -15,6 +16,7 @@ import AnalyticsPage from "./pages/AnalyticsPage"
 
 export default function App() {
   return (
+    <ThemeProvider>
     <BrowserRouter>
       <AuthProvider>
         <Routes>
@@ -46,5 +48,6 @@ export default function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </ThemeProvider>
   )
 }
