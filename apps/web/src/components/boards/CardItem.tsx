@@ -98,8 +98,8 @@ export default function CardItem({ card, overlay = false, onCardClick }: Props) 
           e.stopPropagation()
           onCardClick?.(card.id)
         }}
-        whileHover={(!overlay && !isDragging) ? { y: -2, boxShadow: "0 4px 12px oklch(0% 0 0 / 0.10)" } : {}}
-        whileTap={(!overlay && !isDragging) ? { scale: 0.98 } : {}}
+        whileHover={(!overlay && !isDragging) ? { y: -2, boxShadow: "0 4px 12px oklch(0% 0 0 / 0.10)" } : undefined}
+        whileTap={(!overlay && !isDragging) ? { scale: 0.98 } : undefined}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
         style={{
           background: "oklch(var(--color-paper))",

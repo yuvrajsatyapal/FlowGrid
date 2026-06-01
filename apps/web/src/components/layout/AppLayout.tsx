@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { useAuth } from "../../contexts/AuthContext"
@@ -136,17 +136,16 @@ function NavItem({
     <NavLink
       to={to}
       style={navLinkStyle}
+      className={({ isActive }) => (isActive ? "nav-item--active" : "")}
       onClick={onClick}
       onMouseEnter={(e) => {
-        const el = e.currentTarget
-        if (!el.style.background.includes("accent-muted")) {
-          el.style.background = "oklch(var(--color-paper-3))"
+        if (!e.currentTarget.classList.contains("nav-item--active")) {
+          e.currentTarget.style.background = "oklch(var(--color-paper-3))"
         }
       }}
       onMouseLeave={(e) => {
-        const el = e.currentTarget
-        if (!el.style.background.includes("accent-muted")) {
-          el.style.background = "transparent"
+        if (!e.currentTarget.classList.contains("nav-item--active")) {
+          e.currentTarget.style.background = "transparent"
         }
       }}
     >
@@ -228,6 +227,7 @@ function SidebarContent({
         <button
           onClick={toggleTheme}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           style={{
             padding: "6px",
             borderRadius: "6px",
@@ -324,6 +324,7 @@ function SidebarContent({
         <button
           onClick={handleLogout}
           title="Sign out"
+          aria-label="Sign out"
           style={{
             padding: "5px",
             borderRadius: "5px",
@@ -361,11 +362,17 @@ export default function AppLayout() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const isMobile = useIsMobile()
+  const hamburgerRef = useRef<HTMLButtonElement>(null)
 
   // Close drawer on desktop resize
   useEffect(() => {
     if (!isMobile) setIsMobileMenuOpen(false)
   }, [isMobile])
+
+  // Return focus to hamburger when drawer closes
+  useEffect(() => {
+    if (!isMobileMenuOpen) hamburgerRef.current?.focus()
+  }, [isMobileMenuOpen])
 
   // Load workspaces on first mount
   useEffect(() => {
@@ -457,8 +464,11 @@ export default function AppLayout() {
           }}
         >
           <button
+            ref={hamburgerRef}
             onClick={() => setIsMobileMenuOpen(true)}
-            aria-label="Open menu"
+            aria-label="Open navigation menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-sidebar-drawer"
             style={{
               padding: "6px",
               borderRadius: "6px",
@@ -513,6 +523,7 @@ export default function AppLayout() {
 
             {/* Drawer */}
             <motion.aside
+              id="mobile-sidebar-drawer"
               key="drawer"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
@@ -530,7 +541,9 @@ export default function AppLayout() {
               {/* Drawer close button */}
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close menu"
+                aria-label="Close navigation menu"
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
                 style={{
                   alignSelf: "flex-end",
                   padding: "6px",

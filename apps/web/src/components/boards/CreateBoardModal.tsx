@@ -80,7 +80,7 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 200,
+        zIndex: 210,
         padding: "16px",
       }}
     >
