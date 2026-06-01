@@ -92,16 +92,22 @@ export function initSocket(httpServer: http.Server): Server {
 }
 
 export function emitBoardEvent(boardId: string, event: string, payload: unknown): void {
+  if (!io) return
   io.to(boardId).emit(event, payload)
 }
 
 // ── Presence helpers ──────────────────────────────────────────────────────────
+
+const PRESENCE_TTL_SECONDS = 86_400 // 24 h — cleaned up on disconnect; TTL is a safety net for crashes
 
 async function addPresence(boardId: string, user: PresenceUser): Promise<PresenceUser[]> {
   const usersKey = redisKeys.boardPresenceUsers(boardId)
   const countsKey = redisKeys.boardPresenceCounts(boardId)
   await redis.hincrby(countsKey, user.userId, 1)
   await redis.hset(usersKey, { [user.userId]: JSON.stringify(user) })
+  // Refresh TTL so stale keys (from unclean server shutdown) expire automatically
+  await redis.expire(usersKey, PRESENCE_TTL_SECONDS)
+  await redis.expire(countsKey, PRESENCE_TTL_SECONDS)
   return getPresence(boardId)
 }
 

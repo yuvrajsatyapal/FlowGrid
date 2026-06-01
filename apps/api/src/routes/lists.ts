@@ -206,35 +206,16 @@ router.post("/update", validateJWT, async (req, res) => {
     if (!access) return
 
     if (name.trim() === list.name) {
-      res.json({
-        list: {
-          id: list.id,
-          boardId: list.boardId,
-          name: list.name,
-          position: list.position,
-          createdAt: list.createdAt,
-          updatedAt: list.updatedAt,
-          deletedAt: list.deletedAt,
-        },
-      })
+      // Name unchanged — return current list with count, no socket emit needed
+      const unchanged = await fetchListWithCount(list.id)
+      res.json({ list: unchanged })
       return
     }
 
     const updated = await prisma.list.update({ where: { id: listId }, data: { name: name.trim() } })
     const updatedWithCount = await fetchListWithCount(updated.id)
     if (updatedWithCount) emitBoardEvent(updated.boardId, "list:updated", updatedWithCount)
-
-    res.json({
-      list: {
-        id: updated.id,
-        boardId: updated.boardId,
-        name: updated.name,
-        position: updated.position,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
-        deletedAt: updated.deletedAt,
-      },
-    })
+    res.json({ list: updatedWithCount })
   } catch {
     res.status(500).json({ error: { message: "Failed to update list", status: 500 } })
   }

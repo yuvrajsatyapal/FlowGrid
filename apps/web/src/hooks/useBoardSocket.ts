@@ -11,6 +11,7 @@ interface BoardSocketHandlers {
   onCardUpdated?: (card: CardSummary) => void
   onCardMoved?: (card: CardSummary) => void
   onCardDeleted?: (payload: { id: string }) => void
+  onCardReordered?: (payload: { listId: string; cardIds: string[] }) => void
   onListCreated?: (list: ListSummary) => void
   onListUpdated?: (list: ListSummary) => void
   onListReordered?: (payload: { lists: ListSummary[] }) => void
@@ -22,50 +23,52 @@ export function useBoardSocket(
   handlers: BoardSocketHandlers,
 ): { onlineUsers: PresenceUser[]; socket: Socket | null } {
   const { accessToken } = useAuth()
-  const socketRef = useRef<Socket | null>(null)
+  // useState so downstream consumers re-render when the socket becomes available
+  const [socket, setSocket] = useState<Socket | null>(null)
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([])
 
-  // Keep a stable ref to handlers so the effect doesn't re-run when callbacks change identity
+  // Stable ref to handlers — prevents re-running the effect when callback identities change
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
 
   useEffect(() => {
     if (!boardId || !accessToken) return
 
-    const socket = createBoardSocket(accessToken)
-    socketRef.current = socket
+    const s = createBoardSocket(accessToken)
+    setSocket(s)
 
     const handleConnect = () => {
-      socket.emit("board:join", { boardId })
+      s.emit("board:join", { boardId })
     }
 
     const handlePresence = ({ users }: { boardId: string; users: PresenceUser[] }) => {
       setOnlineUsers(users)
     }
 
-    // Reconnect after network drop — re-join the board room
-    socket.on("connect", handleConnect)
-    socket.on("board:presence", handlePresence)
+    // Reconnect after network drop — re-join the board room on every connect event
+    s.on("connect", handleConnect)
+    s.on("board:presence", handlePresence)
 
-    socket.on("card:created", (card: CardSummary) => handlersRef.current.onCardCreated?.(card))
-    socket.on("card:updated", (card: CardSummary) => handlersRef.current.onCardUpdated?.(card))
-    socket.on("card:moved", (card: CardSummary) => handlersRef.current.onCardMoved?.(card))
-    socket.on("card:deleted", (payload: { id: string }) => handlersRef.current.onCardDeleted?.(payload))
-    socket.on("list:created", (list: ListSummary) => handlersRef.current.onListCreated?.(list))
-    socket.on("list:updated", (list: ListSummary) => handlersRef.current.onListUpdated?.(list))
-    socket.on("list:reordered", (payload: { lists: ListSummary[] }) => handlersRef.current.onListReordered?.(payload))
-    socket.on("list:deleted", (payload: { id: string }) => handlersRef.current.onListDeleted?.(payload))
+    s.on("card:created", (card: CardSummary) => handlersRef.current.onCardCreated?.(card))
+    s.on("card:updated", (card: CardSummary) => handlersRef.current.onCardUpdated?.(card))
+    s.on("card:moved", (card: CardSummary) => handlersRef.current.onCardMoved?.(card))
+    s.on("card:deleted", (payload: { id: string }) => handlersRef.current.onCardDeleted?.(payload))
+    s.on("card:reordered", (payload: { listId: string; cardIds: string[] }) => handlersRef.current.onCardReordered?.(payload))
+    s.on("list:created", (list: ListSummary) => handlersRef.current.onListCreated?.(list))
+    s.on("list:updated", (list: ListSummary) => handlersRef.current.onListUpdated?.(list))
+    s.on("list:reordered", (payload: { lists: ListSummary[] }) => handlersRef.current.onListReordered?.(payload))
+    s.on("list:deleted", (payload: { id: string }) => handlersRef.current.onListDeleted?.(payload))
 
     return () => {
-      socket.emit("board:leave", { boardId })
-      socket.off()
-      socket.disconnect()
-      socketRef.current = null
+      s.emit("board:leave", { boardId })
+      s.off()
+      s.disconnect()
+      setSocket(null)
       setOnlineUsers([])
     }
   }, [boardId, accessToken])
 
-  return { onlineUsers, socket: socketRef.current }
+  return { onlineUsers, socket }
 }
 
 // Re-export CommentResponse so CardDetailModal can use it without importing from @flowgrid/types directly

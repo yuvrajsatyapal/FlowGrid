@@ -367,6 +367,7 @@ router.post("/reorder", validateJWT, async (req, res) => {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     )
 
+    emitBoardEvent(access.board.id, "card:reordered", { listId, cardIds })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to reorder cards", status: 500 } })

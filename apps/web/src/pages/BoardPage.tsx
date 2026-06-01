@@ -232,10 +232,12 @@ export default function BoardPage() {
 
   const { onlineUsers, socket } = useBoardSocket(boardId, {
     onCardCreated: (card) => {
-      setBoardCards((prev) => ({
-        ...prev,
-        [card.listId]: [...(prev[card.listId] ?? []), card],
-      }))
+      // Dedup: sender already added the card via local handleCardCreated; skip if present
+      setBoardCards((prev) => {
+        const existing = prev[card.listId] ?? []
+        if (existing.some((c) => c.id === card.id)) return prev
+        return { ...prev, [card.listId]: [...existing, card] }
+      })
     },
     onCardUpdated: (card) => {
       setBoardCards((prev) => {
@@ -263,9 +265,26 @@ export default function BoardPage() {
         return next
       })
     },
+    onCardReordered: ({ listId, cardIds }) => {
+      setBoardCards((prev) => {
+        const existing = prev[listId]
+        if (!existing) return prev
+        const byId: Record<string, CardSummary> = {}
+        for (const c of existing) byId[c.id] = c
+        const reordered = cardIds.map((id) => byId[id]).filter((c): c is CardSummary => !!c)
+        return { ...prev, [listId]: reordered }
+      })
+    },
     onListCreated: (list) => {
-      setLists((prev) => [...prev, list])
-      setBoardCards((prev) => ({ ...prev, [list.id]: [] }))
+      // Dedup: sender already added the list via local handleCreateList
+      setLists((prev) => {
+        if (prev.some((l) => l.id === list.id)) return prev
+        return [...prev, list]
+      })
+      setBoardCards((prev) => {
+        if (prev[list.id]) return prev
+        return { ...prev, [list.id]: [] }
+      })
     },
     onListUpdated: (list) => {
       setLists((prev) => prev.map((l) => (l.id === list.id ? list : l)))
