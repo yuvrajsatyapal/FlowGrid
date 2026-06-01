@@ -2,11 +2,13 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary } from "../../api/cards"
+import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 interface Props {
   card: CardSummary
   /** When true, renders as the DragOverlay clone — no transform/ref needed */
   overlay?: boolean
+  onCardClick?: (cardId: string) => void
 }
 
 const PRIORITY_DOT: Record<Priority, string | null> = {
@@ -15,26 +17,6 @@ const PRIORITY_DOT: Record<Priority, string | null> = {
   MEDIUM: "oklch(0.77 0.15 85)",
   HIGH: "oklch(0.67 0.19 48)",
   URGENT: "oklch(0.59 0.22 27)",
-}
-
-function hashCode(str: string): number {
-  let h = 0
-  for (let i = 0; i < str.length; i++) {
-    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
-  }
-  return h
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return (parts[0].slice(0, 2) || "?").toUpperCase()
-  return ((parts[0][0] ?? "") + (parts[parts.length - 1][0] ?? "")).toUpperCase() || "?"
-}
-
-function getAvatarBg(id: string): string {
-  const hue = Math.abs(hashCode(id)) % 360
-  return `hsl(${hue}, 55%, 48%)`
 }
 
 function formatDueDate(iso: string): string {
@@ -79,7 +61,7 @@ function WarningIcon() {
   )
 }
 
-export default function CardItem({ card, overlay = false }: Props) {
+export default function CardItem({ card, overlay = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
   })
@@ -110,6 +92,11 @@ export default function CardItem({ card, overlay = false }: Props) {
         role="article"
         aria-label={`${card.title}${prioritySuffix}`}
         title={card.title}
+        onClick={(e) => {
+          if (overlay || isDragging) return
+          e.stopPropagation()
+          onCardClick?.(card.id)
+        }}
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",

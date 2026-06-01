@@ -43,10 +43,24 @@ export const cardsApi = {
 
   async update(
     id: string,
-    data: { title?: string; description?: string | null; priority?: Priority },
+    data: {
+      title?: string
+      description?: string | null
+      priority?: Priority
+      dueDate?: string | null
+      assigneeId?: string | null
+    },
   ): Promise<CardSummary> {
     const res = await api.post<{ card: CardSummary }>("/cards/update", data, { params: { id } })
     return res.data.card
+  },
+
+  async addLabel(cardId: string, labelId: string): Promise<void> {
+    await api.post("/cards/labels/add", { cardId, labelId })
+  },
+
+  async removeLabel(cardId: string, labelId: string): Promise<void> {
+    await api.post("/cards/labels/remove", { cardId, labelId })
   },
 
   async reorder(listId: string, cardIds: string[]): Promise<void> {
