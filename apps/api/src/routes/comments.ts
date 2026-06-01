@@ -151,6 +151,11 @@ router.post("/", validateJWT, async (req, res) => {
     if (!access) return
 
     const sanitized = sanitizeHtml(content, SANITIZE_OPTIONS)
+    const textOnly = sanitizeHtml(sanitized, { allowedTags: [], allowedAttributes: {} }).trim()
+    if (textOnly.length === 0) {
+      res.status(400).json({ error: { message: "content cannot be empty", status: 400 } })
+      return
+    }
 
     const comment = await prisma.comment.create({
       data: { cardId, userId: req.user!.id, content: sanitized },
@@ -199,6 +204,12 @@ router.post("/update", validateJWT, async (req, res) => {
     }
 
     const sanitized = sanitizeHtml(content, SANITIZE_OPTIONS)
+    const textOnly = sanitizeHtml(sanitized, { allowedTags: [], allowedAttributes: {} }).trim()
+    if (textOnly.length === 0) {
+      res.status(400).json({ error: { message: "content cannot be empty", status: 400 } })
+      return
+    }
+
     const updated = await prisma.comment.update({
       where: { id: commentId },
       data: { content: sanitized },

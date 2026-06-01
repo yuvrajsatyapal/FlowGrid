@@ -26,14 +26,15 @@ function formatRelativeTime(iso: string): string {
 export function CommentThread({ cardId, currentUserId, currentUserRole }: Props) {
   const [comments, setComments] = useState<CommentResponse[]>([])
   const [total, setTotal] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editContent, setEditContent] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const canModerate = currentUserRole === "OWNER" || currentUserRole === "ADMIN"
 
-  const editor = useEditor({
+  // New comment editor
+  const newEditor = useEditor({
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: "Write a comment…" }),
@@ -41,13 +42,35 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
     content: "",
   })
 
+  // Edit comment editor — content set via setContent when editingId changes
+  const editEditor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: "Edit comment…" }),
+    ],
+    content: "",
+  })
+
+  // Sync edit editor content when switching to a different comment
+  useEffect(() => {
+    if (!editEditor) return
+    if (editingId) {
+      const comment = comments.find((c) => c.id === editingId)
+      if (comment) {
+        editEditor.commands.setContent(comment.content)
+      }
+    } else {
+      editEditor.commands.clearContent()
+    }
+  }, [editingId, editEditor, comments])
+
   const load = useCallback(async () => {
     try {
       const page = await commentsApi.list(cardId)
       setComments(page.items)
       setTotal(page.total)
-    } catch {
-      // Non-blocking; card may have been archived
+    } catch (err) {
+      setLoadError((err as Error).message || "Failed to load comments.")
     }
   }, [cardId])
 
@@ -56,30 +79,29 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
   }, [load])
 
   const handleSubmit = async () => {
-    if (!editor || editor.isEmpty || submitting) return
+    if (!newEditor || newEditor.isEmpty || submitting) return
     setSubmitting(true)
-    setError(null)
+    setSubmitError(null)
     try {
-      const comment = await commentsApi.create(cardId, editor.getHTML())
+      const comment = await commentsApi.create(cardId, newEditor.getHTML())
       setComments((prev) => [...prev, comment])
       setTotal((t) => t + 1)
-      editor.commands.clearContent()
+      newEditor.commands.clearContent()
     } catch (err) {
-      setError((err as Error).message || "Failed to post comment.")
+      setSubmitError((err as Error).message || "Failed to post comment.")
     } finally {
       setSubmitting(false)
     }
   }
 
   const handleEdit = async (id: string) => {
-    if (!editContent.trim()) return
+    if (!editEditor || editEditor.isEmpty) return
     try {
-      const updated = await commentsApi.update(id, editContent)
+      const updated = await commentsApi.update(id, editEditor.getHTML())
       setComments((prev) => prev.map((c) => (c.id === id ? updated : c)))
       setEditingId(null)
-      setEditContent("")
     } catch (err) {
-      setError((err as Error).message || "Failed to update comment.")
+      setSubmitError((err as Error).message || "Failed to update comment.")
     }
   }
 
@@ -89,8 +111,16 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
       setComments((prev) => prev.filter((c) => c.id !== id))
       setTotal((t) => t - 1)
     } catch (err) {
-      setError((err as Error).message || "Failed to delete comment.")
+      setSubmitError((err as Error).message || "Failed to delete comment.")
     }
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-3))", padding: "4px 0" }}>
+        {loadError}
+      </div>
+    )
   }
 
   return (
@@ -125,11 +155,11 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
                   ) : (
                     <div style={{
                       width: 28, height: 28, borderRadius: "50%",
-                      background: getAvatarBg(authorId),
+                      background: comment.author ? getAvatarBg(authorId) : "oklch(var(--color-ink-4))",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 10, fontWeight: 700, color: "#fff",
                     }}>
-                      {getInitials(comment.author?.name ?? null)}
+                      {comment.author ? getInitials(comment.author.name) : "?"}
                     </div>
                   )}
                 </div>
@@ -151,36 +181,35 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
 
                   {editingId === comment.id ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        style={{
-                          width: "100%", minHeight: 60, padding: "6px 8px",
-                          fontSize: "var(--text-sm)", fontFamily: "var(--font-body)",
-                          border: "1px solid oklch(var(--color-border))",
-                          borderRadius: "var(--radius-input)",
-                          background: "oklch(var(--color-paper-2))",
-                          color: "oklch(var(--color-ink))",
-                          resize: "vertical",
-                          boxSizing: "border-box",
-                        }}
-                      />
+                      <div style={{
+                        border: "1px solid oklch(var(--color-border))",
+                        borderRadius: "var(--radius-input)",
+                        background: "oklch(var(--color-paper-2))",
+                        padding: "8px 10px",
+                        fontSize: "var(--text-sm)",
+                        fontFamily: "var(--font-body)",
+                        color: "oklch(var(--color-ink))",
+                        minHeight: 60,
+                      }}>
+                        <EditorContent editor={editEditor} />
+                      </div>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button
                           onClick={() => void handleEdit(comment.id)}
-                          disabled={!editContent.trim()}
+                          disabled={!editEditor || editEditor.isEmpty}
                           style={{
                             fontSize: "var(--text-xs)", padding: "3px 10px",
                             borderRadius: "var(--radius-btn)",
                             background: "oklch(var(--color-accent))",
-                            color: "#fff", border: "none", cursor: editContent.trim() ? "pointer" : "not-allowed",
-                            opacity: editContent.trim() ? 1 : 0.5,
+                            color: "#fff", border: "none",
+                            cursor: (!editEditor || editEditor.isEmpty) ? "not-allowed" : "pointer",
+                            opacity: (!editEditor || editEditor.isEmpty) ? 0.5 : 1,
                           }}
                         >
                           Save
                         </button>
                         <button
-                          onClick={() => { setEditingId(null); setEditContent("") }}
+                          onClick={() => setEditingId(null)}
                           style={{
                             fontSize: "var(--text-xs)", padding: "3px 10px",
                             borderRadius: "var(--radius-btn)",
@@ -201,9 +230,10 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
                       />
                       {canEdit && (
                         <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                          {isOwn && (
+                          {/* OWNER/ADMIN can edit any comment; authors can edit their own */}
+                          {(isOwn || canModerate) && (
                             <button
-                              onClick={() => { setEditingId(comment.id); setEditContent(comment.content) }}
+                              onClick={() => setEditingId(comment.id)}
                               style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                             >
                               Edit
@@ -227,37 +257,34 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
       )}
 
       {/* New comment editor */}
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{
-          flex: 1,
-          border: "1px solid oklch(var(--color-border))",
-          borderRadius: "var(--radius-input)",
-          background: "oklch(var(--color-paper-2))",
-          padding: "8px 10px",
-          fontSize: "var(--text-sm)",
-          fontFamily: "var(--font-body)",
-          color: "oklch(var(--color-ink))",
-          minHeight: 60,
-        }}>
-          <EditorContent editor={editor} />
-        </div>
+      <div style={{
+        border: "1px solid oklch(var(--color-border))",
+        borderRadius: "var(--radius-input)",
+        background: "oklch(var(--color-paper-2))",
+        padding: "8px 10px",
+        fontSize: "var(--text-sm)",
+        fontFamily: "var(--font-body)",
+        color: "oklch(var(--color-ink))",
+        minHeight: 60,
+      }}>
+        <EditorContent editor={newEditor} />
       </div>
 
-      {error && (
-        <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{error}</div>
+      {submitError && (
+        <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{submitError}</div>
       )}
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           onClick={() => void handleSubmit()}
-          disabled={!editor || editor.isEmpty || submitting}
+          disabled={!newEditor || newEditor.isEmpty || submitting}
           style={{
             fontSize: "var(--text-sm)", padding: "6px 16px",
             borderRadius: "var(--radius-btn)",
             background: "oklch(var(--color-accent))",
             color: "#fff", border: "none",
-            cursor: (!editor || editor.isEmpty || submitting) ? "not-allowed" : "pointer",
-            opacity: (!editor || editor.isEmpty || submitting) ? 0.5 : 1,
+            cursor: (!newEditor || newEditor.isEmpty || submitting) ? "not-allowed" : "pointer",
+            opacity: (!newEditor || newEditor.isEmpty || submitting) ? 0.5 : 1,
           }}
         >
           {submitting ? "Posting…" : "Post Comment"}

@@ -55,13 +55,14 @@ function describeAction(action: string, metadata: Metadata): string {
 export function ActivityFeed({ cardId }: Props) {
   const [activities, setActivities] = useState<ActivityResponse[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       const page = await activitiesApi.list(cardId)
       setActivities(page.items)
-    } catch {
-      setActivities([])
+    } catch (err) {
+      setLoadError((err as Error).message || "Failed to load activity.")
     } finally {
       setLoading(false)
     }
@@ -72,6 +73,14 @@ export function ActivityFeed({ cardId }: Props) {
   }, [load])
 
   if (loading) return null
+
+  if (loadError) {
+    return (
+      <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-3))", padding: "4px 0" }}>
+        {loadError}
+      </div>
+    )
+  }
 
   if (activities.length === 0) return null
 

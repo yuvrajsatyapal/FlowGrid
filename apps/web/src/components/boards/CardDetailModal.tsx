@@ -17,6 +17,7 @@ interface Props {
   boardId: string
   workspaceId: string
   canEdit: boolean
+  userRole?: string // workspace role — used for comment moderation
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
 }
@@ -42,7 +43,7 @@ const LABEL_COLORS = [
   { name: "Slate", value: "#64748b" },
 ]
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, onClose, onCardUpdated }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, onClose, onCardUpdated }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -389,7 +390,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
                 <CommentThread
                   cardId={localCard.id}
                   currentUserId={user.id}
-                  currentUserRole={canEdit ? "OWNER" : "MEMBER"}
+                  currentUserRole={userRole ?? (canEdit ? "OWNER" : "MEMBER")}
                 />
               </div>
             )}

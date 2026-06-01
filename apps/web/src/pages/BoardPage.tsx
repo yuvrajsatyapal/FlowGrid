@@ -398,6 +398,7 @@ export default function BoardPage() {
           boardId={board.id}
           workspaceId={workspaceId}
           canEdit={canEdit}
+          userRole={board.role}
           onClose={() => setOpenCardId(null)}
           onCardUpdated={handleCardUpdated}
         />
