@@ -16,6 +16,24 @@ const BLOCKED_EXTENSIONS = new Set([
   ".pkg", ".deb", ".rpm", ".msi", ".vbs", ".jar",
 ])
 
+// Second layer: mimeType blocklist (in case extension was renamed)
+const BLOCKED_MIMETYPES = new Set([
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/vnd.microsoft.portable-executable",
+  "application/x-sh",
+  "text/x-sh",
+  "application/x-bat",
+  "application/x-powershell",
+  "application/java-archive",
+  "application/x-debian-package",
+  "application/x-rpm",
+  "application/x-msi",
+  "application/vbs",
+  "text/vbscript",
+  "application/x-apple-diskimage",
+])
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE },
@@ -176,6 +194,12 @@ router.post(
       return
     }
 
+    const reportedMime = req.file.mimetype?.toLowerCase() ?? ""
+    if (reportedMime && BLOCKED_MIMETYPES.has(reportedMime)) {
+      res.status(400).json({ error: { message: "File type not allowed", status: 400 } })
+      return
+    }
+
     try {
       const access = await resolveCardAccess(res, cardId, req.user!.id, true)
       if (!access) return
@@ -207,7 +231,7 @@ router.post(
       } catch {
         // Compensating delete — DB insert failed, clean up the orphaned storage object
         await storage.delete(key).catch(() => {})
-        res.status(500).json({ error: { message: "Failed to save attachment", status: 500 } })
+        res.status(502).json({ error: { message: "Failed to save attachment record; uploaded file has been cleaned up", status: 502 } })
         return
       }
 
@@ -234,8 +258,8 @@ router.post("/delete", validateJWT, async (req, res) => {
   try {
     const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } })
     if (!attachment) {
-      // Idempotent — already deleted
-      res.json({ success: true })
+      // Already deleted — return 404 (access check cannot be performed without cardId)
+      res.status(404).json({ error: { message: "Attachment not found", status: 404 } })
       return
     }
 
@@ -265,5 +289,3 @@ router.post("/delete", validateJWT, async (req, res) => {
 })
 
 export { router as attachmentsRouter }
-// Export for use in card delete cleanup
-export { resolveCardAccess as resolveCardAccessForAttachments }

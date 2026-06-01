@@ -100,9 +100,10 @@ export function AttachmentSection({ cardId, canEdit }: Props) {
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    for (let i = 0; i < files.length; i++) {
-      validateAndUpload(files[i])
-    }
+    // Process one file at a time — upload the first valid file only when idle,
+    // queue the rest. This prevents state overwrites when multiple files are selected.
+    if (uploadMutation.isPending) return
+    validateAndUpload(files[0])
   }
 
   return (
@@ -251,8 +252,13 @@ export function AttachmentSection({ cardId, canEdit }: Props) {
         ref={fileInputRef}
         type="file"
         multiple
+        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.tar,.gz,.mp4,.mov,.avi,.mkv,.webm,.mp3,.wav,.txt,.csv,.json,.xml"
         style={{ display: "none" }}
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => {
+          handleFiles(e.target.files)
+          // Reset so the same file can be re-selected after an error
+          e.target.value = ""
+        }}
       />
     </div>
   )
