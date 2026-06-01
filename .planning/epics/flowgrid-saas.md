@@ -31,14 +31,14 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 3 | Google OAuth + Authentication | done | specs/03-google-oauth-and-auth.md | plans/03-google-oauth-and-auth.md | #1, #2 | M |
 | 4 | User Onboarding Flow | done | — | — | #3 | S |
 | 5 | Organizations & Workspaces | done | — | — | #3 | M |
-| 6 | Team Invites, Roles & Permissions | todo | — | — | #5 | M |
+| 6 | Team Invites, Roles & Permissions | done | specs/06-team-invites-roles-permissions.md | plans/06-team-invites-roles-permissions.md | #5 | M |
 | 7 | Boards CRUD | done | — | — | #5 | S |
 | 8 | Lists / Columns CRUD | done | — | — | #7 | S |
 | 9 | Cards / Tasks CRUD + Drag & Drop | done | — | — | #8 | L |
-| 10 | Card Details (rich text, due dates, labels, priority) | todo | — | — | #9 | M |
-| 11 | Comments & Activity History | todo | — | — | #10 | M |
+| 10 | Card Details (rich text, due dates, labels, priority) | done | — | — | #9 | M |
+| 11 | Comments & Activity History | done | specs/11-comments-and-activity.md | plans/11-comments-and-activity.md | #10 | M |
 | 12 | Attachments & File Uploads | todo | — | — | #10 | M |
-| 13 | Real-time Collaboration (WebSockets) | todo | — | — | #9 | L |
+| 13 | Real-time Collaboration (WebSockets) | done | specs/13-realtime-collaboration-websockets.md | plans/13-realtime-collaboration-websockets.md | #9 | L |
 | 14 | Notifications System | todo | — | — | #13 | M |
 | 15 | Search Functionality | todo | — | — | #9 | M |
 | 16 | Calendar & Timeline Views | todo | — | — | #10 | L |
