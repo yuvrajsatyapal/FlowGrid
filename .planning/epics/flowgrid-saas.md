@@ -45,7 +45,7 @@ FlowGrid is a modern, feature-rich project management SaaS built as a production
 | 17 | Analytics Dashboard & Insights | done | — | — | #9 | M |
 | 18 | Advanced Features (deps, recurring, slash cmds, shortcuts) | todo | — | — | #10, #13 | L |
 | 19 | UI Polish (Dark Mode, Mobile Responsive, Animations) | done | — | — | #9 | M |
-| 20 | Production Infrastructure (Docker, CI/CD, monitoring) | todo | — | — | #1 | L |
+| 20 | Production Infrastructure (Docker, CI/CD, monitoring) | done | — | — | #1 | L |
 
 ---
 
