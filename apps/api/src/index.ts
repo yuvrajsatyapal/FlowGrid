@@ -22,7 +22,7 @@ import { invitesRouter } from "./routes/invites"
 import { notificationsRouter } from "./routes/notifications"
 import { attachmentsRouter } from "./routes/attachments"
 import { searchRouter } from "./routes/search"
-import "./lib/passport"
+import passport from "./lib/passport"
 
 const app = express()
 const httpServer = createServer(app)
@@ -44,6 +44,7 @@ app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(express.json({ limit: "10mb" }))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
+app.use(passport.initialize())
 app.use(requestLogger)
 
 // Routes

@@ -39,7 +39,7 @@ router.get("/google", authRateLimit, passport.authenticate("google", { scope: ["
 router.get(
   "/google/callback",
   authRateLimit,
-  passport.authenticate("google", { session: false, failureRedirect: "/login?error=oauth_failed" }),
+  passport.authenticate("google", { session: false, failureRedirect: `${env.APP_URL}/login?error=oauth_failed` }),
   async (req, res) => {
     try {
       const user = req.user as Pick<User, "id" | "email">
@@ -53,10 +53,10 @@ router.get(
       // Redirect without the access token in the URL — the httpOnly cookie is already set.
       // The SPA's AuthCallbackPage will call /api/auth/refresh to retrieve the access token
       // and user profile via the cookie, keeping the token out of browser history and logs.
-      res.redirect("/auth/callback")
+      res.redirect(`${env.APP_URL}/auth/callback`)
     } catch (err) {
       console.warn("[auth] OAuth callback error:", err instanceof Error ? err.message : err)
-      res.redirect("/login?error=server_error")
+      res.redirect(`${env.APP_URL}/login?error=server_error`)
     }
   }
 )
