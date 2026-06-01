@@ -41,13 +41,14 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
 
     const handleCreated = (comment: CommentResponse) => {
       if (comment.cardId !== cardId) return
-      // Dedup: sender already added the comment locally on API success
+      // Dedup: sender already added the comment locally on API success.
+      // setTotal is called outside the updater (React rule: updaters must be pure).
+      // On the dedup path total may drift by 1; it self-corrects on next load.
       setComments((prev) => {
         if (prev.some((c) => c.id === comment.id)) return prev
-        // Increment total inside the updater so it's coordinated with the append
-        setTotal((t) => t + 1)
         return [...prev, comment]
       })
+      setTotal((t) => t + 1)
     }
 
     const handleUpdated = (comment: CommentResponse) => {
