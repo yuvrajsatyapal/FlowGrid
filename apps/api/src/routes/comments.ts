@@ -198,7 +198,12 @@ router.post("/update", validateJWT, async (req, res) => {
     const access = await resolveCardAccess(res, comment.cardId, req.user!.id)
     if (!access) return
 
-    // Author can always edit; otherwise require OWNER/ADMIN
+    // VIEWERs cannot edit any comments, including their own
+    if (!canWrite(access.membership.role)) {
+      res.status(403).json({ error: { message: "Viewers cannot edit comments", status: 403 } })
+      return
+    }
+    // Author can edit their own comment; OWNER/ADMIN can edit anyone's
     if (comment.userId !== req.user!.id && access.membership.role !== "OWNER" && access.membership.role !== "ADMIN") {
       res.status(403).json({ error: { message: "You can only edit your own comments", status: 403 } })
       return
@@ -242,7 +247,12 @@ router.post("/delete", validateJWT, async (req, res) => {
     const access = await resolveCardAccess(res, comment.cardId, req.user!.id)
     if (!access) return
 
-    // Author can always delete; otherwise require OWNER/ADMIN
+    // VIEWERs cannot delete any comments, including their own
+    if (!canWrite(access.membership.role)) {
+      res.status(403).json({ error: { message: "Viewers cannot delete comments", status: 403 } })
+      return
+    }
+    // Author can delete their own comment; OWNER/ADMIN can delete anyone's
     if (comment.userId !== req.user!.id && access.membership.role !== "OWNER" && access.membership.role !== "ADMIN") {
       res.status(403).json({ error: { message: "You can only delete your own comments", status: 403 } })
       return

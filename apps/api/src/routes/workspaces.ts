@@ -359,7 +359,12 @@ router.post("/members/update", validateJWT, async (req, res) => {
       res.status(403).json({ error: { message: "You cannot assign a role higher than your own", status: 403 } })
       return
     }
-    // Protect the last OWNER: allow demoting an owner only when a second owner exists
+    // Only OWNER can modify another OWNER's role (ADMIN cannot touch OWNER rows)
+    if (target.role === "OWNER" && actorMembership.role !== "OWNER") {
+      res.status(403).json({ error: { message: "Only owners can modify other owners.", status: 403 } })
+      return
+    }
+    // Protect the last OWNER: block if this would remove the only owner
     if (target.role === "OWNER") {
       const ownerCount = await prisma.workspaceMember.count({
         where: { workspaceId: target.workspaceId, role: "OWNER" },
@@ -412,7 +417,12 @@ router.post("/members/remove", validateJWT, async (req, res) => {
       res.status(403).json({ error: { message: "Only owners and admins can remove members", status: 403 } })
       return
     }
-    // Protect the last OWNER: allow removal of an owner only when a second owner exists
+    // Only OWNER can remove another OWNER (ADMIN cannot touch OWNER rows)
+    if (target.role === "OWNER" && actorMembership.role !== "OWNER") {
+      res.status(403).json({ error: { message: "Only owners can remove other owners.", status: 403 } })
+      return
+    }
+    // Protect the last OWNER: block removal if this is the only owner
     if (target.role === "OWNER") {
       const ownerCount = await prisma.workspaceMember.count({
         where: { workspaceId: target.workspaceId, role: "OWNER" },
