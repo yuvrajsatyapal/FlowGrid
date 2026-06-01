@@ -2,7 +2,11 @@ import { Router } from "express"
 import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
+import { isOwnerOrAdmin, roleAtLeast } from "../lib/roles"
 import crypto from "crypto"
+import type { Role } from "../../generated/prisma"
+
+const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
 
 const router = Router()
 
@@ -202,7 +206,7 @@ router.post("/update", validateJWT, async (req, res) => {
       res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
       return
     }
-    if (!["OWNER", "ADMIN"].includes(membership.role)) {
+    if (!isOwnerOrAdmin(membership.role)) {
       res.status(403).json({ error: { message: "You don't have permission to update this workspace", status: 403 } })
       return
     }
@@ -305,7 +309,8 @@ router.get("/members", validateJWT, async (req, res) => {
     })
 
     const members = memberships.map((m) => ({
-      id: m.user.id,
+      id: m.id,           // WorkspaceMember.id — used for update/remove calls
+      userId: m.user.id,  // User.id — used for identity comparisons
       name: m.user.name,
       email: m.user.email,
       avatarUrl: m.user.avatarUrl,
@@ -315,6 +320,124 @@ router.get("/members", validateJWT, async (req, res) => {
     res.json({ members })
   } catch {
     res.status(500).json({ error: { message: "Failed to fetch members", status: 500 } })
+  }
+})
+
+// POST /api/workspaces/members/update?memberId= — change a member's role (OWNER | ADMIN)
+router.post("/members/update", validateJWT, async (req, res) => {
+  const memberId = req.query.memberId as string | undefined
+  if (!memberId) {
+    res.status(400).json({ error: { message: "memberId is required", status: 400 } })
+    return
+  }
+  const { role } = req.body as { role?: string }
+  const newRole = (role?.toUpperCase() as Role) ?? undefined
+  if (!newRole || !ASSIGNABLE_ROLES.includes(newRole)) {
+    res.status(400).json({ error: { message: "role must be ADMIN, MEMBER, or VIEWER", status: 400 } })
+    return
+  }
+
+  try {
+    const target = await prisma.workspaceMember.findUnique({
+      where: { id: memberId },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    })
+    if (!target) {
+      res.status(404).json({ error: { message: "Member not found", status: 404 } })
+      return
+    }
+
+    const actorMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: target.workspaceId, userId: req.user!.id } },
+    })
+    if (!actorMembership || !isOwnerOrAdmin(actorMembership.role)) {
+      res.status(403).json({ error: { message: "Only owners and admins can change member roles", status: 403 } })
+      return
+    }
+    // Actor cannot promote to a role higher than their own
+    if (!roleAtLeast(actorMembership.role, newRole)) {
+      res.status(403).json({ error: { message: "You cannot assign a role higher than your own", status: 403 } })
+      return
+    }
+    // Only OWNER can modify another OWNER's role (ADMIN cannot touch OWNER rows)
+    if (target.role === "OWNER" && actorMembership.role !== "OWNER") {
+      res.status(403).json({ error: { message: "Only owners can modify other owners.", status: 403 } })
+      return
+    }
+    // Protect the last OWNER: block if this would remove the only owner
+    if (target.role === "OWNER") {
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: target.workspaceId, role: "OWNER" },
+      })
+      if (ownerCount <= 1) {
+        res.status(403).json({ error: { code: "LAST_OWNER", message: "Workspace must have at least one owner.", status: 403 } })
+        return
+      }
+    }
+
+    const updated = await prisma.workspaceMember.update({
+      where: { id: memberId },
+      data: { role: newRole },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+    })
+
+    res.json({
+      member: {
+        id: updated.id,
+        userId: updated.userId,
+        workspaceId: updated.workspaceId,
+        role: updated.role,
+        user: updated.user,
+      },
+    })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to update member role", status: 500 } })
+  }
+})
+
+// POST /api/workspaces/members/remove?memberId= — remove a member (OWNER | ADMIN)
+router.post("/members/remove", validateJWT, async (req, res) => {
+  const memberId = req.query.memberId as string | undefined
+  if (!memberId) {
+    res.status(400).json({ error: { message: "memberId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const target = await prisma.workspaceMember.findUnique({ where: { id: memberId } })
+    if (!target) {
+      res.status(404).json({ error: { message: "Member not found", status: 404 } })
+      return
+    }
+
+    const actorMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: target.workspaceId, userId: req.user!.id } },
+    })
+    if (!actorMembership || !isOwnerOrAdmin(actorMembership.role)) {
+      res.status(403).json({ error: { message: "Only owners and admins can remove members", status: 403 } })
+      return
+    }
+    // Only OWNER can remove another OWNER (ADMIN cannot touch OWNER rows)
+    if (target.role === "OWNER" && actorMembership.role !== "OWNER") {
+      res.status(403).json({ error: { message: "Only owners can remove other owners.", status: 403 } })
+      return
+    }
+    // Protect the last OWNER: block removal if this is the only owner
+    if (target.role === "OWNER") {
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: target.workspaceId, role: "OWNER" },
+      })
+      if (ownerCount <= 1) {
+        res.status(403).json({ error: { code: "LAST_OWNER", message: "Workspace must have at least one owner.", status: 403 } })
+        return
+      }
+    }
+
+    await prisma.workspaceMember.delete({ where: { id: memberId } })
+
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to remove member", status: 500 } })
   }
 })
 

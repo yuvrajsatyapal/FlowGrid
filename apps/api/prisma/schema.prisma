@@ -44,6 +44,13 @@ enum BoardVisibility {
   PUBLIC
 }
 
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 // ─── User tier ────────────────────────────────────────────────────────────────
 
 model User {
@@ -64,6 +71,7 @@ model User {
   comments             Comment[]
   notifications        Notification[]
   activities           Activity[]
+  sentInvites          WorkspaceInvite[] @relation("SentInvites")
 }
 
 model OAuthAccount {
@@ -129,6 +137,7 @@ model Workspace {
   organization Organization     @relation(fields: [organizationId], references: [id])
   members      WorkspaceMember[]
   boards       Board[]
+  invites      WorkspaceInvite[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -333,4 +342,26 @@ model Activity {
   @@index([boardId])
   @@index([cardId])
   @@index([userId])
+}
+
+// ─── Workspace Invites ────────────────────────────────────────────────────────
+
+model WorkspaceInvite {
+  id          String       @id @default(cuid())
+  workspaceId String
+  email       String
+  role        Role
+  token       String       @unique
+  invitedById String
+  status      InviteStatus @default(PENDING)
+  expiresAt   DateTime     @db.Timestamptz()
+  createdAt   DateTime     @default(now()) @db.Timestamptz()
+  updatedAt   DateTime     @updatedAt @db.Timestamptz()
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("SentInvites", fields: [invitedById], references: [id])
+
+  @@unique([workspaceId, email])
+  @@index([token])
+  @@index([workspaceId])
 }

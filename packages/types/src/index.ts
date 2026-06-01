@@ -10,6 +10,8 @@ export type Role = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
 
 export type BoardVisibility = 'WORKSPACE' | 'PRIVATE' | 'PUBLIC'
 
+export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
+
 // ─── User tier ────────────────────────────────────────────────────────────────
 
 export interface User {
@@ -75,6 +77,31 @@ export interface WorkspaceMember {
   role: Role
   createdAt: Date
   updatedAt: Date
+}
+
+// API response shape for member list (includes enriched user object)
+export interface WorkspaceMemberResponse {
+  id: string
+  userId: string
+  workspaceId: string
+  role: Role
+  user: {
+    id: string
+    name: string | null
+    email: string
+    avatarUrl: string | null
+  }
+}
+
+// API response shape for workspace invites
+export interface WorkspaceInvite {
+  id: string
+  workspaceId: string
+  email: string
+  role: Role
+  status: InviteStatus
+  expiresAt: string
+  createdAt: string
 }
 
 
