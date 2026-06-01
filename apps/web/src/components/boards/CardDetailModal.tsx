@@ -12,6 +12,7 @@ import { getInitials, getAvatarBg } from "../../utils/avatar"
 import { useAuth } from "../../contexts/AuthContext"
 import { CommentThread } from "./CommentThread"
 import { ActivityFeed } from "./ActivityFeed"
+import { AttachmentSection } from "./AttachmentSection"
 
 interface Props {
   card: CardSummary
@@ -384,6 +385,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               }}
             >
               <EditorContent editor={editor} />
+            </div>
+
+            {/* Attachments */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+              <AttachmentSection cardId={localCard.id} canEdit={canEdit} />
             </div>
 
             {/* Comments */}

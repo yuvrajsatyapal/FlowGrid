@@ -6,6 +6,7 @@ import { logActivity } from "../lib/activity"
 import { createNotification } from "../lib/notifications"
 import { canWrite } from "../lib/roles"
 import { emitBoardEvent } from "../lib/socket"
+import { storage, keyFromUrl } from "../lib/storage"
 
 const router = Router()
 
@@ -499,6 +500,13 @@ router.post("/delete", validateJWT, async (req, res) => {
 
     const access = await resolveListAccess(res, card.listId, req.user!.id, true)
     if (!access) return
+
+    // Clean up attachments before soft-deleting the card (Prisma cascade only fires on hard delete)
+    const attachments = await prisma.attachment.findMany({ where: { cardId }, select: { id: true, url: true } })
+    if (attachments.length > 0) {
+      await Promise.allSettled(attachments.map((a) => storage.delete(keyFromUrl(a.url))))
+      await prisma.attachment.deleteMany({ where: { cardId } })
+    }
 
     await prisma.card.update({ where: { id: cardId }, data: { deletedAt: new Date() } })
     void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {} })

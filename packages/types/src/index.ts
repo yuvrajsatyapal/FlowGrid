@@ -217,6 +217,24 @@ export interface Attachment {
   updatedAt: Date
 }
 
+export interface AttachmentUploader {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+}
+
+// API response shape — enriched with uploader, ISO date strings
+export interface AttachmentResponse {
+  id: string
+  cardId: string
+  name: string
+  url: string
+  mimeType: string | null
+  size: number | null
+  createdAt: string
+  uploader: AttachmentUploader | null
+}
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export type NotificationType = 'CARD_ASSIGNED' | 'COMMENT_ADDED' | 'INVITE_ACCEPTED'
