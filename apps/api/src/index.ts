@@ -30,7 +30,12 @@ initSocket(httpServer)
 
 // Serve uploaded files in local dev (R2 serves directly from CDN in prod)
 if (env.STORAGE_PROVIDER === "local") {
-  app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads"), {
+    setHeaders: (res) => {
+      res.setHeader("Content-Disposition", "attachment")
+      res.setHeader("X-Content-Type-Options", "nosniff")
+    },
+  }))
 }
 
 // Middleware
