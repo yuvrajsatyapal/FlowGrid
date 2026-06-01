@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
+import { canWrite } from "../lib/roles"
 
 const router = Router()
 
@@ -56,8 +57,8 @@ async function resolveListAccess(
     }
   }
 
-  if (requireWriteRole && membership.role !== "OWNER" && membership.role !== "ADMIN") {
-    res.status(403).json({ error: { message: "Only workspace owners and admins can modify cards", status: 403 } })
+  if (requireWriteRole && !canWrite(membership.role)) {
+    res.status(403).json({ error: { message: "Viewers cannot modify cards", status: 403 } })
     return null
   }
 

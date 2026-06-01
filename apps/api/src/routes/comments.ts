@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
+import { canWrite } from "../lib/roles"
 
 const router = Router()
 
@@ -89,8 +90,8 @@ async function resolveCardAccess(
     }
   }
 
-  if (requireWriteRole && membership.role !== "OWNER" && membership.role !== "ADMIN") {
-    res.status(403).json({ error: { message: "Only workspace owners and admins can perform this action", status: 403 } })
+  if (requireWriteRole && !canWrite(membership.role)) {
+    res.status(403).json({ error: { message: "Viewers cannot perform this action", status: 403 } })
     return null
   }
 

@@ -1,6 +1,7 @@
 import { Router } from "express"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
+import { canWrite } from "../lib/roles"
 
 const router = Router()
 
@@ -50,8 +51,8 @@ router.post("/", validateJWT, async (req, res) => {
       res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
       return
     }
-    if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-      res.status(403).json({ error: { message: "Only workspace owners and admins can create boards", status: 403 } })
+    if (!canWrite(membership.role)) {
+      res.status(403).json({ error: { message: "Viewers cannot create boards", status: 403 } })
       return
     }
 
@@ -260,8 +261,8 @@ router.post("/update", validateJWT, async (req, res) => {
       res.status(404).json({ error: { message: "Board not found", status: 404 } })
       return
     }
-    if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-      res.status(403).json({ error: { message: "Only workspace owners and admins can update boards", status: 403 } })
+    if (!canWrite(membership.role)) {
+      res.status(403).json({ error: { message: "Viewers cannot update boards", status: 403 } })
       return
     }
 
