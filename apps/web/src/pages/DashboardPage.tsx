@@ -1,17 +1,14 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi } from "../api/workspaces"
 
-/**
- * Redirect hub — sends authenticated users to their first workspace.
- * Loads workspace list if not already cached.
- */
 export default function DashboardPage() {
   const { user } = useAuth()
   const { workspaces, setWorkspaces, activeWorkspace } = useWorkspaceStore()
   const navigate = useNavigate()
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     if (!user?.onboardingCompleted) {
@@ -36,11 +33,48 @@ export default function DashboardPage() {
         setWorkspaces(list)
         redirect(list)
       }).catch(() => {
-        navigate("/login?error=workspace_load_failed", { replace: true })
+        // Don't navigate to /login — if the user is authenticated, LoginPage would
+        // immediately bounce them back here creating an infinite redirect loop.
+        setLoadError(true)
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (loadError) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+          background: "oklch(var(--color-paper))",
+          color: "oklch(var(--color-ink-2))",
+          fontSize: "var(--text-sm)",
+          fontFamily: "var(--font-body)",
+        }}
+      >
+        <span>Failed to load workspaces.</span>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "var(--radius-button)",
+            border: "1px solid oklch(var(--color-border))",
+            background: "transparent",
+            color: "oklch(var(--color-ink-2))",
+            fontSize: "var(--text-sm)",
+            cursor: "pointer",
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
