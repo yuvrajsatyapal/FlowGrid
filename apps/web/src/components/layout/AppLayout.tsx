@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { useAuth } from "../../contexts/AuthContext"
@@ -363,16 +363,47 @@ export default function AppLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const isMobile = useIsMobile()
   const hamburgerRef = useRef<HTMLButtonElement>(null)
+  // Tracks whether the drawer has been opened at least once; prevents focus
+  // returning to hamburger on initial mount (isMobileMenuOpen starts false).
+  const drawerWasOpenRef = useRef(false)
 
   // Close drawer on desktop resize
   useEffect(() => {
     if (!isMobile) setIsMobileMenuOpen(false)
   }, [isMobile])
 
-  // Return focus to hamburger when drawer closes
+  // Return focus to hamburger only on genuine close (not on initial mount or resize)
   useEffect(() => {
-    if (!isMobileMenuOpen) hamburgerRef.current?.focus()
+    if (isMobileMenuOpen) {
+      drawerWasOpenRef.current = true
+    } else if (drawerWasOpenRef.current) {
+      hamburgerRef.current?.focus()
+    }
   }, [isMobileMenuOpen])
+
+  // Minimal focus trap for keyboard users navigating inside the drawer
+  const handleDrawerKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Tab") return
+    const focusable = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      )
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [])
 
   // Load workspaces on first mount
   useEffect(() => {
@@ -529,6 +560,7 @@ export default function AppLayout() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              onKeyDown={handleDrawerKeyDown}
               style={{
                 ...sidebarStyle,
                 position: "fixed",
