@@ -2,6 +2,7 @@ import { Router } from "express"
 import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
+import { logActivity } from "../lib/activity"
 
 const router = Router()
 
@@ -133,6 +134,7 @@ router.post("/", validateJWT, async (req, res) => {
       })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
+    void logActivity({ cardId: card.id, userId: req.user!.id, action: "card_created", metadata: {} })
     res.status(201).json({ card: formatCard(card) })
   } catch {
     res.status(500).json({ error: { message: "Failed to create card", status: 500 } })
@@ -263,6 +265,25 @@ router.post("/update", validateJWT, async (req, res) => {
       name: cl.label.name,
       color: cl.label.color,
     }))
+
+    // Log one activity entry per changed field (fire-and-forget)
+    if (title !== undefined && title.trim() !== card.title) {
+      void logActivity({ cardId: cardId, userId: req.user!.id, action: "title_changed", metadata: { from: card.title, to: title.trim() } })
+    }
+    if (priority !== undefined && priority !== card.priority) {
+      void logActivity({ cardId: cardId, userId: req.user!.id, action: "priority_changed", metadata: { from: card.priority, to: priority } })
+    }
+    if (dueDate !== undefined) {
+      const oldDate = card.dueDate ? card.dueDate.toISOString() : null
+      const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
+      if (oldDate !== newDate) {
+        void logActivity({ cardId: cardId, userId: req.user!.id, action: "due_date_changed", metadata: { from: oldDate, to: newDate } })
+      }
+    }
+    if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
+      void logActivity({ cardId: cardId, userId: req.user!.id, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
+    }
+
     res.json({ card: formatCard(updated, updatedAssignee, updatedLabels) })
   } catch {
     res.status(500).json({ error: { message: "Failed to update card", status: 500 } })
@@ -415,6 +436,7 @@ router.post("/move", validateJWT, async (req, res) => {
       name: cl.label.name,
       color: cl.label.color,
     }))
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_moved", metadata: { fromListId: card.listId, toListId: targetListId } })
     res.json({ card: formatCard(moved, movedAssignee, movedLabels) })
   } catch {
     res.status(500).json({ error: { message: "Failed to move card", status: 500 } })
@@ -440,6 +462,7 @@ router.post("/delete", validateJWT, async (req, res) => {
     if (!access) return
 
     await prisma.card.update({ where: { id: cardId }, data: { deletedAt: new Date() } })
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {} })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete card", status: 500 } })
@@ -481,6 +504,7 @@ router.post("/labels/add", validateJWT, async (req, res) => {
       create: { cardId, labelId },
       update: {},
     })
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_added", metadata: { labelId: label.id, labelName: label.name } })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to add label", status: 500 } })
@@ -510,7 +534,11 @@ router.post("/labels/remove", validateJWT, async (req, res) => {
     const access = await resolveListAccess(res, card.listId, req.user!.id, true)
     if (!access) return
 
+    const labelToRemove = await prisma.label.findUnique({ where: { id: labelId }, select: { id: true, name: true } })
     await prisma.cardLabel.deleteMany({ where: { cardId, labelId } })
+    if (labelToRemove) {
+      void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_removed", metadata: { labelId: labelToRemove.id, labelName: labelToRemove.name } })
+    }
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to remove label", status: 500 } })
