@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { AnimatePresence } from "framer-motion"
 import { useParams, Link } from "react-router-dom"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
 import { boardsApi, type BoardSummary } from "../api/boards"
@@ -324,13 +325,16 @@ export default function WorkspacePage() {
         </div>
       </div>
 
-      {showCreateModal && workspaceId && (
-        <CreateBoardModal
-          workspaceId={workspaceId}
-          onCreated={handleBoardCreated}
-          onClose={() => setShowCreateModal(false)}
-        />
-      )}
+      <AnimatePresence>
+        {showCreateModal && workspaceId && (
+          <CreateBoardModal
+            key="create-board"
+            workspaceId={workspaceId}
+            onCreated={handleBoardCreated}
+            onClose={() => setShowCreateModal(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }

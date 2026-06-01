@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { motion } from "framer-motion"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary } from "../../api/cards"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
@@ -88,7 +89,7 @@ export default function CardItem({ card, overlay = false, onCardClick }: Props) 
       }}
       {...(overlay ? {} : { ...attributes, ...listeners })}
     >
-      <div
+      <motion.div
         role="article"
         aria-label={`${card.title}${prioritySuffix}`}
         title={card.title}
@@ -97,6 +98,9 @@ export default function CardItem({ card, overlay = false, onCardClick }: Props) 
           e.stopPropagation()
           onCardClick?.(card.id)
         }}
+        whileHover={(!overlay && !isDragging) ? { y: -2, boxShadow: "0 4px 12px oklch(0% 0 0 / 0.10)" } : {}}
+        whileTap={(!overlay && !isDragging) ? { scale: 0.98 } : {}}
+        transition={{ type: "spring", stiffness: 400, damping: 28 }}
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",
@@ -104,23 +108,16 @@ export default function CardItem({ card, overlay = false, onCardClick }: Props) 
           padding: "8px 10px",
           marginBottom: 4,
           boxShadow: overlay ? "0 8px 24px oklch(0% 0 0 / 0.16)" : undefined,
-          transition: "border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out)",
         }}
         onMouseEnter={(e) => {
           if (overlay || isDragging) return
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = "oklch(var(--color-accent-muted))"
-          if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-            el.style.transform = "translateY(-1px)"
-            el.style.boxShadow = "0 2px 8px oklch(0% 0 0 / 0.08)"
-          }
         }}
         onMouseLeave={(e) => {
           if (overlay || isDragging) return
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = ""
-          el.style.transform = ""
-          el.style.boxShadow = ""
         }}
       >
         {/* Row 1: priority dot + title */}
@@ -239,7 +236,7 @@ export default function CardItem({ card, overlay = false, onCardClick }: Props) 
             )}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }
