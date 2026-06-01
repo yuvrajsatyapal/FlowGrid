@@ -25,12 +25,14 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
+    # Copy apps/api/.env.example → apps/api/.env and fill in secrets before running.
+    # Upstash credentials must be real — @upstash/redis uses HTTP REST, not TCP,
+    # so there is no local Redis container to substitute.
     env_file:
-      - apps/api/.env
+      - path: apps/api/.env
+        required: false
     environment:
-      # Override DATABASE_URL to point at the local postgres service above.
-      # Upstash Redis credentials still come from apps/api/.env — the HTTP-based
-      # @upstash/redis client works from any network; no redis container needed.
+      # Always override DATABASE_URL to point at the local postgres service.
       DATABASE_URL: postgresql://postgres:password@postgres:5432/flowgrid
       NODE_ENV: production
     depends_on:
@@ -43,12 +45,13 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # Point the SPA at the API container. For local Docker use, this is the
-        # machine's LAN IP or localhost if ports are forwarded.
-        VITE_API_URL: http://localhost:3001
+        # In the docker-compose setup the web nginx proxies /api to the api service
+        # directly, so VITE_API_BASE_URL is left unset (relative /api path is used).
+        # For production with a separate API domain set this to https://api.yourdomain.com
+        VITE_API_BASE_URL: ""
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8080:8080"
     depends_on:
       - api
 

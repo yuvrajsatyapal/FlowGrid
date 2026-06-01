@@ -1,5 +1,6 @@
 import { Resend } from "resend"
 import { env } from "../config/env"
+import logger from "./logger"
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
@@ -19,7 +20,7 @@ interface InviteEmailParams {
 
 export async function sendInviteEmail({ to, inviterName, workspaceName, role, inviteUrl }: InviteEmailParams): Promise<void> {
   if (!resend) {
-    console.warn("[email] RESEND_API_KEY not set — skipping invite email to", to)
+    logger.warn("RESEND_API_KEY not set — skipping invite email", { to })
     return
   }
 
@@ -61,7 +62,7 @@ export async function sendInviteEmail({ to, inviterName, workspaceName, role, in
       `,
     })
   } catch (err) {
-    console.warn("[email] Failed to send invite email to", to, ":", err instanceof Error ? err.message : err)
+    logger.warn("Failed to send invite email", { to, error: err instanceof Error ? err.message : err })
   }
 }
 

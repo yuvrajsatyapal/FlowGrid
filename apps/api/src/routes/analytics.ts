@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import type { AnalyticsData, CardsByPriority, CardsByBoard, ActivityByDay, TopMember } from "@flowgrid/types"
 import type { Priority } from "../../generated/prisma"
+import logger from "../lib/logger"
 
 export const analyticsRouter = Router()
 
@@ -178,7 +179,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
 
     res.json(data)
   } catch (err) {
-    console.error("[analytics]", err)
+    logger.error("Analytics query failed", { error: err instanceof Error ? err.message : err })
     res.status(500).json({ error: { message: "Failed to load analytics", status: 500 } })
   }
 })

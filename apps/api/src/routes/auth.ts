@@ -13,6 +13,7 @@ import { authRateLimit } from "../middleware/rateLimit"
 import type { User } from "../../generated/prisma"
 import crypto from "crypto"
 import { env } from "../config/env"
+import logger from "../lib/logger"
 
 const router = Router()
 
@@ -55,7 +56,7 @@ router.get(
       // and user profile via the cookie, keeping the token out of browser history and logs.
       res.redirect(`${env.APP_URL}/auth/callback`)
     } catch (err) {
-      console.warn("[auth] OAuth callback error:", err instanceof Error ? err.message : err)
+      logger.warn("OAuth callback error", { error: err instanceof Error ? err.message : err })
       res.redirect(`${env.APP_URL}/login?error=server_error`)
     }
   }
@@ -102,7 +103,7 @@ router.post("/refresh", authRateLimit, async (req, res) => {
       },
     })
   } catch (err) {
-    console.warn("[auth] refresh failed:", err instanceof Error ? err.message : "unknown")
+    logger.warn("Token refresh failed", { error: err instanceof Error ? err.message : "unknown" })
     res.status(401).json({ error: { message: "Invalid or expired refresh token", status: 401 } })
   }
 })
@@ -117,7 +118,7 @@ router.post("/logout", authRateLimit, async (req, res) => {
       await redis.del(redisKeys.refresh(payload.jti))
       await redis.del(redisKeys.session(payload.sub))
     } catch (err) {
-      console.warn("[auth] logout token cleanup failed:", err instanceof Error ? err.message : "unknown")
+      logger.warn("Logout token cleanup failed", { error: err instanceof Error ? err.message : "unknown" })
     }
   }
 

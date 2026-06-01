@@ -2,6 +2,7 @@ import { Router } from "express"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import type { CardSearchResult } from "@flowgrid/types"
+import logger from "../lib/logger"
 
 export const searchRouter = Router()
 
@@ -146,7 +147,7 @@ searchRouter.get("/", validateJWT, async (req, res) => {
       // Log anything unexpected so DB degradation isn't invisible.
       const msg = err instanceof Error ? err.message : String(err)
       if (!msg.includes("syntax error")) {
-        console.error("[search] FTS query failed unexpectedly:", err)
+        logger.error("FTS query failed unexpectedly", { error: err instanceof Error ? err.message : err })
       }
     }
 
@@ -278,7 +279,7 @@ searchRouter.get("/", validateJWT, async (req, res) => {
 
     res.json({ cards, total, limit, offset })
   } catch (err) {
-    console.error("[search] Unexpected error:", err)
+    logger.error("Search unexpected error", { error: err instanceof Error ? err.message : err })
     res.status(500).json({ error: { message: "Search failed", status: 500 } })
   }
 })

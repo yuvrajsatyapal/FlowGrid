@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit"
 import { redis } from "../lib/redis"
 import type { RequestHandler } from "express"
+import logger from "../lib/logger"
 
 // 10 requests per minute per IP on auth endpoints (sliding window)
 const authRatelimit = new Ratelimit({
@@ -25,7 +26,7 @@ export const authRateLimit: RequestHandler = async (req, res, next) => {
     }
   } catch (err) {
     // Upstash unavailable — log and allow through rather than blocking all auth
-    console.error("[rateLimit] Upstash error, skipping rate check:", err instanceof Error ? err.message : err)
+    logger.error("Upstash rate limit check failed — allowing request through", { error: err instanceof Error ? err.message : err })
   }
 
   next()

@@ -1,5 +1,6 @@
 import type { RequestHandler } from "express"
 import { verifyAccessToken } from "../lib/jwt"
+import logger from "../lib/logger"
 
 export const validateJWT: RequestHandler = (req, res, next) => {
   const header = req.headers.authorization
@@ -14,7 +15,7 @@ export const validateJWT: RequestHandler = (req, res, next) => {
     req.user = { id: payload.sub, email: payload.email }
     next()
   } catch (err) {
-    console.warn("[auth] JWT verification failed:", err instanceof Error ? err.message : "unknown")
+    logger.warn("JWT verification failed", { error: err instanceof Error ? err.message : "unknown" })
     res.status(401).json({ error: { message: "Access token is invalid or expired", status: 401 } })
   }
 }

@@ -1,6 +1,7 @@
 import { prisma } from "./prisma"
 import { emitToUser } from "./socket"
 import { Prisma } from "../../generated/prisma"
+import logger from "./logger"
 
 export async function createNotification(params: {
   userId: string
@@ -31,6 +32,6 @@ export async function createNotification(params: {
     })
   } catch (err) {
     // Notification creation must never block primary actions
-    console.error("[notification] failed to create:", params.type, err)
+    logger.error("Failed to create notification", { type: params.type, error: err instanceof Error ? err.message : err })
   }
 }

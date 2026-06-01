@@ -43,6 +43,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: typecheck-and-build
 
     steps:
       - name: Checkout
