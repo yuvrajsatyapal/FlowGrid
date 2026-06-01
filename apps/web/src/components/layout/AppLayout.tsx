@@ -1,10 +1,11 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
 import { workspacesApi } from "../../api/workspaces"
 import WorkspaceSwitcher from "./WorkspaceSwitcher"
 import { NotificationBell } from "../notifications/NotificationBell"
+import { SearchModal } from "../search/SearchModal"
 
 // ── Nav icons ──────────────────────────────────────────────────────────────────
 
@@ -96,12 +97,20 @@ function NavItem({
 
 // ── AppLayout ──────────────────────────────────────────────────────────────────
 
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.25" />
+    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+  </svg>
+)
+
 export default function AppLayout() {
   const { user, logout } = useAuth()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { workspaces, activeWorkspace, setWorkspaces, setActiveWorkspace, setLoading } =
     useWorkspaceStore()
   const navigate = useNavigate()
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   // Load workspaces on first mount
   useEffect(() => {
@@ -132,6 +141,18 @@ export default function AppLayout() {
       setActiveWorkspace(match)
     }
   }, [workspaceId, workspaces, activeWorkspace, setActiveWorkspace])
+
+  // Global Cmd+K / Ctrl+K shortcut
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault()
+        setIsSearchOpen(true)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -212,6 +233,48 @@ export default function AppLayout() {
             />
           </nav>
         )}
+
+        {/* Search button */}
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          title="Search (⌘K)"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "9px",
+            padding: "7px 10px",
+            borderRadius: "6px",
+            border: "none",
+            background: "transparent",
+            color: "oklch(var(--color-ink-2))",
+            fontSize: "var(--text-sm)",
+            cursor: "pointer",
+            width: "100%",
+            transition: "background var(--dur-fast), color var(--dur-fast)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "oklch(var(--color-paper-3))"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent"
+          }}
+        >
+          <SearchIcon />
+          Search
+          <kbd
+            style={{
+              marginLeft: "auto",
+              padding: "1px 5px",
+              borderRadius: "4px",
+              border: "1px solid oklch(var(--color-border))",
+              fontSize: "10px",
+              background: "oklch(var(--color-paper-3))",
+              color: "oklch(var(--color-ink-3))",
+            }}
+          >
+            ⌘K
+          </kbd>
+        </button>
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
@@ -323,6 +386,15 @@ export default function AppLayout() {
       <main style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
         <Outlet />
       </main>
+
+      {/* ── Global search modal ── */}
+      {workspaceId && (
+        <SearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
     </div>
   )
 }
