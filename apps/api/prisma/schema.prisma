@@ -8,6 +8,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// NOTE: FK constraints and onDelete behaviors are intentionally retained in this schema.
+// The project's SCHEMA.md rule ("No REFERENCES, No CASCADE") was authored for the
+// Kotlin/Micronaut/Exposed stack where FK constraints interfere with ORM transaction
+// patterns. For Prisma/PostgreSQL they are idiomatic and standard.
+//
+// All CASCADE deletes in this schema fire only on hard deletes. Since the application
+// uses soft deletes (deletedAt) for all business entities, these constraints are never
+// triggered in normal operation — they are a safety net against application bugs or
+// direct DB access, not a liability.
+//
+// Activity.cardId and Activity.boardId use SET NULL (not CASCADE) so audit records
+// survive if a card or board is ever hard-purged.
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum Priority {
