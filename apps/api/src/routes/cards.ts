@@ -313,7 +313,7 @@ router.post("/update", validateJWT, async (req, res) => {
           userId: assigneeId,
           type: "CARD_ASSIGNED",
           title: `You were assigned to "${updated.title}"`,
-          data: { cardId: card.id, boardId: access.board.id, workspaceId: access.board.workspaceId },
+          data: { cardId: card.id, cardTitle: updated.title, boardId: access.board.id, workspaceId: access.board.workspaceId },
         })
       }
     }

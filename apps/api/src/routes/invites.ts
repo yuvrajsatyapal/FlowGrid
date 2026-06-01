@@ -204,20 +204,21 @@ router.post("/accept", validateJWT, async (req, res) => {
       prisma.workspaceInvite.update({ where: { id: invite.id }, data: { status: "ACCEPTED" } }),
     ])
 
-    // Notify workspace OWNER + ADMINs that someone joined
+    // Notify workspace OWNER + ADMINs that someone joined.
+    // WorkspaceMember has no deletedAt — members are hard-deleted on removal.
     const inviteeId = req.user!.id
+    const inviteeName = user.email
     const admins = await prisma.workspaceMember.findMany({
       where: { workspaceId: invite.workspaceId, role: { in: ["OWNER", "ADMIN"] } },
       select: { userId: true },
     })
-    const inviteeName = user.email
     for (const admin of admins) {
       if (admin.userId === inviteeId) continue
       void createNotification({
         userId: admin.userId,
         type: "INVITE_ACCEPTED",
         title: `${inviteeName} joined ${invite.workspace.name}`,
-        data: { workspaceId: invite.workspaceId },
+        data: { workspaceId: invite.workspaceId, workspaceName: invite.workspace.name, inviteeName },
       })
     }
 

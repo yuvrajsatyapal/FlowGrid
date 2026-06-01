@@ -179,7 +179,7 @@ router.post("/", validateJWT, async (req, res) => {
         type: "COMMENT_ADDED",
         title: `New comment on "${cardForNotify.title}"`,
         body: snippet || undefined,
-        data: { cardId, boardId: access.board.id, workspaceId: access.board.workspaceId },
+        data: { cardId, cardTitle: cardForNotify.title, boardId: access.board.id, workspaceId: access.board.workspaceId },
       })
     }
 
