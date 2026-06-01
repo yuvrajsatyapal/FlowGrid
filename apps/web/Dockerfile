@@ -36,11 +36,8 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY apps/web/nginx.conf /etc/nginx/conf.d/app.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
-# nginx:alpine worker processes run as the built-in 'nginx' user.
-# Switch the master process off root by binding to an unprivileged port.
-RUN sed -i 's/listen 80;/listen 8080;/' /etc/nginx/conf.d/app.conf \
-  && sed -i 's/listen 80 /listen 8080 /g' /etc/nginx/conf.d/app.conf \
-  && chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx \
+# nginx:alpine worker processes run as the built-in 'nginx' user (port 8080 — no root needed).
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx \
   && chmod -R 755 /usr/share/nginx/html \
   && touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
 

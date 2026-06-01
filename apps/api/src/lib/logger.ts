@@ -7,7 +7,7 @@ const { combine, timestamp, errors, json, colorize, simple } = winston.format
 // Development: colorized human-readable output
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL ?? "http",
-  levels: { ...winston.config.npm.levels, http: 3 },
+  levels: winston.config.npm.levels,
   format: combine(
     timestamp(),
     errors({ stack: true }),
