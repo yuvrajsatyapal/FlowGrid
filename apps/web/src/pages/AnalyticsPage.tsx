@@ -12,6 +12,9 @@ import {
 import { useAnalytics } from "../hooks/useAnalytics"
 import type { Priority } from "@flowgrid/types"
 
+// Single source for axis tick fill — avoids repeating the raw OKLCH value across charts
+const TICK_COLOR = "oklch(72% 0.010 250)"
+
 // ── Priority colours — consistent with card priority dots ──────────────────────
 
 const PRIORITY_COLOR: Record<Priority, string> = {
@@ -294,7 +297,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Charts grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "16px" }}>
 
         {/* Cards by priority */}
         <ChartCard title="Cards by Priority" isEmpty={!hasPriorityData} emptyMsg="No cards yet — create some to see priority breakdown.">
@@ -303,12 +306,12 @@ export default function AnalyticsPage() {
               <CartesianGrid vertical={false} stroke="oklch(var(--color-border))" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 11, fill: "oklch(72% 0.010 250)" }}
+                tick={{ fontSize: 11, fill: TICK_COLOR }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "oklch(72% 0.010 250)" }}
+                tick={{ fontSize: 11, fill: TICK_COLOR }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -331,12 +334,12 @@ export default function AnalyticsPage() {
               <CartesianGrid vertical={false} stroke="oklch(var(--color-border))" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10, fill: "oklch(72% 0.010 250)" }}
+                tick={{ fontSize: 10, fill: TICK_COLOR }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "oklch(72% 0.010 250)" }}
+                tick={{ fontSize: 11, fill: TICK_COLOR }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -384,13 +387,13 @@ export default function AnalyticsPage() {
                 <CartesianGrid vertical={false} stroke="oklch(var(--color-border))" />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 10, fill: "oklch(72% 0.010 250)" }}
+                  tick={{ fontSize: 10, fill: TICK_COLOR }}
                   axisLine={false}
                   tickLine={false}
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: "oklch(72% 0.010 250)" }}
+                  tick={{ fontSize: 11, fill: TICK_COLOR }}
                   axisLine={false}
                   tickLine={false}
                   allowDecimals={false}

@@ -5,7 +5,7 @@ import type { AnalyticsData } from "@flowgrid/types"
 export function useAnalytics(workspaceId: string | undefined) {
   return useQuery<AnalyticsData>({
     queryKey: ["analytics", workspaceId],
-    queryFn: () => analyticsApi.get(workspaceId!),
+    queryFn: () => analyticsApi.get(workspaceId as string),
     enabled: Boolean(workspaceId),
     staleTime: 5 * 60 * 1000, // 5 min — analytics don't need to be real-time
   })
