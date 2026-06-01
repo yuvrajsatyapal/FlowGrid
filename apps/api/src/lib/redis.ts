@@ -12,4 +12,6 @@ export const redisKeys = {
   refresh: (token: string) => `refresh:${token}`,
   rateLimit: (ip: string) => `rl:${ip}`,
   boardPresence: (boardId: string) => `board:${boardId}:presence`,
+  boardPresenceUsers: (boardId: string) => `board:${boardId}:presence:users`,
+  boardPresenceCounts: (boardId: string) => `board:${boardId}:presence:counts`,
 }

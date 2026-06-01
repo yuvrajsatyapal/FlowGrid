@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { canWrite } from "../lib/roles"
+import { emitBoardEvent } from "../lib/socket"
 
 const router = Router()
 
@@ -49,6 +50,42 @@ async function resolveBoardAccess(
   return { board, membership }
 }
 
+// Fetch a list with its live card count for socket broadcasts
+async function fetchListWithCount(listId: string) {
+  const list = await prisma.list.findUnique({
+    where: { id: listId },
+    select: {
+      id: true, boardId: true, name: true, position: true,
+      createdAt: true, updatedAt: true, deletedAt: true,
+      _count: { select: { cards: { where: { deletedAt: null } } } },
+    },
+  })
+  if (!list) return null
+  return {
+    id: list.id, boardId: list.boardId, name: list.name, position: list.position,
+    cardCount: list._count.cards,
+    createdAt: list.createdAt, updatedAt: list.updatedAt, deletedAt: list.deletedAt,
+  }
+}
+
+// Fetch all non-deleted lists for a board with card counts (used by list:reordered)
+async function fetchBoardLists(boardId: string) {
+  const lists = await prisma.list.findMany({
+    where: { boardId, deletedAt: null },
+    orderBy: { position: "asc" },
+    select: {
+      id: true, boardId: true, name: true, position: true,
+      createdAt: true, updatedAt: true, deletedAt: true,
+      _count: { select: { cards: { where: { deletedAt: null } } } },
+    },
+  })
+  return lists.map((l) => ({
+    id: l.id, boardId: l.boardId, name: l.name, position: l.position,
+    cardCount: l._count.cards,
+    createdAt: l.createdAt, updatedAt: l.updatedAt, deletedAt: l.deletedAt,
+  }))
+}
+
 // POST /api/lists — create a list in a board (OWNER | ADMIN)
 router.post("/", validateJWT, async (req, res) => {
   const { boardId, name } = req.body as { boardId?: string; name?: string }
@@ -84,18 +121,13 @@ router.post("/", validateJWT, async (req, res) => {
       })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
-    res.status(201).json({
-      list: {
-        id: list.id,
-        boardId: list.boardId,
-        name: list.name,
-        position: list.position,
-        cardCount: 0,
-        createdAt: list.createdAt,
-        updatedAt: list.updatedAt,
-        deletedAt: list.deletedAt,
-      },
-    })
+    const listPayload = {
+      id: list.id, boardId: list.boardId, name: list.name, position: list.position,
+      cardCount: 0,
+      createdAt: list.createdAt, updatedAt: list.updatedAt, deletedAt: list.deletedAt,
+    }
+    emitBoardEvent(boardId, "list:created", listPayload)
+    res.status(201).json({ list: listPayload })
   } catch {
     res.status(500).json({ error: { message: "Failed to create list", status: 500 } })
   }
@@ -189,6 +221,8 @@ router.post("/update", validateJWT, async (req, res) => {
     }
 
     const updated = await prisma.list.update({ where: { id: listId }, data: { name: name.trim() } })
+    const updatedWithCount = await fetchListWithCount(updated.id)
+    if (updatedWithCount) emitBoardEvent(updated.boardId, "list:updated", updatedWithCount)
 
     res.json({
       list: {
@@ -241,6 +275,8 @@ router.post("/reorder", validateJWT, async (req, res) => {
       ),
     )
 
+    const reorderedLists = await fetchBoardLists(boardId)
+    emitBoardEvent(boardId, "list:reordered", { lists: reorderedLists })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to reorder lists", status: 500 } })
@@ -266,7 +302,7 @@ router.post("/delete", validateJWT, async (req, res) => {
     if (!access) return
 
     await prisma.list.update({ where: { id: listId }, data: { deletedAt: new Date() } })
-
+    emitBoardEvent(list.boardId, "list:deleted", { id: listId })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete list", status: 500 } })

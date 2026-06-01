@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
 import { canWrite } from "../lib/roles"
+import { emitBoardEvent } from "../lib/socket"
 
 const router = Router()
 
@@ -164,6 +165,7 @@ router.post("/", validateJWT, async (req, res) => {
     })
 
     void logActivity({ cardId, userId: req.user!.id, action: "comment_added", metadata: { commentId: comment.id } })
+    emitBoardEvent(access.board.id, "comment:created", formatComment(comment))
     res.status(201).json({ comment: formatComment(comment) })
   } catch {
     res.status(500).json({ error: { message: "Failed to create comment", status: 500 } })
@@ -223,6 +225,7 @@ router.post("/update", validateJWT, async (req, res) => {
     })
 
     void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_edited", metadata: { commentId } })
+    emitBoardEvent(access.board.id, "comment:updated", formatComment(updated))
     res.json({ comment: formatComment(updated) })
   } catch {
     res.status(500).json({ error: { message: "Failed to update comment", status: 500 } })
@@ -260,6 +263,7 @@ router.post("/delete", validateJWT, async (req, res) => {
 
     await prisma.comment.update({ where: { id: commentId }, data: { deletedAt: new Date() } })
     void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_deleted", metadata: { commentId } })
+    emitBoardEvent(access.board.id, "comment:deleted", { id: commentId, cardId: comment.cardId })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete comment", status: 500 } })
