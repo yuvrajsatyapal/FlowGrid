@@ -257,3 +257,11 @@ export interface ActivityResponse {
   metadata: Record<string, unknown>
   createdAt: string
 }
+
+// ─── Real-time Presence ───────────────────────────────────────────────────────
+
+export interface PresenceUser {
+  userId: string
+  name: string | null
+  avatarUrl: string | null
+}

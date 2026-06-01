@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
+import type { Socket } from "socket.io-client"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary, CardLabel } from "../../api/cards"
 import { cardsApi } from "../../api/cards"
@@ -18,6 +19,7 @@ interface Props {
   workspaceId: string
   canEdit: boolean
   userRole?: string // workspace role — used for comment moderation
+  socket?: Socket | null
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
 }
@@ -43,7 +45,7 @@ const LABEL_COLORS = [
   { name: "Slate", value: "#64748b" },
 ]
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, onClose, onCardUpdated }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, onClose, onCardUpdated }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -391,6 +393,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                   cardId={localCard.id}
                   currentUserId={user.id}
                   currentUserRole={userRole ?? (canEdit ? "OWNER" : "MEMBER")}
+                  socket={socket}
                 />
               </div>
             )}

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
+import type { Socket } from "socket.io-client"
 import type { CommentResponse } from "@flowgrid/types"
 import { commentsApi } from "../../api/comments"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
@@ -10,6 +11,7 @@ interface Props {
   cardId: string
   currentUserId: string
   currentUserRole: string // "OWNER" | "ADMIN" | "MEMBER" | "VIEWER"
+  socket?: Socket | null
 }
 
 function formatRelativeTime(iso: string): string {
@@ -23,7 +25,7 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`
 }
 
-export function CommentThread({ cardId, currentUserId, currentUserRole }: Props) {
+export function CommentThread({ cardId, currentUserId, currentUserRole, socket }: Props) {
   const [comments, setComments] = useState<CommentResponse[]>([])
   const [total, setTotal] = useState(0)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -32,6 +34,44 @@ export function CommentThread({ cardId, currentUserId, currentUserRole }: Props)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const canModerate = currentUserRole === "OWNER" || currentUserRole === "ADMIN"
+
+  // Real-time comment sync — subscribe to socket events for this card
+  useEffect(() => {
+    if (!socket) return
+
+    const handleCreated = (comment: CommentResponse) => {
+      if (comment.cardId !== cardId) return
+      // Dedup: sender already added the comment locally on API success.
+      // setTotal is called outside the updater (React rule: updaters must be pure).
+      // On the dedup path total may drift by 1; it self-corrects on next load.
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, comment]
+      })
+      setTotal((t) => t + 1)
+    }
+
+    const handleUpdated = (comment: CommentResponse) => {
+      if (comment.cardId !== cardId) return
+      setComments((prev) => prev.map((c) => (c.id === comment.id ? comment : c)))
+    }
+
+    const handleDeleted = ({ id, cardId: eventCardId }: { id: string; cardId: string }) => {
+      if (eventCardId !== cardId) return
+      setComments((prev) => prev.filter((c) => c.id !== id))
+      setTotal((t) => Math.max(0, t - 1))
+    }
+
+    socket.on("comment:created", handleCreated)
+    socket.on("comment:updated", handleUpdated)
+    socket.on("comment:deleted", handleDeleted)
+
+    return () => {
+      socket.off("comment:created", handleCreated)
+      socket.off("comment:updated", handleUpdated)
+      socket.off("comment:deleted", handleDeleted)
+    }
+  }, [socket, cardId])
 
   // New comment editor
   const newEditor = useEditor({

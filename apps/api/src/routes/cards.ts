@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
 import { canWrite } from "../lib/roles"
+import { emitBoardEvent } from "../lib/socket"
 
 const router = Router()
 
@@ -101,6 +102,27 @@ function formatCard(
   }
 }
 
+// Fetch a card with enriched assignee + labels shape for socket broadcasts
+async function fetchEnrichedCard(cardId: string) {
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    include: {
+      assignee: { select: { id: true, name: true, avatarUrl: true } },
+      labels: { include: { label: true } },
+    },
+  })
+  if (!card) return null
+  const assignee: CardAssignee | null = card.assignee
+    ? { id: card.assignee.id, name: card.assignee.name, avatarUrl: card.assignee.avatarUrl }
+    : null
+  const labels: CardLabelItem[] = card.labels.map((cl) => ({
+    id: cl.label.id,
+    name: cl.label.name,
+    color: cl.label.color,
+  }))
+  return formatCard(card, assignee, labels)
+}
+
 // POST /api/cards — create a card in a list (OWNER | ADMIN)
 router.post("/", validateJWT, async (req, res) => {
   const { listId, title } = req.body as { listId?: string; title?: string }
@@ -136,6 +158,7 @@ router.post("/", validateJWT, async (req, res) => {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     void logActivity({ cardId: card.id, userId: req.user!.id, action: "card_created", metadata: {} })
+    emitBoardEvent(access.board.id, "card:created", formatCard(card, null, []))
     res.status(201).json({ card: formatCard(card) })
   } catch {
     res.status(500).json({ error: { message: "Failed to create card", status: 500 } })
@@ -285,7 +308,9 @@ router.post("/update", validateJWT, async (req, res) => {
       void logActivity({ cardId: cardId, userId: req.user!.id, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
     }
 
-    res.json({ card: formatCard(updated, updatedAssignee, updatedLabels) })
+    const formatted = formatCard(updated, updatedAssignee, updatedLabels)
+    emitBoardEvent(access.board.id, "card:updated", formatted)
+    res.json({ card: formatted })
   } catch {
     res.status(500).json({ error: { message: "Failed to update card", status: 500 } })
   }
@@ -342,6 +367,7 @@ router.post("/reorder", validateJWT, async (req, res) => {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     )
 
+    emitBoardEvent(access.board.id, "card:reordered", { listId, cardIds })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to reorder cards", status: 500 } })
@@ -438,7 +464,9 @@ router.post("/move", validateJWT, async (req, res) => {
       color: cl.label.color,
     }))
     void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_moved", metadata: { fromListId: card.listId, toListId: targetListId } })
-    res.json({ card: formatCard(moved, movedAssignee, movedLabels) })
+    const movedFormatted = formatCard(moved, movedAssignee, movedLabels)
+    emitBoardEvent(access.board.id, "card:moved", movedFormatted)
+    res.json({ card: movedFormatted })
   } catch {
     res.status(500).json({ error: { message: "Failed to move card", status: 500 } })
   }
@@ -464,6 +492,7 @@ router.post("/delete", validateJWT, async (req, res) => {
 
     await prisma.card.update({ where: { id: cardId }, data: { deletedAt: new Date() } })
     void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {} })
+    emitBoardEvent(access.board.id, "card:deleted", { id: cardId })
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete card", status: 500 } })
@@ -506,6 +535,8 @@ router.post("/labels/add", validateJWT, async (req, res) => {
       update: {},
     })
     void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_added", metadata: { labelId: label.id, labelName: label.name } })
+    const enriched = await fetchEnrichedCard(cardId)
+    if (enriched) emitBoardEvent(access.board.id, "card:updated", enriched)
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to add label", status: 500 } })
@@ -540,6 +571,8 @@ router.post("/labels/remove", validateJWT, async (req, res) => {
     if (labelToRemove) {
       void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_removed", metadata: { labelId: labelToRemove.id, labelName: labelToRemove.name } })
     }
+    const enrichedAfterRemove = await fetchEnrichedCard(cardId)
+    if (enrichedAfterRemove) emitBoardEvent(access.board.id, "card:updated", enrichedAfterRemove)
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to remove label", status: 500 } })
