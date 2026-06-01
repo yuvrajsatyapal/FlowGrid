@@ -277,7 +277,8 @@ searchRouter.get("/", validateJWT, async (req, res) => {
       .filter((c): c is CardSearchResult => c !== null)
 
     res.json({ cards, total, limit, offset })
-  } catch {
+  } catch (err) {
+    console.error("[search] Unexpected error:", err)
     res.status(500).json({ error: { message: "Search failed", status: 500 } })
   }
 })
