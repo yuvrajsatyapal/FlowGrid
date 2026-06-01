@@ -8,6 +8,9 @@ import { cardsApi } from "../../api/cards"
 import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
+import { useAuth } from "../../contexts/AuthContext"
+import { CommentThread } from "./CommentThread"
+import { ActivityFeed } from "./ActivityFeed"
 
 interface Props {
   card: CardSummary
@@ -40,6 +43,7 @@ const LABEL_COLORS = [
 ]
 
 export default function CardDetailModal({ card, boardId, workspaceId, canEdit, onClose, onCardUpdated }: Props) {
+  const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState("")
@@ -377,6 +381,22 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, o
               }}
             >
               <EditorContent editor={editor} />
+            </div>
+
+            {/* Comments */}
+            {user && (
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+                <CommentThread
+                  cardId={localCard.id}
+                  currentUserId={user.id}
+                  currentUserRole={canEdit ? "OWNER" : "MEMBER"}
+                />
+              </div>
+            )}
+
+            {/* Activity */}
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+              <ActivityFeed cardId={localCard.id} />
             </div>
           </div>
 
