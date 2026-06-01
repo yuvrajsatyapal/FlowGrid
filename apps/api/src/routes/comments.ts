@@ -148,7 +148,7 @@ router.post("/", validateJWT, async (req, res) => {
   }
 
   try {
-    const access = await resolveCardAccess(res, cardId, req.user!.id)
+    const access = await resolveCardAccess(res, cardId, req.user!.id, true)
     if (!access) return
 
     const sanitized = sanitizeHtml(content, SANITIZE_OPTIONS)

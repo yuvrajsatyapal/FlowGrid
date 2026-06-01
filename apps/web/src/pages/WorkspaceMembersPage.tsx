@@ -115,7 +115,7 @@ export default function WorkspaceMembersPage() {
   const [inviteError, setInviteError] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState("")
 
-  const currentUserMember = members.find((m) => m.id === user?.id || m.email === user?.email)
+  const currentUserMember = members.find((m) => m.userId === user?.id)
   const canManage = currentUserMember?.role === "OWNER" || currentUserMember?.role === "ADMIN"
 
   const fetchMembers = useCallback(async () => {
@@ -283,7 +283,7 @@ export default function WorkspaceMembersPage() {
         ) : (
           <div>
             {members.map((member) => {
-              const isCurrentUser = member.email === user?.email
+              const isCurrentUser = member.userId === user?.id
               const isOwner = member.role === "OWNER"
               const canModify = canManage && !isCurrentUser && !isOwner
 

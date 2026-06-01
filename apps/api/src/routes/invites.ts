@@ -48,7 +48,7 @@ router.get("/", validateJWT, async (req, res) => {
     }
 
     const invites = await prisma.workspaceInvite.findMany({
-      where: { workspaceId, status: "PENDING" },
+      where: { workspaceId, status: "PENDING", expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
       select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
     })
@@ -67,8 +67,8 @@ router.post("/", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "workspaceId is required", status: 400 } })
     return
   }
-  if (!email || typeof email !== "string" || !email.includes("@")) {
-    res.status(400).json({ error: { message: "A valid email is required", status: 400 } })
+  if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    res.status(400).json({ error: { message: "A valid email address is required", status: 400 } })
     return
   }
   const normalizedEmail = email.trim().toLowerCase()
@@ -276,6 +276,10 @@ router.post("/revoke", validateJWT, async (req, res) => {
     })
     if (!membership || !isOwnerOrAdmin(membership.role)) {
       res.status(403).json({ error: { message: "Only owners and admins can revoke invites", status: 403 } })
+      return
+    }
+    if (invite.status !== "PENDING") {
+      res.status(409).json({ error: { code: "INVITE_NOT_PENDING", message: `This invite has already been ${invite.status.toLowerCase()}.`, status: 409 } })
       return
     }
 

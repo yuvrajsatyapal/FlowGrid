@@ -206,7 +206,7 @@ router.post("/update", validateJWT, async (req, res) => {
       res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
       return
     }
-    if (!["OWNER", "ADMIN"].includes(membership.role)) {
+    if (!isOwnerOrAdmin(membership.role)) {
       res.status(403).json({ error: { message: "You don't have permission to update this workspace", status: 403 } })
       return
     }
@@ -309,7 +309,8 @@ router.get("/members", validateJWT, async (req, res) => {
     })
 
     const members = memberships.map((m) => ({
-      id: m.user.id,
+      id: m.id,           // WorkspaceMember.id — used for update/remove calls
+      userId: m.user.id,  // User.id — used for identity comparisons
       name: m.user.name,
       email: m.user.email,
       avatarUrl: m.user.avatarUrl,
@@ -358,10 +359,15 @@ router.post("/members/update", validateJWT, async (req, res) => {
       res.status(403).json({ error: { message: "You cannot assign a role higher than your own", status: 403 } })
       return
     }
-    // Cannot demote an OWNER via this endpoint
+    // Protect the last OWNER: allow demoting an owner only when a second owner exists
     if (target.role === "OWNER") {
-      res.status(403).json({ error: { message: "Workspace owners cannot be demoted via this endpoint", status: 403 } })
-      return
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: target.workspaceId, role: "OWNER" },
+      })
+      if (ownerCount <= 1) {
+        res.status(403).json({ error: { code: "LAST_OWNER", message: "Workspace must have at least one owner.", status: 403 } })
+        return
+      }
     }
 
     const updated = await prisma.workspaceMember.update({
@@ -406,10 +412,15 @@ router.post("/members/remove", validateJWT, async (req, res) => {
       res.status(403).json({ error: { message: "Only owners and admins can remove members", status: 403 } })
       return
     }
-    // Cannot remove an OWNER
+    // Protect the last OWNER: allow removal of an owner only when a second owner exists
     if (target.role === "OWNER") {
-      res.status(403).json({ error: { message: "Workspace owners cannot be removed", status: 403 } })
-      return
+      const ownerCount = await prisma.workspaceMember.count({
+        where: { workspaceId: target.workspaceId, role: "OWNER" },
+      })
+      if (ownerCount <= 1) {
+        res.status(403).json({ error: { code: "LAST_OWNER", message: "Workspace must have at least one owner.", status: 403 } })
+        return
+      }
     }
 
     await prisma.workspaceMember.delete({ where: { id: memberId } })

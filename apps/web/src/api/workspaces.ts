@@ -2,7 +2,8 @@ import { api } from "../lib/axiosInstance"
 import type { Role, WorkspaceMemberResponse } from "@flowgrid/types"
 
 export interface WorkspaceMember {
-  id: string
+  id: string       // WorkspaceMember.id — pass to update/remove endpoints
+  userId: string   // User.id — use for identity comparisons
   name: string | null
   email: string
   avatarUrl: string | null
