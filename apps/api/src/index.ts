@@ -1,4 +1,5 @@
 import "dotenv/config"
+import path from "path"
 import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser"
@@ -19,12 +20,18 @@ import { commentsRouter } from "./routes/comments"
 import { activitiesRouter } from "./routes/activities"
 import { invitesRouter } from "./routes/invites"
 import { notificationsRouter } from "./routes/notifications"
+import { attachmentsRouter } from "./routes/attachments"
 import "./lib/passport"
 
 const app = express()
 const httpServer = createServer(app)
 
 initSocket(httpServer)
+
+// Serve uploaded files in local dev (R2 serves directly from CDN in prod)
+if (env.STORAGE_PROVIDER === "local") {
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
+}
 
 // Middleware
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
@@ -46,6 +53,7 @@ app.use("/api/comments", commentsRouter)
 app.use("/api/activities", activitiesRouter)
 app.use("/api/invites", invitesRouter)
 app.use("/api/notifications", notificationsRouter)
+app.use("/api/attachments", attachmentsRouter)
 
 // Error handler — must be last
 app.use(errorHandler)
