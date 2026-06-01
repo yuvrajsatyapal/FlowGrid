@@ -574,7 +574,6 @@ export default function AppLayout() {
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 aria-label="Close navigation menu"
-                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 style={{
                   alignSelf: "flex-end",
