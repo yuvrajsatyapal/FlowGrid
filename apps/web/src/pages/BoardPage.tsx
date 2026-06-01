@@ -18,6 +18,8 @@ import ListColumn from "../components/boards/ListColumn"
 import CreateListInline from "../components/boards/CreateListInline"
 import CardItem from "../components/boards/CardItem"
 import CardDetailModal from "../components/boards/CardDetailModal"
+import BoardPresence from "../components/boards/BoardPresence"
+import { useBoardSocket } from "../hooks/useBoardSocket"
 
 const LOCK_ICON = (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -226,6 +228,61 @@ export default function BoardPage() {
     setBoardCards((prev) => ({ ...prev, [listId]: [...(prev[listId] ?? []), card] }))
   }
 
+  // ─── Real-time socket ────────────────────────────────────────────────────────
+
+  const { onlineUsers, socket } = useBoardSocket(boardId, {
+    onCardCreated: (card) => {
+      setBoardCards((prev) => ({
+        ...prev,
+        [card.listId]: [...(prev[card.listId] ?? []), card],
+      }))
+    },
+    onCardUpdated: (card) => {
+      setBoardCards((prev) => {
+        const listCards = prev[card.listId]
+        if (!listCards) return prev
+        return { ...prev, [card.listId]: listCards.map((c) => (c.id === card.id ? card : c)) }
+      })
+    },
+    onCardMoved: (card) => {
+      setBoardCards((prev) => {
+        const next: Record<string, CardSummary[]> = {}
+        for (const [lid, cards] of Object.entries(prev)) {
+          next[lid] = cards.filter((c) => c.id !== card.id)
+        }
+        next[card.listId] = [...(next[card.listId] ?? []), card]
+        return next
+      })
+    },
+    onCardDeleted: ({ id }) => {
+      setBoardCards((prev) => {
+        const next: Record<string, CardSummary[]> = {}
+        for (const [lid, cards] of Object.entries(prev)) {
+          next[lid] = cards.filter((c) => c.id !== id)
+        }
+        return next
+      })
+    },
+    onListCreated: (list) => {
+      setLists((prev) => [...prev, list])
+      setBoardCards((prev) => ({ ...prev, [list.id]: [] }))
+    },
+    onListUpdated: (list) => {
+      setLists((prev) => prev.map((l) => (l.id === list.id ? list : l)))
+    },
+    onListReordered: ({ lists: reordered }) => {
+      setLists(reordered)
+    },
+    onListDeleted: ({ id }) => {
+      setLists((prev) => prev.filter((l) => l.id !== id))
+      setBoardCards((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    },
+  })
+
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (loadingBoard) {
@@ -323,6 +380,10 @@ export default function BoardPage() {
             Public
           </span>
         )}
+
+        <div style={{ marginLeft: "auto" }}>
+          <BoardPresence users={onlineUsers} />
+        </div>
       </div>
 
       {/* Kanban columns area */}
@@ -399,6 +460,7 @@ export default function BoardPage() {
           workspaceId={workspaceId}
           canEdit={canEdit}
           userRole={board.role}
+          socket={socket}
           onClose={() => setOpenCardId(null)}
           onCardUpdated={handleCardUpdated}
         />
