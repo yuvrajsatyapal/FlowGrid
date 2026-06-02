@@ -324,7 +324,7 @@ export default function OnboardingPage() {
 
   const handleComplete = async (workspaceName: string) => {
     // 1. Save the display name
-    await usersApi.updateMe({ name: displayName })
+    await usersApi.updateName(displayName)
 
     // 2. Create workspace — this marks onboardingCompleted = true server-side
     await workspacesApi.create({ name: workspaceName })
