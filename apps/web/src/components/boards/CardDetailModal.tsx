@@ -514,6 +514,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
                     cursor: canEdit ? "pointer" : "default",
+                    colorScheme: "dark",
                   }}
                 />
                 {localStartDate && canEdit && (
@@ -556,6 +557,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
                     cursor: canEdit ? "pointer" : "default",
+                    colorScheme: "dark",
                   }}
                 />
                 {localDueDate && canEdit && (

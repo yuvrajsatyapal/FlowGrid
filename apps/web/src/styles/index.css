@@ -52,6 +52,17 @@
   }
 }
 
+/* Native date/time pickers need color-scheme in dark mode so Chrome renders
+   the calendar icon and picker UI correctly on dark backgrounds */
+[data-theme=dark] input[type="date"],
+[data-theme=dark] input[type="datetime-local"],
+[data-theme=dark] input[type="time"],
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="time"] {
+  color-scheme: dark;
+}
+
 /* TipTap / ProseMirror editor styles */
 .ProseMirror {
   outline: none;
