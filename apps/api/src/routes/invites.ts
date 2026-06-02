@@ -153,6 +153,7 @@ router.post("/", validateJWT, async (req, res) => {
       void createNotification({
         userId: invitee.id,
         type: "WORKSPACE_INVITE",
+        source: "SYSTEM",
         title: `${inviterName} invited you to ${workspace.name}`,
         body: `You've been invited as ${assignableRole.charAt(0) + assignableRole.slice(1).toLowerCase()}`,
         data: { inviteUrl, workspaceName: workspace.name, inviterName },
@@ -234,6 +235,7 @@ router.post("/accept", validateJWT, async (req, res) => {
       void createNotification({
         userId: admin.userId,
         type: "INVITE_ACCEPTED",
+        source: "SYSTEM",
         title: `${inviteeName} joined ${invite.workspace.name}`,
         data: { workspaceId: invite.workspaceId, workspaceName: invite.workspace.name, inviteeName },
       })
@@ -289,6 +291,7 @@ router.post("/resend", validateJWT, async (req, res) => {
       void createNotification({
         userId: invitee.id,
         type: "WORKSPACE_INVITE",
+        source: "SYSTEM",
         title: `${inviterName} invited you to ${invite.workspace.name}`,
         body: `You've been invited as ${invite.role.charAt(0) + invite.role.slice(1).toLowerCase()}`,
         data: { inviteUrl, workspaceName: invite.workspace.name, inviterName },

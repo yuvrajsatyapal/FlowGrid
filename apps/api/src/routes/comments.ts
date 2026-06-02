@@ -174,9 +174,10 @@ router.post("/", validateJWT, async (req, res) => {
     ])
     if (cardForNotify && recipients.length > 0) {
       const snippet = textOnly.slice(0, 80)
-      for (const userId of recipients) {
+      for (const { userId, source } of recipients) {
         void createNotification({
           userId,
+          source,
           type: "COMMENT_ADDED",
           title: `New comment on "${cardForNotify.title}"`,
           body: snippet || undefined,

@@ -329,9 +329,15 @@ router.post("/update", validateJWT, async (req, res) => {
         }
         if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
           void logActivity({ cardId, userId: actorId, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
-          // New assignee gets a personal CARD_ASSIGNED notification
+          // New assignee gets a targeted CARD_ASSIGNED notification — source is always ASSIGNMENT
           if (assigneeId && assigneeId !== actorId) {
-            void createNotification({ userId: assigneeId, type: "CARD_ASSIGNED", title: `You were assigned to "${updated.title}"`, data: notifyData })
+            void createNotification({
+              userId: assigneeId,
+              type: "CARD_ASSIGNED",
+              source: "ASSIGNMENT",
+              title: `You were assigned to "${updated.title}"`,
+              data: notifyData,
+            })
           }
         }
 
@@ -339,30 +345,30 @@ router.post("/update", validateJWT, async (req, res) => {
         const recipients = await getCardRecipients(cardId, actorId)
         if (recipients.length === 0) return
 
-        if (title !== undefined && title.trim() !== card.title) {
-          for (const userId of recipients) {
-            void createNotification({ userId, type: "CARD_UPDATED", title: `"${updated.title}" was renamed`, data: notifyData })
-          }
+        // Users who already received a targeted notification — exclude from CARD_UPDATED
+        const excludeFromUpdate = new Set<string>()
+        if (assigneeId !== undefined && assigneeId !== card.assigneeId && assigneeId) {
+          excludeFromUpdate.add(assigneeId)
         }
-        if (priority !== undefined && priority !== card.priority) {
-          for (const userId of recipients) {
-            void createNotification({ userId, type: "CARD_UPDATED", title: `Priority changed on "${updated.title}"`, data: notifyData })
+
+        for (const { userId, source } of recipients) {
+          if (excludeFromUpdate.has(userId)) continue
+
+          if (title !== undefined && title.trim() !== card.title) {
+            void createNotification({ userId, source, type: "CARD_UPDATED", title: `"${updated.title}" was renamed`, data: notifyData })
           }
-        }
-        if (dueDate !== undefined) {
-          const oldDate = card.dueDate ? card.dueDate.toISOString() : null
-          const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
-          if (oldDate !== newDate) {
-            for (const userId of recipients) {
-              void createNotification({ userId, type: "CARD_UPDATED", title: `Due date changed on "${updated.title}"`, data: notifyData })
+          if (priority !== undefined && priority !== card.priority) {
+            void createNotification({ userId, source, type: "CARD_UPDATED", title: `Priority changed on "${updated.title}"`, data: notifyData })
+          }
+          if (dueDate !== undefined) {
+            const oldDate = card.dueDate ? card.dueDate.toISOString() : null
+            const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
+            if (oldDate !== newDate) {
+              void createNotification({ userId, source, type: "CARD_UPDATED", title: `Due date changed on "${updated.title}"`, data: notifyData })
             }
           }
-        }
-        if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
-          for (const userId of recipients) {
-            // New assignee already got CARD_ASSIGNED; watchers get CARD_UPDATED
-            if (userId === assigneeId) continue
-            void createNotification({ userId, type: "CARD_UPDATED", title: `Assignee changed on "${updated.title}"`, data: notifyData })
+          if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
+            void createNotification({ userId, source, type: "CARD_UPDATED", title: `Assignee changed on "${updated.title}"`, data: notifyData })
           }
         }
       } catch (err) {
