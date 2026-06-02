@@ -14,6 +14,9 @@ import { useAuth } from "../../contexts/AuthContext"
 import { CommentThread } from "./CommentThread"
 import { ActivityFeed } from "./ActivityFeed"
 import { AttachmentSection } from "./AttachmentSection"
+import ChecklistSection from "./ChecklistSection"
+import DependenciesSection from "./DependenciesSection"
+import WatchersSection from "./WatchersSection"
 
 interface Props {
   card: CardSummary
@@ -405,6 +408,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               <EditorContent editor={editor} />
             </div>
 
+            {/* Checklists */}
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+              <ChecklistSection cardId={localCard.id} canEdit={canEdit} />
+            </div>
+
             {/* Attachments */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
               <AttachmentSection cardId={localCard.id} canEdit={canEdit} />
@@ -766,6 +774,18 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Watchers */}
+            {user && (
+              <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+                <WatchersSection cardId={localCard.id} currentUserId={user.id} />
+              </div>
+            )}
+
+            {/* Dependencies */}
+            <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+              <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={canEdit} />
             </div>
 
           </div>
