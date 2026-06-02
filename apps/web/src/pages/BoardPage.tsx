@@ -20,7 +20,33 @@ import CreateListInline from "../components/boards/CreateListInline"
 import CardItem from "../components/boards/CardItem"
 import CardDetailModal from "../components/boards/CardDetailModal"
 import BoardPresence from "../components/boards/BoardPresence"
+import BoardCalendarView from "../components/boards/BoardCalendarView"
+import BoardTimelineView from "../components/boards/BoardTimelineView"
 import { useBoardSocket } from "../hooks/useBoardSocket"
+
+type BoardView = "kanban" | "calendar" | "timeline"
+
+const VIEW_ICONS = {
+  kanban: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="3.5" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="5.25" y="1" width="3.5" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="9.5" y="1" width="3.5" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  ),
+  calendar: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <rect x="1" y="2.5" width="12" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M1 5.5h12M4.5 1v3M9.5 1v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  ),
+  timeline: (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M1 7h12M1 4h7M1 10h9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="9" cy="7" r="1.5" fill="currentColor" />
+    </svg>
+  ),
+}
 
 const LOCK_ICON = (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -51,6 +77,7 @@ export default function BoardPage() {
   const [loadingLists, setLoadingLists] = useState(true)
   const [error, setError] = useState("")
   const [listsError, setListsError] = useState("")
+  const [boardView, setBoardView] = useState<BoardView>("kanban")
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
 
@@ -401,77 +428,126 @@ export default function BoardPage() {
           </span>
         )}
 
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          {/* View switcher */}
+          <div
+            role="group"
+            aria-label="Board view"
+            style={{
+              display: "flex",
+              gap: 2,
+              background: "oklch(0% 0 0 / 0.20)",
+              borderRadius: "var(--radius-badge)",
+              padding: 2,
+            }}
+          >
+            {(["kanban", "calendar", "timeline"] as BoardView[]).map((v) => (
+              <button
+                key={v}
+                aria-pressed={boardView === v}
+                onClick={() => setBoardView(v)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  borderRadius: "var(--radius-badge)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "var(--text-xs)",
+                  fontWeight: 500,
+                  background: boardView === v ? "oklch(100% 0 0 / 0.18)" : "transparent",
+                  color: "#fff",
+                  transition: "background 0.15s",
+                }}
+              >
+                {VIEW_ICONS[v]}
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+
           <BoardPresence users={onlineUsers} />
         </div>
       </div>
 
-      {/* Kanban columns area */}
-      <div
-        style={{
-          flex: 1,
-          overflowX: "auto",
-          overflowY: "hidden",
-          padding: "20px 24px",
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 12,
-        }}
-      >
-        {loadingLists ? (
-          <div style={{ display: "flex", gap: 12 }}>
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                style={{
-                  width: 272,
-                  height: 80,
-                  flexShrink: 0,
-                  borderRadius: "var(--radius-card)",
-                  background: "oklch(var(--color-paper-2))",
-                  opacity: 0.6,
-                  animation: "pulse 1.5s ease-in-out infinite",
-                }}
-              />
-            ))}
-          </div>
-        ) : listsError ? (
-          <div style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)" }}>
-            {listsError}
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-          >
-            {lists.map((list) => (
-              <ListColumn
-                key={list.id}
-                list={list}
-                canEdit={canEdit}
-                cards={boardCards[list.id] ?? []}
-                onRenamed={handleRenamed}
-                onDeleted={handleDeleted}
-                onCardCreated={handleCardCreated}
-                onCardClick={(id) => setOpenCardId(id)}
-              />
-            ))}
-            {canEdit && <CreateListInline onSubmit={handleCreateList} />}
-            {!canEdit && lists.length === 0 && (
-              <div style={{ color: "oklch(var(--color-ink-3))", fontSize: "var(--text-sm)" }}>
-                This board has no lists yet.
-              </div>
-            )}
+      {/* View-specific content */}
+      {boardView === "calendar" && boardId ? (
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <BoardCalendarView boardId={boardId} onCardClick={(id) => setOpenCardId(id)} />
+        </div>
+      ) : boardView === "timeline" && boardId ? (
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <BoardTimelineView boardId={boardId} onCardClick={(id) => setOpenCardId(id)} />
+        </div>
+      ) : (
+        /* Kanban columns */
+        <div
+          style={{
+            flex: 1,
+            overflowX: "auto",
+            overflowY: "hidden",
+            padding: "20px 24px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 12,
+          }}
+        >
+          {loadingLists ? (
+            <div style={{ display: "flex", gap: 12 }}>
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  style={{
+                    width: 272,
+                    height: 80,
+                    flexShrink: 0,
+                    borderRadius: "var(--radius-card)",
+                    background: "oklch(var(--color-paper-2))",
+                    opacity: 0.6,
+                    animation: "pulse 1.5s ease-in-out infinite",
+                  }}
+                />
+              ))}
+            </div>
+          ) : listsError ? (
+            <div style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)" }}>
+              {listsError}
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              {lists.map((list) => (
+                <ListColumn
+                  key={list.id}
+                  list={list}
+                  canEdit={canEdit}
+                  cards={boardCards[list.id] ?? []}
+                  onRenamed={handleRenamed}
+                  onDeleted={handleDeleted}
+                  onCardCreated={handleCardCreated}
+                  onCardClick={(id) => setOpenCardId(id)}
+                />
+              ))}
+              {canEdit && <CreateListInline onSubmit={handleCreateList} />}
+              {!canEdit && lists.length === 0 && (
+                <div style={{ color: "oklch(var(--color-ink-3))", fontSize: "var(--text-sm)" }}>
+                  This board has no lists yet.
+                </div>
+              )}
 
-            <DragOverlay dropAnimation={null}>
-              {activeCard ? <CardItem card={activeCard} overlay /> : null}
-            </DragOverlay>
-          </DndContext>
-        )}
-      </div>
+              <DragOverlay dropAnimation={null}>
+                {activeCard ? <CardItem card={activeCard} overlay /> : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </div>
+      )}
 
       <AnimatePresence>
         {openCard && board && workspaceId && (

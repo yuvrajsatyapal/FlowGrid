@@ -347,4 +347,81 @@ router.post("/delete", validateJWT, async (req, res) => {
   }
 })
 
+// GET /api/boards/calendar?boardId=xxx — all non-deleted cards with dates for calendar/timeline views
+router.get("/calendar", validateJWT, async (req, res) => {
+  const boardId = req.query.boardId as string | undefined
+  if (!boardId) {
+    res.status(400).json({ error: { message: "boardId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+      select: { id: true, workspaceId: true, visibility: true, deletedAt: true },
+    })
+    if (!board || board.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: board.workspaceId, userId: req.user!.id } },
+    })
+    if (!membership) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+
+    if (board.visibility === "PRIVATE") {
+      const boardMember = await prisma.boardMember.findUnique({
+        where: { boardId_userId: { boardId: board.id, userId: req.user!.id } },
+      })
+      if (!boardMember) {
+        res.status(404).json({ error: { message: "Board not found", status: 404 } })
+        return
+      }
+    }
+
+    const cards = await prisma.card.findMany({
+      where: {
+        deletedAt: null,
+        list: { boardId, deletedAt: null },
+      },
+      orderBy: { dueDate: "asc" },
+      select: {
+        id: true,
+        listId: true,
+        title: true,
+        priority: true,
+        startDate: true,
+        dueDate: true,
+        assigneeId: true,
+        coverColor: true,
+        list: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        labels: { select: { label: { select: { id: true, name: true, color: true } } } },
+      },
+    })
+
+    const formatted = cards.map((card) => ({
+      id: card.id,
+      listId: card.listId,
+      listTitle: card.list.name,
+      title: card.title,
+      priority: card.priority,
+      startDate: card.startDate,
+      dueDate: card.dueDate,
+      assigneeId: card.assigneeId,
+      assignee: card.assignee ? { id: card.assignee.id, name: card.assignee.name, avatarUrl: card.assignee.avatarUrl } : null,
+      labels: card.labels.map((cl) => ({ id: cl.label.id, name: cl.label.name, color: cl.label.color })),
+      coverColor: card.coverColor,
+    }))
+
+    res.json({ cards: formatted })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to fetch calendar cards", status: 500 } })
+  }
+})
+
 export { router as boardsRouter }

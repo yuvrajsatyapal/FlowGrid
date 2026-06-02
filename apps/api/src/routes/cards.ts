@@ -76,6 +76,7 @@ function formatCard(
     description: string | null
     position: string
     priority: CardPriority
+    startDate: Date | null
     dueDate: Date | null
     assigneeId: string | null
     coverColor: string | null
@@ -93,6 +94,7 @@ function formatCard(
     description: card.description,
     position: card.position,
     priority: card.priority,
+    startDate: card.startDate,
     dueDate: card.dueDate,
     assigneeId: card.assigneeId,
     assignee: assignee ?? null,
@@ -215,15 +217,16 @@ router.post("/update", validateJWT, async (req, res) => {
     return
   }
 
-  const { title, description, priority, dueDate, assigneeId } = req.body as {
+  const { title, description, priority, startDate, dueDate, assigneeId } = req.body as {
     title?: string
     description?: string | null
     priority?: string
+    startDate?: string | null
     dueDate?: string | null
     assigneeId?: string | null
   }
 
-  if (title === undefined && description === undefined && priority === undefined && dueDate === undefined && assigneeId === undefined) {
+  if (title === undefined && description === undefined && priority === undefined && startDate === undefined && dueDate === undefined && assigneeId === undefined) {
     res.status(400).json({ error: { message: "At least one field is required", status: 400 } })
     return
   }
@@ -240,6 +243,12 @@ router.post("/update", validateJWT, async (req, res) => {
   if (priority !== undefined && !VALID_PRIORITIES.includes(priority as CardPriority)) {
     res.status(400).json({ error: { message: "priority must be NONE, LOW, MEDIUM, HIGH, or URGENT", status: 400 } })
     return
+  }
+  if (startDate !== undefined && startDate !== null) {
+    if (typeof startDate !== "string" || isNaN(Date.parse(startDate))) {
+      res.status(400).json({ error: { message: "startDate must be a valid ISO date string", status: 400 } })
+      return
+    }
   }
   if (dueDate !== undefined && dueDate !== null) {
     if (typeof dueDate !== "string" || isNaN(Date.parse(dueDate))) {
@@ -272,6 +281,7 @@ router.post("/update", validateJWT, async (req, res) => {
     if (title !== undefined) updateData.title = title.trim()
     if (description !== undefined) updateData.description = description === null ? null : description.trim() || null
     if (priority !== undefined) updateData.priority = priority
+    if (startDate !== undefined) updateData.startDate = startDate === null ? null : new Date(startDate)
     if (dueDate !== undefined) updateData.dueDate = dueDate === null ? null : new Date(dueDate)
     if (assigneeId !== undefined) updateData.assigneeId = assigneeId
 
