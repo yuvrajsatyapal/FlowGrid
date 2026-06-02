@@ -3,6 +3,26 @@ import { emitToUser } from "./socket"
 import { Prisma } from "../../generated/prisma"
 import logger from "./logger"
 
+/**
+ * Returns all notification recipients for a card: assignee + watchers, deduplicated,
+ * with the actor excluded (no self-notifications).
+ *
+ * Two parallel queries (card + watchers) — no sequential N+1.
+ */
+export async function getCardRecipients(cardId: string, actorId: string): Promise<string[]> {
+  const [card, watchers] = await Promise.all([
+    prisma.card.findUnique({ where: { id: cardId }, select: { assigneeId: true } }),
+    prisma.cardWatcher.findMany({ where: { cardId }, select: { userId: true } }),
+  ])
+
+  const ids = new Set<string>()
+  if (card?.assigneeId) ids.add(card.assigneeId)
+  for (const w of watchers) ids.add(w.userId)
+  ids.delete(actorId)
+
+  return Array.from(ids)
+}
+
 export async function createNotification(params: {
   userId: string
   type: string

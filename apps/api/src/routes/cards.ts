@@ -3,10 +3,11 @@ import { Prisma } from "../../generated/prisma"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { logActivity } from "../lib/activity"
-import { createNotification } from "../lib/notifications"
+import { createNotification, getCardRecipients } from "../lib/notifications"
 import { canWrite } from "../lib/roles"
 import { emitBoardEvent } from "../lib/socket"
 import { storage, keyFromUrl } from "../lib/storage"
+import logger from "../lib/logger"
 
 const router = Router()
 
@@ -230,6 +231,10 @@ router.post("/update", validateJWT, async (req, res) => {
     res.status(400).json({ error: { message: "At least one field is required", status: 400 } })
     return
   }
+  if (assigneeId !== undefined && assigneeId !== null && (typeof assigneeId !== "string" || assigneeId.trim() === "")) {
+    res.status(400).json({ error: { message: "assigneeId must be a non-empty string or null", status: 400 } })
+    return
+  }
   if (title !== undefined) {
     if (typeof title !== "string" || title.trim().length === 0) {
       res.status(400).json({ error: { message: "title must be a non-empty string", status: 400 } })
@@ -302,32 +307,68 @@ router.post("/update", validateJWT, async (req, res) => {
       color: cl.label.color,
     }))
 
-    // Log one activity entry per changed field (fire-and-forget)
-    if (title !== undefined && title.trim() !== card.title) {
-      void logActivity({ cardId: cardId, userId: req.user!.id, action: "title_changed", metadata: { from: card.title, to: title.trim() } })
-    }
-    if (priority !== undefined && priority !== card.priority) {
-      void logActivity({ cardId: cardId, userId: req.user!.id, action: "priority_changed", metadata: { from: card.priority, to: priority } })
-    }
-    if (dueDate !== undefined) {
-      const oldDate = card.dueDate ? card.dueDate.toISOString() : null
-      const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
-      if (oldDate !== newDate) {
-        void logActivity({ cardId: cardId, userId: req.user!.id, action: "due_date_changed", metadata: { from: oldDate, to: newDate } })
+    // Activity + notifications — fire-and-forget, never block the response
+    const actorId = req.user!.id
+    const notifyData = { cardId: card.id, cardTitle: updated.title, boardId: access.board.id, workspaceId: access.board.workspaceId }
+
+    void (async () => {
+      try {
+        // Activity log (per changed field)
+        if (title !== undefined && title.trim() !== card.title) {
+          void logActivity({ cardId, userId: actorId, action: "title_changed", metadata: { from: card.title, to: title.trim() } })
+        }
+        if (priority !== undefined && priority !== card.priority) {
+          void logActivity({ cardId, userId: actorId, action: "priority_changed", metadata: { from: card.priority, to: priority } })
+        }
+        if (dueDate !== undefined) {
+          const oldDate = card.dueDate ? card.dueDate.toISOString() : null
+          const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
+          if (oldDate !== newDate) {
+            void logActivity({ cardId, userId: actorId, action: "due_date_changed", metadata: { from: oldDate, to: newDate } })
+          }
+        }
+        if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
+          void logActivity({ cardId, userId: actorId, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
+          // New assignee gets a personal CARD_ASSIGNED notification
+          if (assigneeId && assigneeId !== actorId) {
+            void createNotification({ userId: assigneeId, type: "CARD_ASSIGNED", title: `You were assigned to "${updated.title}"`, data: notifyData })
+          }
+        }
+
+        // Fetch recipients once — shared across all field notifications
+        const recipients = await getCardRecipients(cardId, actorId)
+        if (recipients.length === 0) return
+
+        if (title !== undefined && title.trim() !== card.title) {
+          for (const userId of recipients) {
+            void createNotification({ userId, type: "CARD_UPDATED", title: `"${updated.title}" was renamed`, data: notifyData })
+          }
+        }
+        if (priority !== undefined && priority !== card.priority) {
+          for (const userId of recipients) {
+            void createNotification({ userId, type: "CARD_UPDATED", title: `Priority changed on "${updated.title}"`, data: notifyData })
+          }
+        }
+        if (dueDate !== undefined) {
+          const oldDate = card.dueDate ? card.dueDate.toISOString() : null
+          const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
+          if (oldDate !== newDate) {
+            for (const userId of recipients) {
+              void createNotification({ userId, type: "CARD_UPDATED", title: `Due date changed on "${updated.title}"`, data: notifyData })
+            }
+          }
+        }
+        if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
+          for (const userId of recipients) {
+            // New assignee already got CARD_ASSIGNED; watchers get CARD_UPDATED
+            if (userId === assigneeId) continue
+            void createNotification({ userId, type: "CARD_UPDATED", title: `Assignee changed on "${updated.title}"`, data: notifyData })
+          }
+        }
+      } catch (err) {
+        logger.error("Failed to send card update notifications", { cardId, error: err instanceof Error ? err.message : err })
       }
-    }
-    if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
-      void logActivity({ cardId: cardId, userId: req.user!.id, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
-      // Notify new assignee — skip if self-assignment or unassigning
-      if (assigneeId && assigneeId !== req.user!.id) {
-        void createNotification({
-          userId: assigneeId,
-          type: "CARD_ASSIGNED",
-          title: `You were assigned to "${updated.title}"`,
-          data: { cardId: card.id, cardTitle: updated.title, boardId: access.board.id, workspaceId: access.board.workspaceId },
-        })
-      }
-    }
+    })()
 
     const formatted = formatCard(updated, updatedAssignee, updatedLabels)
     emitBoardEvent(access.board.id, "card:updated", formatted)
