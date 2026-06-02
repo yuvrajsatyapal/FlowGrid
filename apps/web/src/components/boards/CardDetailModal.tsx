@@ -204,14 +204,32 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   async function handleStartDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
+    if (!val) {
+      // User cleared the date (browser's × button or keyboard)
+      setLocalStartDate("")
+      await saveField({ startDate: null })
+      return
+    }
+    // Guard against partial / invalid dates (Firefox fires onChange on each keystroke)
+    const parsed = new Date(`${val}T00:00:00.000Z`)
+    if (isNaN(parsed.getTime())) return
     setLocalStartDate(val) // optimistic — prevents revert during async save
-    await saveField({ startDate: val ? new Date(val).toISOString() : null })
+    await saveField({ startDate: parsed.toISOString() })
   }
 
   async function handleDueDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
+    if (!val) {
+      // User cleared the date
+      setLocalDueDate("")
+      await saveField({ dueDate: null })
+      return
+    }
+    // Guard against partial / invalid dates
+    const parsed = new Date(`${val}T00:00:00.000Z`)
+    if (isNaN(parsed.getTime())) return
     setLocalDueDate(val) // optimistic — prevents revert during async save
-    await saveField({ dueDate: val ? new Date(val).toISOString() : null })
+    await saveField({ dueDate: parsed.toISOString() })
   }
 
   async function handleAssigneeChange(e: React.ChangeEvent<HTMLSelectElement>) {
