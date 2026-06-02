@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { workspacesApi } from "../../api/workspaces"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
 import type { WorkspaceSummary } from "../../api/workspaces"
 
@@ -49,12 +50,17 @@ function WorkspaceInitials({ name }: { name: string }) {
 }
 
 export default function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspaceStore()
+  const { workspaces, activeWorkspace, setActiveWorkspace, addWorkspace } = useWorkspaceStore()
   const [open, setOpen] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState("")
   const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
-  // Close on outside click
+  // Close dropdown on outside click (not the modal — modal has its own overlay)
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -64,10 +70,48 @@ export default function WorkspaceSwitcher() {
     return () => document.removeEventListener("mousedown", handler)
   }, [open])
 
+  // Focus input when modal opens
+  useEffect(() => {
+    if (showCreate) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [showCreate])
+
   const handleSelect = (workspace: WorkspaceSummary) => {
     setActiveWorkspace(workspace)
     setOpen(false)
     navigate(`/${workspace.id}`)
+  }
+
+  const openCreate = () => {
+    setOpen(false)
+    setNewName("")
+    setCreateError("")
+    setShowCreate(true)
+  }
+
+  const closeCreate = () => {
+    setShowCreate(false)
+    setNewName("")
+    setCreateError("")
+  }
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = newName.trim()
+    if (name.length < 2) { setCreateError("Name must be at least 2 characters."); return }
+    setCreating(true)
+    setCreateError("")
+    try {
+      const workspace = await workspacesApi.create({ name })
+      addWorkspace(workspace)
+      setActiveWorkspace(workspace)
+      closeCreate()
+      navigate(`/${workspace.id}`)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
+      setCreateError(axiosErr?.response?.data?.error?.message ?? "Failed to create workspace.")
+    } finally {
+      setCreating(false)
+    }
   }
 
   if (!activeWorkspace) return null
@@ -178,6 +222,137 @@ export default function WorkspaceSwitcher() {
               )}
             </button>
           ))}
+
+          {/* Divider + Add workspace */}
+          <div style={{ height: "1px", background: "oklch(var(--color-border))", margin: "4px 0" }} />
+          <button
+            onClick={openCreate}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              width: "100%",
+              padding: "6px 8px",
+              borderRadius: "5px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              color: "oklch(var(--color-ink-2))",
+              textAlign: "left",
+              transition: "background var(--dur-fast) var(--ease-out)",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-2))"; e.currentTarget.style.color = "oklch(var(--color-ink))" }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-ink-2))" }}
+          >
+            {/* Plus icon */}
+            <div style={{
+              width: "28px", height: "28px", borderRadius: "6px", flexShrink: 0,
+              border: "1.5px dashed oklch(var(--color-border))",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "oklch(var(--color-ink-3))",
+            }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span style={{ fontSize: "var(--text-sm)" }}>Add workspace</span>
+          </button>
+        </div>
+      )}
+
+      {/* Create workspace modal */}
+      {showCreate && (
+        <div
+          onClick={closeCreate}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "oklch(0% 0 0 / 0.4)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "24px",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: "400px",
+              background: "oklch(var(--color-paper))",
+              border: "1px solid oklch(var(--color-border))",
+              borderRadius: "var(--radius-modal, 12px)",
+              padding: "24px",
+              display: "flex", flexDirection: "column", gap: "16px",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            <div>
+              <h2 style={{ margin: "0 0 4px", fontSize: "var(--text-lg)", fontWeight: 600, fontFamily: "var(--font-display)", color: "oklch(var(--color-ink))" }}>
+                New workspace
+              </h2>
+              <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))" }}>
+                A workspace holds your boards and team members.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { void handleCreate(e) }} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label htmlFor="new-ws-name" style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))" }}>
+                  Workspace name
+                </label>
+                <input
+                  ref={inputRef}
+                  id="new-ws-name"
+                  type="text"
+                  placeholder="e.g. Acme Design Team"
+                  value={newName}
+                  onChange={(e) => { setNewName(e.target.value); setCreateError("") }}
+                  maxLength={80}
+                  disabled={creating}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-input, 6px)",
+                    border: createError ? "1px solid oklch(var(--color-error))" : "1px solid oklch(var(--color-border))",
+                    background: "oklch(var(--color-paper-2))",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    outline: "none",
+                    width: "100%",
+                    boxSizing: "border-box" as const,
+                  }}
+                />
+                {createError && (
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{createError}</p>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={closeCreate}
+                  disabled={creating}
+                  style={{
+                    padding: "8px 16px", borderRadius: "var(--radius-button, 6px)",
+                    border: "1px solid oklch(var(--color-border))",
+                    background: "transparent", color: "oklch(var(--color-ink-2))",
+                    fontSize: "var(--text-sm)", cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || newName.trim().length < 2}
+                  style={{
+                    padding: "8px 16px", borderRadius: "var(--radius-button, 6px)",
+                    border: "none",
+                    background: "oklch(var(--color-accent))", color: "#fff",
+                    fontSize: "var(--text-sm)", fontWeight: 500, cursor: "pointer",
+                    opacity: creating || newName.trim().length < 2 ? 0.6 : 1,
+                  }}
+                >
+                  {creating ? "Creating…" : "Create workspace"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
