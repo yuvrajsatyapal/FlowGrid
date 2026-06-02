@@ -20,6 +20,7 @@ export interface CardSummary {
   description: string | null
   position: string
   priority: Priority
+  startDate: string | null
   dueDate: string | null
   assigneeId: string | null
   assignee: CardAssignee | null
@@ -47,6 +48,7 @@ export const cardsApi = {
       title?: string
       description?: string | null
       priority?: Priority
+      startDate?: string | null
       dueDate?: string | null
       assigneeId?: string | null
     },

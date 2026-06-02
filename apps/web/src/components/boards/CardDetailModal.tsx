@@ -184,6 +184,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
     await saveField({ priority: e.target.value as Priority })
   }
 
+  async function handleStartDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    await saveField({ startDate: val ? new Date(val).toISOString() : null })
+  }
+
   async function handleDueDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     await saveField({ dueDate: val ? new Date(val).toISOString() : null })
@@ -244,6 +249,10 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  const startDateValue = localCard.startDate
+    ? new Date(localCard.startDate).toISOString().split("T")[0]
+    : ""
 
   const dueDateValue = localCard.dueDate
     ? new Date(localCard.dueDate).toISOString().split("T")[0]
@@ -447,6 +456,48 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Start date */}
+            <div>
+              <FieldLabel>Start Date</FieldLabel>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={startDateValue}
+                  onChange={handleStartDateChange}
+                  disabled={!canEdit}
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    borderRadius: "var(--radius-input)",
+                    border: "1px solid oklch(var(--color-border))",
+                    background: "oklch(var(--color-paper-2))",
+                    color: startDateValue ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: canEdit ? "pointer" : "default",
+                  }}
+                />
+                {startDateValue && canEdit && (
+                  <button
+                    onClick={() => saveField({ startDate: null })}
+                    aria-label="Clear start date"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "oklch(var(--color-ink-3))",
+                      fontSize: 16,
+                      lineHeight: 1,
+                      padding: "2px 4px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Due date */}

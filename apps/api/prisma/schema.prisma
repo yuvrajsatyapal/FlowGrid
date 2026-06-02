@@ -224,6 +224,7 @@ model Card {
   description String?
   position    String
   priority    Priority  @default(NONE)
+  startDate   DateTime? @db.Timestamptz()
   dueDate     DateTime? @db.Timestamptz()
   assigneeId  String?
   coverColor  String?
