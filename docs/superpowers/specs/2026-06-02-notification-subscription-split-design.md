@@ -1,7 +1,7 @@
 # Notification Subscription Split — Design Spec
 
 **Date:** 2026-06-02
-**Status:** Approved
+**Status:** Approved (corrections applied 2026-06-02)
 **Scope:** Backend logic split + schema column + shared types update
 
 ---
@@ -29,9 +29,12 @@ Assigned only          → ASSIGNMENT notification
 Watching only          → WATCHER notification
 Assigned + Watching    → ONE notification, source = ASSIGNMENT (assignee wins)
 Actor themselves       → never notified
+Unassigned, still watching → getCardRecipients re-fetches current state each call; WATCHER notification continues
 ```
 
 **Dedup rule:** If a user is both assignee and watcher, `ASSIGNMENT` wins. This prevents duplicate notifications, respects the stronger ownership relationship, and makes future preference resolution unambiguous (`mute WATCHER` never suppresses `ASSIGNMENT`).
+
+**Stale state rule:** `getCardRecipients` must never be cached between requests. Each call queries the current `assigneeId` and `CardWatcher` rows from the DB. This ensures unassignment is reflected immediately — a user who was unassigned but remains a watcher transitions from `ASSIGNMENT` to `WATCHER` source on the next event without any extra logic.
 
 ---
 
@@ -44,32 +47,39 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   type      String
-  source    String   @default("SYSTEM")   // "ASSIGNMENT" | "WATCHER" | "SYSTEM"
+  source    String                         // "ASSIGNMENT" | "WATCHER" | "SYSTEM" — required, no DB default after migration
   title     String
   body      String?
   data      Json?
   read      Boolean  @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // No FK relation — per project rule (SCHEMA.md: no REFERENCES, no ON DELETE CASCADE)
+  // Application layer handles consistency; Cascade via Prisma is not used
 
   @@index([userId])
   @@index([userId, read])
+  @@index([userId, source])               // cheap; enables future WHERE source = 'WATCHER' filters
 }
 ```
 
-**Default is `"SYSTEM"` — not `"ASSIGNMENT"`.** Any notification created without an explicit source is classified as a system event. This prevents silent misclassification: a future developer who forgets to pass `source` gets a safe fallback rather than corrupting assignment analytics.
+**No `user User @relation(...)` field.** Project rule (database/SCHEMA.md) prohibits FK constraints and `onDelete: Cascade`. Existing `Notification` model already has this relation — it must be removed as part of this migration.
 
-Existing rows (invite notifications) are already semantically `SYSTEM`, so no `UPDATE` is needed after the column is added.
+**No permanent DB default on `source`.** The migration adds a temporary `DEFAULT 'SYSTEM'` to backfill existing rows, then drops it. After migration, the DB column has no default — inserts that omit `source` fail at the database level, not just TypeScript.
 
 ### Migration
 
 ```sql
+-- Step 1: add column with temporary default to backfill existing rows
 ALTER TABLE "Notification"
 ADD COLUMN "source" TEXT NOT NULL DEFAULT 'SYSTEM';
+
+-- Step 2: remove the temporary default so future inserts must be explicit
+ALTER TABLE "Notification"
+ALTER COLUMN "source" DROP DEFAULT;
 ```
 
-Single statement. No backfill required — the default is correct for all existing rows.
+Two steps, one migration file. Existing rows get `'SYSTEM'` — correct for invite-type notifications. New inserts require explicit `source` at both TypeScript and DB levels.
 
 ---
 
@@ -88,6 +98,7 @@ export type NotificationType =
   | 'INVITE_ACCEPTED'
   | 'WORKSPACE_INVITE'
   | 'CARD_DUE_SOON'      // pre-added for Feature #14
+  | 'SYSTEM'             // generic system announcements / future admin messages
 
 export interface AppNotification {
   id: string
@@ -102,7 +113,7 @@ export interface AppNotification {
 }
 ```
 
-`type` is now `NotificationType` (was `string`) everywhere in the shared interface. Compile-time protection against typos at every call site.
+`type` is now `NotificationType` (was `string`) everywhere in the shared interface. Compile-time protection against typos at every call site. `SYSTEM` is added to `NotificationType` as a forward-looking catch-all for admin/announcement notifications, preventing type drift when they're added.
 
 ---
 
@@ -113,13 +124,14 @@ export interface AppNotification {
 ```ts
 import type { NotificationSource, NotificationType } from "@flowgrid/types"
 
+// Explicit union — easier to read than Exclude<NotificationSource, 'SYSTEM'>
 type CardRecipient = {
   userId: string
-  source: Exclude<NotificationSource, 'SYSTEM'>  // only ASSIGNMENT | WATCHER from cards
+  source: 'ASSIGNMENT' | 'WATCHER'
 }
 ```
 
-`NotificationSource` is imported from shared types — the `CardRecipient` type cannot drift out of sync.
+`NotificationSource` is imported from shared types. `CardRecipient` uses an explicit `'ASSIGNMENT' | 'WATCHER'` union rather than `Exclude<>` — same safety, clearer intent.
 
 ### `getCardRecipients` — new return shape
 
@@ -158,14 +170,14 @@ return result
 export async function createNotification(params: {
   userId: string
   type: NotificationType       // was string — now compile-time checked
-  source: NotificationSource   // required — no default
+  source: NotificationSource   // required — no default, enforced at TypeScript and DB levels
   title: string
   body?: string
   data?: Record<string, unknown>
 }): Promise<void>
 ```
 
-`source` is required. No default. Any new call site that omits it is a compile error.
+`source` is required. No default. Any new call site that omits it is a TypeScript compile error and a DB constraint violation.
 
 ---
 
@@ -188,7 +200,7 @@ if (assigneeId !== undefined && assigneeId !== card.assigneeId && assigneeId) {
     void createNotification({
       userId: assigneeId,
       type: 'CARD_ASSIGNED',
-      source: 'ASSIGNMENT',
+      source: 'ASSIGNMENT',   // explicit — not from recipient loop
       title: `You were assigned to "${updated.title}"`,
       data: notifyData,
     })
@@ -199,18 +211,21 @@ if (assigneeId !== undefined && assigneeId !== card.assigneeId && assigneeId) {
 // Generic field-change notifications — one loop, source travels with each recipient
 for (const { userId, source } of recipients) {
   if (excludeFromUpdate.has(userId)) continue
-  // Per-field checks (title, priority, dueDate, assignee) each produce a CARD_UPDATED notification.
-  // Title example:
   if (title !== undefined && title.trim() !== card.title) {
     void createNotification({ userId, source, type: 'CARD_UPDATED', title: `"${updated.title}" was renamed`, data: notifyData })
   }
-  // priority, dueDate, assignee follow the same pattern.
+  if (priority !== undefined && priority !== card.priority) {
+    void createNotification({ userId, source, type: 'CARD_UPDATED', title: `Priority changed on "${updated.title}"`, data: notifyData })
+  }
+  // dueDate, assignee follow the same pattern
 }
 ```
 
 `excludeFromUpdate` is extensible — future targeted notifications (e.g. `CARD_DUE_SOON` to assignee only) just add to the set before the loop.
 
 ### `comments.ts` — comment created
+
+Card existence is validated earlier in the route (returns 404 if not found) before the notification block is reached. The `cardForNotify` null check in the notification block is a secondary guard only.
 
 ```ts
 const [cardForNotify, recipients] = await Promise.all([
@@ -254,10 +269,10 @@ Two calls, add `source: 'SYSTEM'` to each. No other changes.
 
 | File | Change |
 |---|---|
-| `apps/api/prisma/schema.prisma` | Add `source String @default("SYSTEM")` to `Notification` |
-| `apps/api/prisma/migrations/…` | `ADD COLUMN source TEXT NOT NULL DEFAULT 'SYSTEM'` |
-| `packages/types/src/index.ts` | Add `NotificationSource`, expand `NotificationType`, add `source` to `AppNotification` |
-| `apps/api/src/lib/notifications.ts` | `getCardRecipients` returns `CardRecipient[]`; `createNotification` typed `type` + required `source` |
+| `apps/api/prisma/schema.prisma` | Add `source String` (no default), remove `user` relation from `Notification`, add `@@index([userId, source])` |
+| `apps/api/prisma/migrations/…` | `ADD COLUMN DEFAULT 'SYSTEM'` then `DROP DEFAULT` |
+| `packages/types/src/index.ts` | Add `NotificationSource`, expand `NotificationType` (+ `CARD_UPDATED`, `CARD_DUE_SOON`, `SYSTEM`), add `source` to `AppNotification` |
+| `apps/api/src/lib/notifications.ts` | `getCardRecipients` returns `CardRecipient[]`; `createNotification` typed `type: NotificationType` + required `source: NotificationSource` |
 | `apps/api/src/routes/cards.ts` | Destructure `{ userId, source }`, exclusion set pattern, explicit `source: 'ASSIGNMENT'` for `CARD_ASSIGNED` |
 | `apps/api/src/routes/comments.ts` | Destructure `{ userId, source }`, pass through |
 | `apps/api/src/routes/invites.ts` | Add `source: 'SYSTEM'` to two existing calls |
@@ -269,13 +284,14 @@ Two calls, add `source: 'SYSTEM'` to each. No other changes.
 - Notification display text — identical regardless of source
 - `NotificationDropdown` — no UI changes in this spec
 - `useNotifications` hook — no changes beyond the new `source` field being available on `AppNotification`
-- Socket emission — `emitToUser` payload gains `source` automatically since `createNotification` persists it and returns the full row
+- Socket emission — `emitToUser` payload gains `source` automatically since `createNotification` persists and returns the full row
 
 ---
 
 ## Future Work Enabled
 
-- **Notification preferences:** `mute watcher notifications` can filter on `source = 'WATCHER'` without touching routing logic
-- **Analytics:** query `COUNT(*) GROUP BY source` gives accurate breakdown
-- **Debugging:** any notification record is self-describing — source is explicit, not derived
-- **`CARD_DUE_SOON`:** scheduled job creates notifications with `source: 'ASSIGNMENT'` and type `CARD_DUE_SOON`; fits the model without changes
+- **Notification preferences:** `mute watcher notifications` filters on `source = 'WATCHER'` without touching routing logic
+- **Analytics:** `COUNT(*) GROUP BY source` gives accurate breakdown with no backfill needed
+- **Debugging:** every notification record is self-describing — source is explicit, never derived
+- **`CARD_DUE_SOON`:** scheduled job creates with `source: 'ASSIGNMENT'` and type `CARD_DUE_SOON`; fits the model unchanged
+- **`@@index([userId, source])`:** already added — `WHERE userId = ? AND source = 'WATCHER'` queries are index-covered from day one
