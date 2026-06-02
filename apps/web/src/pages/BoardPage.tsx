@@ -245,8 +245,10 @@ export default function BoardPage() {
   const handleCreateList = async (name: string) => {
     if (!boardId) return
     const newList = await listsApi.create(boardId, name)
-    setLists((prev) => [...prev, newList])
-    setBoardCards((prev) => ({ ...prev, [newList.id]: [] }))
+    // Guard against the socket onListCreated handler having already inserted this list
+    // (socket event from the server arrives before the HTTP response in most cases)
+    setLists((prev) => prev.some((l) => l.id === newList.id) ? prev : [...prev, newList])
+    setBoardCards((prev) => prev[newList.id] ? prev : { ...prev, [newList.id]: [] })
   }
 
   const handleRenamed = (id: string, name: string) => {
@@ -263,7 +265,12 @@ export default function BoardPage() {
   }
 
   const handleCardCreated = (listId: string, card: CardSummary) => {
-    setBoardCards((prev) => ({ ...prev, [listId]: [...(prev[listId] ?? []), card] }))
+    // Guard against the socket onCardCreated handler having already inserted this card
+    setBoardCards((prev) => {
+      const existing = prev[listId] ?? []
+      if (existing.some((c) => c.id === card.id)) return prev
+      return { ...prev, [listId]: [...existing, card] }
+    })
   }
 
   // ─── Real-time socket ────────────────────────────────────────────────────────
