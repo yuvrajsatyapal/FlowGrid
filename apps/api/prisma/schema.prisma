@@ -69,7 +69,6 @@ model User {
   boardMemberships     BoardMember[]
   assignedCards        Card[]               @relation("CardAssignee")
   comments             Comment[]
-  notifications        Notification[]
   activities           Activity[]
   sentInvites          WorkspaceInvite[] @relation("SentInvites")
   watchedCards         CardWatcher[]
@@ -401,16 +400,18 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   type      String
+  source    String
   title     String
   body      String?
   data      Json?
   read      Boolean  @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // No FK relation — project rule: no REFERENCES, no ON DELETE CASCADE
 
   @@index([userId])
   @@index([userId, read])
+  @@index([userId, source])
 }
 
 // ─── Activity (append-only audit log) ────────────────────────────────────────
