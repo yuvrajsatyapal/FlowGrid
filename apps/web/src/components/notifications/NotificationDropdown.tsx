@@ -7,6 +7,7 @@ interface Props {
   onClose: () => void
   onMarkRead: (id: string) => void
   onMarkAllRead: () => void
+  onNavigate: (url: string) => void
 }
 
 function typeIcon(type: NotificationType) {
@@ -22,6 +23,14 @@ function typeIcon(type: NotificationType) {
     return (
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
         <path d="M2 2h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V3a1 1 0 0 1 1-1z" stroke="oklch(55% 0.18 155)" strokeWidth="1.25" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (type === "WORKSPACE_INVITE") {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <rect x="1" y="3" width="12" height="8" rx="1" stroke="oklch(58% 0.2 30)" strokeWidth="1.25" />
+        <path d="M1 4l6 4 6-4" stroke="oklch(58% 0.2 30)" strokeWidth="1.25" strokeLinecap="round" />
       </svg>
     )
   }
@@ -44,7 +53,7 @@ function relativeTime(iso: string): string {
   return `${days}d ago`
 }
 
-export function NotificationDropdown({ notifications, unreadCount, onClose, onMarkRead, onMarkAllRead }: Props) {
+export function NotificationDropdown({ notifications, unreadCount, onClose, onMarkRead, onMarkAllRead, onNavigate }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -121,68 +130,108 @@ export function NotificationDropdown({ notifications, unreadCount, onClose, onMa
             You're all caught up
           </div>
         ) : (
-          notifications.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => { if (!n.read) onMarkRead(n.id) }}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "10px",
-                width: "100%",
-                padding: "10px 14px",
-                background: n.read ? "transparent" : "oklch(var(--color-accent-muted) / 0.35)",
-                border: "none",
-                borderBottom: "1px solid oklch(var(--color-border))",
-                cursor: n.read ? "default" : "pointer",
-                textAlign: "left",
-              }}
-            >
-              {/* Unread dot */}
-              <div style={{ flexShrink: 0, width: "6px", height: "6px", borderRadius: "50%", background: n.read ? "transparent" : "oklch(var(--color-accent))", marginTop: "5px" }} />
+          notifications.map((n) => {
+            const inviteUrl = n.type === "WORKSPACE_INVITE" ? (n.data?.inviteUrl as string | undefined) : undefined
+            return (
+              <div
+                key={n.id}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  width: "100%",
+                  padding: "10px 14px",
+                  background: n.read ? "transparent" : "oklch(var(--color-accent-muted) / 0.35)",
+                  borderBottom: "1px solid oklch(var(--color-border))",
+                }}
+              >
+                {/* Unread dot */}
+                <div style={{ flexShrink: 0, width: "6px", height: "6px", borderRadius: "50%", background: n.read ? "transparent" : "oklch(var(--color-accent))", marginTop: "5px" }} />
 
-              {/* Type icon */}
-              <div style={{ flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type as NotificationType)}</div>
+                {/* Type icon */}
+                <div style={{ flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type as NotificationType)}</div>
 
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "var(--text-xs)",
-                    fontWeight: n.read ? 400 : 500,
-                    color: "oklch(var(--color-ink))",
-                    lineHeight: 1.4,
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                  }}
-                >
-                  {n.title}
-                </p>
-                {n.body && (
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <p
                     style={{
-                      margin: "2px 0 0",
+                      margin: 0,
                       fontSize: "var(--text-xs)",
-                      color: "oklch(var(--color-ink-3))",
+                      fontWeight: n.read ? 400 : 500,
+                      color: "oklch(var(--color-ink))",
                       lineHeight: 1.4,
                       overflow: "hidden",
                       display: "-webkit-box",
-                      WebkitLineClamp: 1,
+                      WebkitLineClamp: 2,
                       WebkitBoxOrient: "vertical",
                     }}
                   >
-                    {n.body}
+                    {n.title}
                   </p>
+                  {n.body && (
+                    <p
+                      style={{
+                        margin: "2px 0 0",
+                        fontSize: "var(--text-xs)",
+                        color: "oklch(var(--color-ink-3))",
+                        lineHeight: 1.4,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: "vertical",
+                      }}
+                    >
+                      {n.body}
+                    </p>
+                  )}
+                  <p style={{ margin: "3px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                    {relativeTime(n.createdAt)}
+                  </p>
+                  {inviteUrl && (
+                    <button
+                      onClick={() => {
+                        if (!n.read) onMarkRead(n.id)
+                        onNavigate(inviteUrl)
+                        onClose()
+                      }}
+                      style={{
+                        marginTop: "6px",
+                        padding: "4px 10px",
+                        borderRadius: "5px",
+                        border: "none",
+                        background: "oklch(var(--color-accent))",
+                        color: "#fff",
+                        fontSize: "var(--text-xs)",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Accept invite
+                    </button>
+                  )}
+                </div>
+
+                {/* Mark-read on click for non-invite notifications */}
+                {!inviteUrl && !n.read && (
+                  <button
+                    onClick={() => onMarkRead(n.id)}
+                    title="Mark as read"
+                    style={{
+                      flexShrink: 0,
+                      padding: "2px 4px",
+                      border: "none",
+                      background: "transparent",
+                      color: "oklch(var(--color-ink-3))",
+                      cursor: "pointer",
+                      fontSize: "var(--text-xs)",
+                    }}
+                  >
+                    ✓
+                  </button>
                 )}
-                <p style={{ margin: "3px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                  {relativeTime(n.createdAt)}
-                </p>
               </div>
-            </button>
-          ))
+            )
+          })
         )}
       </div>
     </div>

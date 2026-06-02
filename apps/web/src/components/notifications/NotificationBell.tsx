@@ -1,9 +1,11 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useNotifications } from "../../hooks/useNotifications"
 import { NotificationDropdown } from "./NotificationDropdown"
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
 
   return (
@@ -71,6 +73,7 @@ export function NotificationBell() {
           onClose={() => setOpen(false)}
           onMarkRead={markRead}
           onMarkAllRead={async () => { await markAllRead(); setOpen(false) }}
+          onNavigate={(url) => { navigate(url); setOpen(false) }}
         />
       )}
     </div>

@@ -49,12 +49,17 @@ router.get("/", validateJWT, async (req, res) => {
     }
 
     const invites = await prisma.workspaceInvite.findMany({
-      where: { workspaceId, status: "PENDING", expiresAt: { gt: new Date() } },
+      where: { workspaceId, status: "PENDING" },
       orderBy: { createdAt: "desc" },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, token: true },
     })
 
-    res.json({ invites })
+    const invitesWithUrl = invites.map((inv) => ({
+      ...inv,
+      inviteUrl: `${env.APP_URL}/invite/accept?token=${inv.token}`,
+      token: undefined,
+    }))
+    res.json({ invites: invitesWithUrl })
   } catch {
     res.status(500).json({ error: { message: "Failed to fetch invites", status: 500 } })
   }
@@ -142,7 +147,19 @@ router.post("/", validateJWT, async (req, res) => {
     const inviteUrl = `${env.APP_URL}/invite/accept?token=${token}`
     void sendInviteEmail({ to: normalizedEmail, inviterName, workspaceName: workspace.name, role: assignableRole, inviteUrl })
 
-    res.json({ invite })
+    // Notify invitee in-app if they already have an account
+    const invitee = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })
+    if (invitee) {
+      void createNotification({
+        userId: invitee.id,
+        type: "WORKSPACE_INVITE",
+        title: `${inviterName} invited you to ${workspace.name}`,
+        body: `You've been invited as ${assignableRole.charAt(0) + assignableRole.slice(1).toLowerCase()}`,
+        data: { inviteUrl, workspaceName: workspace.name, inviterName },
+      })
+    }
+
+    res.json({ invite, inviteUrl })
   } catch {
     res.status(500).json({ error: { message: "Failed to create invite", status: 500 } })
   }
@@ -266,7 +283,19 @@ router.post("/resend", validateJWT, async (req, res) => {
     const inviteUrl = `${env.APP_URL}/invite/accept?token=${token}`
     void sendInviteEmail({ to: invite.email, inviterName, workspaceName: invite.workspace.name, role: invite.role, inviteUrl })
 
-    res.json({ invite: updated })
+    // Notify invitee in-app if they already have an account
+    const invitee = await prisma.user.findUnique({ where: { email: invite.email }, select: { id: true } })
+    if (invitee) {
+      void createNotification({
+        userId: invitee.id,
+        type: "WORKSPACE_INVITE",
+        title: `${inviterName} invited you to ${invite.workspace.name}`,
+        body: `You've been invited as ${invite.role.charAt(0) + invite.role.slice(1).toLowerCase()}`,
+        data: { inviteUrl, workspaceName: invite.workspace.name, inviterName },
+      })
+    }
+
+    res.json({ invite: updated, inviteUrl })
   } catch {
     res.status(500).json({ error: { message: "Failed to resend invite", status: 500 } })
   }

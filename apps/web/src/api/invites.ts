@@ -13,9 +13,9 @@ export const invitesApi = {
     return res.data.invites
   },
 
-  async create(workspaceId: string, email: string, role: Role): Promise<WorkspaceInvite> {
-    const res = await api.post<{ invite: WorkspaceInvite }>("/invites", { workspaceId, email, role })
-    return res.data.invite
+  async create(workspaceId: string, email: string, role: Role): Promise<{ invite: WorkspaceInvite; inviteUrl: string }> {
+    const res = await api.post<{ invite: WorkspaceInvite; inviteUrl: string }>("/invites", { workspaceId, email, role })
+    return res.data
   },
 
   async accept(token: string): Promise<AcceptInviteResult> {
@@ -23,9 +23,9 @@ export const invitesApi = {
     return res.data
   },
 
-  async resend(inviteId: string): Promise<WorkspaceInvite> {
-    const res = await api.post<{ invite: WorkspaceInvite }>("/invites/resend", {}, { params: { id: inviteId } })
-    return res.data.invite
+  async resend(inviteId: string): Promise<{ invite: WorkspaceInvite; inviteUrl: string }> {
+    const res = await api.post<{ invite: WorkspaceInvite; inviteUrl: string }>("/invites/resend", {}, { params: { id: inviteId } })
+    return res.data
   },
 
   async revoke(inviteId: string): Promise<void> {
