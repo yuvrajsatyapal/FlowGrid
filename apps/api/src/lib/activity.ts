@@ -7,6 +7,7 @@ export async function logActivity(params: {
   userId: string
   action: string
   metadata: Record<string, unknown>
+  boardId?: string
 }): Promise<void> {
   try {
     await prisma.activity.create({
@@ -15,6 +16,7 @@ export async function logActivity(params: {
         userId: params.userId,
         action: params.action,
         metadata: params.metadata as Prisma.InputJsonValue,
+        boardId: params.boardId,
       },
     })
   } catch (err) {
