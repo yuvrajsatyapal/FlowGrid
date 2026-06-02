@@ -59,7 +59,7 @@ export function ActivityFeed({ cardId }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const page = await activitiesApi.list(cardId)
+      const page = await activitiesApi.list(cardId, 0, 5)
       setActivities(page.items)
     } catch (err) {
       setLoadError((err as Error).message || "Failed to load activity.")
