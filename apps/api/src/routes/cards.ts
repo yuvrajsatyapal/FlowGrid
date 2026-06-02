@@ -329,15 +329,23 @@ router.post("/update", validateJWT, async (req, res) => {
         }
         if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
           void logActivity({ cardId, userId: actorId, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
-          // New assignee gets a targeted CARD_ASSIGNED notification — source is always ASSIGNMENT
-          if (assigneeId && assigneeId !== actorId) {
-            void createNotification({
-              userId: assigneeId,
-              type: "CARD_ASSIGNED",
-              source: "ASSIGNMENT",
-              title: `You were assigned to "${updated.title}"`,
-              data: notifyData,
+          if (assigneeId) {
+            // Auto-watch: assignee is always a watcher for the card they're assigned to
+            void prisma.cardWatcher.upsert({
+              where: { cardId_userId: { cardId, userId: assigneeId } },
+              create: { id: require("crypto").randomBytes(12).toString("base64url"), cardId, userId: assigneeId },
+              update: {},
             })
+            // New assignee gets a targeted CARD_ASSIGNED notification — source is always ASSIGNMENT
+            if (assigneeId !== actorId) {
+              void createNotification({
+                userId: assigneeId,
+                type: "CARD_ASSIGNED",
+                source: "ASSIGNMENT",
+                title: `You were assigned to "${updated.title}"`,
+                data: notifyData,
+              })
+            }
           }
         }
 

@@ -812,7 +812,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             {/* Watchers */}
             {user && (
               <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
-                <WatchersSection cardId={localCard.id} currentUserId={user.id} />
+                <WatchersSection cardId={localCard.id} currentUserId={user.id} assigneeId={localCard.assigneeId} />
               </div>
             )}
 

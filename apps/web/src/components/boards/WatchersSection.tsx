@@ -4,9 +4,10 @@ import { cardWatchersApi, type Watcher } from "../../api/cardWatchers"
 interface Props {
   cardId: string
   currentUserId: string
+  assigneeId?: string | null
 }
 
-export default function WatchersSection({ cardId, currentUserId }: Props) {
+export default function WatchersSection({ cardId, currentUserId, assigneeId }: Props) {
   const [watchers, setWatchers] = useState<Watcher[]>([])
   const [isWatching, setIsWatching] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -14,10 +15,18 @@ export default function WatchersSection({ cardId, currentUserId }: Props) {
   const load = useCallback(async () => {
     try {
       const data = await cardWatchersApi.get(cardId)
-      setWatchers(data.watchers)
-      setIsWatching(data.isWatching)
+      // Assignee always watches — create the row silently if it doesn't exist yet
+      if (!data.isWatching && currentUserId === assigneeId) {
+        await cardWatchersApi.watch(cardId)
+        const fresh = await cardWatchersApi.get(cardId)
+        setWatchers(fresh.watchers)
+        setIsWatching(true)
+      } else {
+        setWatchers(data.watchers)
+        setIsWatching(data.isWatching)
+      }
     } catch { /* silent */ }
-  }, [cardId])
+  }, [cardId, currentUserId, assigneeId])
 
   useEffect(() => { void load() }, [load])
 
@@ -46,7 +55,8 @@ export default function WatchersSection({ cardId, currentUserId }: Props) {
         </span>
         <button
           onClick={() => void handleToggle()}
-          disabled={loading}
+          disabled={loading || currentUserId === assigneeId}
+          title={currentUserId === assigneeId ? "Assignees watch automatically" : undefined}
           style={{
             fontSize: "var(--text-xs)",
             padding: "3px 10px",
@@ -54,7 +64,8 @@ export default function WatchersSection({ cardId, currentUserId }: Props) {
             border: "1px solid oklch(var(--color-border))",
             background: isWatching ? "oklch(var(--color-accent-muted))" : "oklch(var(--color-paper-2))",
             color: isWatching ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-2))",
-            cursor: loading ? "default" : "pointer",
+            cursor: (loading || currentUserId === assigneeId) ? "default" : "pointer",
+            opacity: currentUserId === assigneeId ? 0.6 : 1,
             fontFamily: "var(--font-body)",
             fontWeight: 500,
           }}
