@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { useEditor, EditorContent } from "@tiptap/react"
+import { useEditor, EditorContent, useEditorState } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import type { Socket } from "socket.io-client"
@@ -82,6 +82,15 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
     content: "",
   })
 
+  // TipTap v3: useEditor returns a stable ref and does NOT re-render on transactions
+  // by default. Access editor.isEmpty directly in JSX is stale after typing.
+  // useEditorState subscribes via useSyncExternalStore so it re-renders only when
+  // isEmpty changes — enabling the Post Comment button the moment the user types.
+  const newEditorIsEmpty = useEditorState({
+    editor: newEditor,
+    selector: (ctx) => ctx.editor?.isEmpty ?? true,
+  })
+
   // Edit comment editor — content set via setContent when editingId changes
   const editEditor = useEditor({
     extensions: [
@@ -119,12 +128,18 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
   }, [load])
 
   const handleSubmit = async () => {
-    if (!newEditor || newEditor.isEmpty || submitting) return
+    if (!newEditor || newEditorIsEmpty || submitting) return
     setSubmitting(true)
     setSubmitError(null)
     try {
       const comment = await commentsApi.create(cardId, newEditor.getHTML())
-      setComments((prev) => [...prev, comment])
+      // The server emits the socket event BEFORE returning the HTTP response,
+      // so handleCreated (above) typically fires and adds the comment first.
+      // Guard here so whichever path wins the race, the other is a no-op.
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, comment]
+      })
       setTotal((t) => t + 1)
       newEditor.commands.clearContent()
     } catch (err) {
@@ -321,14 +336,14 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           onClick={() => void handleSubmit()}
-          disabled={!newEditor || newEditor.isEmpty || submitting}
+          disabled={!newEditor || newEditorIsEmpty || submitting}
           style={{
             fontSize: "var(--text-sm)", padding: "6px 16px",
             borderRadius: "var(--radius-btn)",
             background: "oklch(var(--color-accent))",
             color: "#fff", border: "none",
-            cursor: (!newEditor || newEditor.isEmpty || submitting) ? "not-allowed" : "pointer",
-            opacity: (!newEditor || newEditor.isEmpty || submitting) ? 0.5 : 1,
+            cursor: (!newEditor || newEditorIsEmpty || submitting) ? "not-allowed" : "pointer",
+            opacity: (!newEditor || newEditorIsEmpty || submitting) ? 0.5 : 1,
           }}
         >
           {submitting ? "Posting…" : "Post Comment"}

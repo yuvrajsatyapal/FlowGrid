@@ -101,9 +101,11 @@ router.post("/add", validateJWT, async (req, res) => {
       return
     }
 
+    // id is omitted — Prisma uses @default(cuid()) from the schema.
+    // Using require("crypto") inline was fragile and unnecessary.
     const dep = await prisma.cardDependency.upsert({
       where: { blockerId_blockedId: { blockerId, blockedId } },
-      create: { id: require("crypto").randomBytes(12).toString("base64url"), blockerId, blockedId },
+      create: { blockerId, blockedId },
       update: {},
     })
     res.status(201).json({ dependency: dep })
