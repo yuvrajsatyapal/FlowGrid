@@ -15,10 +15,18 @@ export default function WatchersSection({ cardId, currentUserId, assigneeId }: P
   const load = useCallback(async () => {
     try {
       const data = await cardWatchersApi.get(cardId)
-      setWatchers(data.watchers)
-      setIsWatching(data.isWatching)
+      // Assignee always watches — create the row silently if it doesn't exist yet
+      if (!data.isWatching && currentUserId === assigneeId) {
+        await cardWatchersApi.watch(cardId)
+        const fresh = await cardWatchersApi.get(cardId)
+        setWatchers(fresh.watchers)
+        setIsWatching(true)
+      } else {
+        setWatchers(data.watchers)
+        setIsWatching(data.isWatching)
+      }
     } catch { /* silent */ }
-  }, [cardId])
+  }, [cardId, currentUserId, assigneeId])
 
   useEffect(() => { void load() }, [load])
 
