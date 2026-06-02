@@ -35,16 +35,6 @@ router.post("/", validateJWT, async (req, res) => {
   const workspaceName = name.trim()
   const userId = req.user!.id
 
-  // Idempotency guard — prevent duplicate workspace creation after onboarding
-  const currentUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { onboardingCompleted: true },
-  })
-  if (currentUser?.onboardingCompleted) {
-    res.status(409).json({ error: { message: "Onboarding already completed", status: 409 } })
-    return
-  }
-
   // Build slug inside the transaction to avoid TOCTOU race; catch P2002 on collision
   const baseSlug = toSlug(workspaceName) || "workspace"
   const candidateSlug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`
