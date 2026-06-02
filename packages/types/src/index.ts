@@ -238,12 +238,25 @@ export interface AttachmentResponse {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export type NotificationType = 'CARD_ASSIGNED' | 'COMMENT_ADDED' | 'INVITE_ACCEPTED' | 'WORKSPACE_INVITE'
+export type NotificationSource =
+  | 'ASSIGNMENT'
+  | 'WATCHER'
+  | 'SYSTEM'
+
+export type NotificationType =
+  | 'CARD_ASSIGNED'
+  | 'CARD_UPDATED'       // field changes on a card
+  | 'COMMENT_ADDED'
+  | 'INVITE_ACCEPTED'
+  | 'WORKSPACE_INVITE'
+  | 'CARD_DUE_SOON'      // Feature #14 — due date reminders
+  | 'SYSTEM'             // catch-all for admin/announcement notifications
 
 export interface AppNotification {
   id: string
   userId: string
   type: NotificationType
+  source: NotificationSource
   title: string
   body: string | null
   data: Record<string, unknown> | null
