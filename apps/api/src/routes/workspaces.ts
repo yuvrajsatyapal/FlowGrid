@@ -6,8 +6,24 @@ import { isOwnerOrAdmin, roleAtLeast } from "../lib/roles"
 import crypto from "crypto"
 import logger from "../lib/logger"
 import type { Role } from "../../generated/prisma"
+import multer from "multer"
+import { storage, keyFromUrl } from "../lib/storage"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
+
+const ALLOWED_IMAGE_MIMETYPES = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
+])
+const MAX_LOGO_SIZE = 2 * 1024 * 1024
+
+const logoUploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_LOGO_SIZE },
+})
+
+const VALID_COLORS = new Set([
+  "blue", "teal", "purple", "orange", "pink", "yellow", "slate", "red",
+])
 
 const router = Router()
 
@@ -95,7 +111,7 @@ router.get("/", validateJWT, async (req, res) => {
       where: { userId: req.user!.id },
       include: {
         workspace: {
-          select: { id: true, name: true, slug: true, organizationId: true, deletedAt: true },
+          select: { id: true, name: true, slug: true, organizationId: true, deletedAt: true, logoUrl: true, color: true },
         },
       },
     })
@@ -108,6 +124,8 @@ router.get("/", validateJWT, async (req, res) => {
         slug: m.workspace.slug,
         organizationId: m.workspace.organizationId,
         role: m.role,
+        logoUrl: m.workspace.logoUrl,
+        color: m.workspace.color,
       }))
 
     res.json({ workspaces })
@@ -152,6 +170,8 @@ router.get("/one", validateJWT, async (req, res) => {
         slug: workspace.slug,
         description: workspace.description,
         organizationId: workspace.organizationId,
+        logoUrl: workspace.logoUrl,
+        color: workspace.color,
         organization: workspace.organization,
         memberCount: workspace._count.members,
         boardCount: workspace._count.boards,
@@ -172,10 +192,10 @@ router.post("/update", validateJWT, async (req, res) => {
     return
   }
 
-  const { name, description } = req.body as { name?: string; description?: string }
+  const { name, description, color } = req.body as { name?: string; description?: string; color?: string }
 
-  if (name === undefined && description === undefined) {
-    res.status(400).json({ error: { message: "At least one of name or description is required", status: 400 } })
+  if (name === undefined && description === undefined && color === undefined) {
+    res.status(400).json({ error: { message: "At least one field is required", status: 400 } })
     return
   }
   if (name !== undefined) {
@@ -187,6 +207,11 @@ router.post("/update", validateJWT, async (req, res) => {
       res.status(400).json({ error: { message: "name must be 100 characters or fewer", status: 400 } })
       return
     }
+  }
+
+  if (color !== undefined && !VALID_COLORS.has(color)) {
+    res.status(400).json({ error: { message: "color must be one of: blue, teal, purple, orange, pink, yellow, slate, red", status: 400 } })
+    return
   }
 
   try {
@@ -216,8 +241,9 @@ router.post("/update", validateJWT, async (req, res) => {
       data: {
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description: description.trim() || null }),
+        ...(color !== undefined && { color }),
       },
-      select: { id: true, name: true, slug: true, description: true, organizationId: true },
+      select: { id: true, name: true, slug: true, description: true, organizationId: true, logoUrl: true, color: true },
     })
 
     res.json({ workspace: updated })
@@ -429,6 +455,122 @@ router.post("/members/remove", validateJWT, async (req, res) => {
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to remove member", status: 500 } })
+  }
+})
+
+// POST /api/workspaces/logo — upload workspace logo (OWNER | ADMIN)
+router.post(
+  "/logo",
+  validateJWT,
+  (req, res, next) => {
+    logoUploadMiddleware.single("file")(req, res, (err) => {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        res.status(400).json({ error: { message: "Logo must be 2 MB or smaller", status: 400 } })
+        return
+      }
+      if (err) {
+        res.status(400).json({ error: { message: "File upload failed", status: 400 } })
+        return
+      }
+      next()
+    })
+  },
+  async (req, res) => {
+    const workspaceId = req.query.id as string | undefined
+    if (!workspaceId) {
+      res.status(400).json({ error: { message: "id is required", status: 400 } })
+      return
+    }
+    if (!req.file) {
+      res.status(400).json({ error: { message: "file is required", status: 400 } })
+      return
+    }
+    if (!ALLOWED_IMAGE_MIMETYPES.has(req.file.mimetype)) {
+      res.status(400).json({ error: { message: "Only image files are allowed", status: 400 } })
+      return
+    }
+
+    try {
+      const membership = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+      })
+      if (!membership || !isOwnerOrAdmin(membership.role)) {
+        res.status(403).json({ error: { message: "Only owners and admins can update workspace logo", status: 403 } })
+        return
+      }
+
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: workspaceId, deletedAt: null },
+        select: { logoUrl: true },
+      })
+      if (!workspace) {
+        res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+        return
+      }
+
+      if (workspace.logoUrl) {
+        try {
+          await storage.delete(keyFromUrl(workspace.logoUrl))
+        } catch (err) {
+          logger.warn("Failed to delete old workspace logo", { workspaceId, error: err instanceof Error ? err.message : err })
+        }
+      }
+
+      const ext = req.file.originalname.split(".").pop()?.toLowerCase() ?? "jpg"
+      const key = `workspace/${workspaceId}/logo-${crypto.randomBytes(8).toString("hex")}.${ext}`
+      const url = await storage.upload(key, req.file.buffer, req.file.mimetype)
+
+      const updated = await prisma.workspace.update({
+        where: { id: workspaceId },
+        data: { logoUrl: url },
+        select: { id: true, name: true, slug: true, organizationId: true, logoUrl: true, color: true },
+      })
+
+      res.json({ workspace: updated })
+    } catch {
+      res.status(500).json({ error: { message: "Failed to upload logo", status: 500 } })
+    }
+  },
+)
+
+// POST /api/workspaces/logo/remove — delete logo and clear logoUrl (OWNER | ADMIN)
+router.post("/logo/remove", validateJWT, async (req, res) => {
+  const workspaceId = req.query.id as string | undefined
+  if (!workspaceId) {
+    res.status(400).json({ error: { message: "id is required", status: 400 } })
+    return
+  }
+  try {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+    })
+    if (!membership || !isOwnerOrAdmin(membership.role)) {
+      res.status(403).json({ error: { message: "Only owners and admins can update workspace logo", status: 403 } })
+      return
+    }
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId, deletedAt: null },
+      select: { logoUrl: true },
+    })
+    if (!workspace) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+    if (workspace.logoUrl) {
+      try {
+        await storage.delete(keyFromUrl(workspace.logoUrl))
+      } catch (err) {
+        logger.warn("Failed to delete workspace logo from storage", { workspaceId, error: err instanceof Error ? err.message : err })
+      }
+    }
+    const updated = await prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { logoUrl: null },
+      select: { id: true, name: true, slug: true, organizationId: true, logoUrl: true, color: true },
+    })
+    res.json({ workspace: updated })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to remove logo", status: 500 } })
   }
 })
 
