@@ -24,6 +24,10 @@ import { notificationsRouter } from "./routes/notifications"
 import { attachmentsRouter } from "./routes/attachments"
 import { searchRouter } from "./routes/search"
 import { analyticsRouter } from "./routes/analytics"
+import { checklistsRouter } from "./routes/checklists"
+import { cardDependenciesRouter } from "./routes/card-dependencies"
+import { cardWatchersRouter } from "./routes/card-watchers"
+import { cardTemplatesRouter } from "./routes/card-templates"
 import passport from "./lib/passport"
 import logger from "./lib/logger"
 
@@ -74,6 +78,10 @@ app.use("/api/notifications", notificationsRouter)
 app.use("/api/attachments", attachmentsRouter)
 app.use("/api/search", searchRouter)
 app.use("/api/analytics", analyticsRouter)
+app.use("/api/checklists", checklistsRouter)
+app.use("/api/card-dependencies", cardDependenciesRouter)
+app.use("/api/card-watchers", cardWatchersRouter)
+app.use("/api/card-templates", cardTemplatesRouter)
 
 // Error handler — must be last
 app.use(errorHandler)

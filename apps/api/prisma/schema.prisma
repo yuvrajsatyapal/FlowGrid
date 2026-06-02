@@ -72,6 +72,8 @@ model User {
   notifications        Notification[]
   activities           Activity[]
   sentInvites          WorkspaceInvite[] @relation("SentInvites")
+  watchedCards         CardWatcher[]
+  createdTemplates     CardTemplate[]    @relation("CreatedTemplates")
 }
 
 model OAuthAccount {
@@ -138,6 +140,7 @@ model Workspace {
   members      WorkspaceMember[]
   boards       Board[]
   invites      WorkspaceInvite[]
+  cardTemplates CardTemplate[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -238,9 +241,94 @@ model Card {
   comments    Comment[]
   attachments Attachment[]
   activities  Activity[]
+  checklists  Checklist[]
+  watchers    CardWatcher[]
+  blocking    CardDependency[] @relation("Blocker")
+  blockedBy   CardDependency[] @relation("Blocked")
 
   @@index([listId])
   @@index([assigneeId])
+}
+
+// ─── Checklists ───────────────────────────────────────────────────────────────
+
+model Checklist {
+  id        String          @id @default(cuid())
+  cardId    String
+  title     String
+  position  String
+  createdAt DateTime        @default(now()) @db.Timestamptz()
+  updatedAt DateTime        @updatedAt @db.Timestamptz()
+
+  card  Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items ChecklistItem[]
+
+  @@index([cardId])
+}
+
+model ChecklistItem {
+  id          String   @id @default(cuid())
+  checklistId String
+  text        String
+  checked     Boolean  @default(false)
+  position    String
+  createdAt   DateTime @default(now()) @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @db.Timestamptz()
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId])
+}
+
+// ─── Card Dependencies ────────────────────────────────────────────────────────
+
+model CardDependency {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  blocker Card @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Card @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+// ─── Card Watchers ────────────────────────────────────────────────────────────
+
+model CardWatcher {
+  id        String   @id @default(cuid())
+  cardId    String
+  userId    String
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+  @@index([cardId])
+  @@index([userId])
+}
+
+// ─── Card Templates ───────────────────────────────────────────────────────────
+
+model CardTemplate {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  name           String
+  description    String?
+  priority       Priority @default(NONE)
+  checklistsData Json?
+  createdById    String
+  createdAt      DateTime @default(now()) @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @db.Timestamptz()
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("CreatedTemplates", fields: [createdById], references: [id])
+
+  @@index([workspaceId])
 }
 
 // ─── Labels ───────────────────────────────────────────────────────────────────

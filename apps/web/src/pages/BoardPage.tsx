@@ -22,7 +22,9 @@ import CardDetailModal from "../components/boards/CardDetailModal"
 import BoardPresence from "../components/boards/BoardPresence"
 import BoardCalendarView from "../components/boards/BoardCalendarView"
 import BoardTimelineView from "../components/boards/BoardTimelineView"
+import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal"
 import { useBoardSocket } from "../hooks/useBoardSocket"
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -78,6 +80,14 @@ export default function BoardPage() {
   const [error, setError] = useState("")
   const [listsError, setListsError] = useState("")
   const [boardView, setBoardView] = useState<BoardView>("kanban")
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useKeyboardShortcuts([
+    { key: "?", description: "Open keyboard shortcuts", handler: () => setShortcutsOpen(true) },
+    { key: "1", description: "Kanban view", handler: () => setBoardView("kanban") },
+    { key: "2", description: "Calendar view", handler: () => setBoardView("calendar") },
+    { key: "3", description: "Timeline view", handler: () => setBoardView("timeline") },
+  ])
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
 
@@ -564,6 +574,8 @@ export default function BoardPage() {
           />
         )}
       </AnimatePresence>
+
+      <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
