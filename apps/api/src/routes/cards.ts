@@ -162,7 +162,7 @@ router.post("/", validateJWT, async (req, res) => {
       })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
-    void logActivity({ cardId: card.id, userId: req.user!.id, action: "card_created", metadata: {} })
+    void logActivity({ cardId: card.id, userId: req.user!.id, action: "card_created", metadata: {}, boardId: access.board.id })
     emitBoardEvent(access.board.id, "card:created", formatCard(card, null, []))
     res.status(201).json({ card: formatCard(card) })
   } catch {
@@ -315,20 +315,20 @@ router.post("/update", validateJWT, async (req, res) => {
       try {
         // Activity log (per changed field)
         if (title !== undefined && title.trim() !== card.title) {
-          void logActivity({ cardId, userId: actorId, action: "title_changed", metadata: { from: card.title, to: title.trim() } })
+          void logActivity({ cardId, userId: actorId, action: "title_changed", metadata: { from: card.title, to: title.trim() }, boardId: access.board.id })
         }
         if (priority !== undefined && priority !== card.priority) {
-          void logActivity({ cardId, userId: actorId, action: "priority_changed", metadata: { from: card.priority, to: priority } })
+          void logActivity({ cardId, userId: actorId, action: "priority_changed", metadata: { from: card.priority, to: priority }, boardId: access.board.id })
         }
         if (dueDate !== undefined) {
           const oldDate = card.dueDate ? card.dueDate.toISOString() : null
           const newDate = dueDate === null ? null : new Date(dueDate).toISOString()
           if (oldDate !== newDate) {
-            void logActivity({ cardId, userId: actorId, action: "due_date_changed", metadata: { from: oldDate, to: newDate } })
+            void logActivity({ cardId, userId: actorId, action: "due_date_changed", metadata: { from: oldDate, to: newDate }, boardId: access.board.id })
           }
         }
         if (assigneeId !== undefined && assigneeId !== card.assigneeId) {
-          void logActivity({ cardId, userId: actorId, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId } })
+          void logActivity({ cardId, userId: actorId, action: "assignee_changed", metadata: { from: card.assigneeId, to: assigneeId }, boardId: access.board.id })
           if (assigneeId) {
             // Auto-watch: assignee is always a watcher for the card they're assigned to
             void prisma.cardWatcher.upsert({
@@ -539,7 +539,7 @@ router.post("/move", validateJWT, async (req, res) => {
       name: cl.label.name,
       color: cl.label.color,
     }))
-    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_moved", metadata: { fromListId: card.listId, toListId: targetListId } })
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_moved", metadata: { fromListId: card.listId, toListId: targetListId }, boardId: access.board.id })
     const movedFormatted = formatCard(moved, movedAssignee, movedLabels)
     emitBoardEvent(access.board.id, "card:moved", movedFormatted)
     res.json({ card: movedFormatted })
@@ -574,7 +574,7 @@ router.post("/delete", validateJWT, async (req, res) => {
     }
 
     await prisma.card.update({ where: { id: cardId }, data: { deletedAt: new Date() } })
-    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {} })
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {}, boardId: access.board.id })
     emitBoardEvent(access.board.id, "card:deleted", { id: cardId })
     res.json({ success: true })
   } catch {
@@ -617,7 +617,7 @@ router.post("/labels/add", validateJWT, async (req, res) => {
       create: { cardId, labelId },
       update: {},
     })
-    void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_added", metadata: { labelId: label.id, labelName: label.name } })
+    void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_added", metadata: { labelId: label.id, labelName: label.name }, boardId: access.board.id })
     const enriched = await fetchEnrichedCard(cardId)
     if (enriched) emitBoardEvent(access.board.id, "card:updated", enriched)
     res.json({ success: true })
@@ -652,7 +652,7 @@ router.post("/labels/remove", validateJWT, async (req, res) => {
     const labelToRemove = await prisma.label.findUnique({ where: { id: labelId }, select: { id: true, name: true } })
     await prisma.cardLabel.deleteMany({ where: { cardId, labelId } })
     if (labelToRemove) {
-      void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_removed", metadata: { labelId: labelToRemove.id, labelName: labelToRemove.name } })
+      void logActivity({ cardId: cardId, userId: req.user!.id, action: "label_removed", metadata: { labelId: labelToRemove.id, labelName: labelToRemove.name }, boardId: access.board.id })
     }
     const enrichedAfterRemove = await fetchEnrichedCard(cardId)
     if (enrichedAfterRemove) emitBoardEvent(access.board.id, "card:updated", enrichedAfterRemove)

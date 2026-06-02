@@ -165,7 +165,7 @@ router.post("/", validateJWT, async (req, res) => {
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     })
 
-    void logActivity({ cardId, userId: req.user!.id, action: "comment_added", metadata: { commentId: comment.id } })
+    void logActivity({ cardId, userId: req.user!.id, action: "comment_added", metadata: { commentId: comment.id }, boardId: access.board.id })
 
     // Notify assignee + watchers (excludes commenter) — parallel fetch
     const [cardForNotify, recipients] = await Promise.all([
@@ -245,7 +245,7 @@ router.post("/update", validateJWT, async (req, res) => {
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     })
 
-    void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_edited", metadata: { commentId } })
+    void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_edited", metadata: { commentId }, boardId: access.board.id })
     emitBoardEvent(access.board.id, "comment:updated", formatComment(updated))
     res.json({ comment: formatComment(updated) })
   } catch {
@@ -283,7 +283,7 @@ router.post("/delete", validateJWT, async (req, res) => {
     }
 
     await prisma.comment.update({ where: { id: commentId }, data: { deletedAt: new Date() } })
-    void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_deleted", metadata: { commentId } })
+    void logActivity({ cardId: comment.cardId, userId: req.user!.id, action: "comment_deleted", metadata: { commentId }, boardId: access.board.id })
     emitBoardEvent(access.board.id, "comment:deleted", { id: commentId, cardId: comment.cardId })
     res.json({ success: true })
   } catch {

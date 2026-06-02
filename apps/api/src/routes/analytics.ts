@@ -100,7 +100,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
             SELECT l."boardId", COUNT(*) AS count
             FROM "Card" c
             JOIN "List" l ON l.id = c."listId"
-            WHERE c."listId" = ANY(${listIds}::uuid[])
+            WHERE c."listId" = ANY(${listIds}::text[])
               AND c."deletedAt" IS NULL
             GROUP BY l."boardId"
           `
@@ -112,7 +112,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
           DATE_TRUNC('day', "createdAt") AS day,
           COUNT(*) AS count
         FROM "Activity"
-        WHERE "boardId" = ANY(${boardIds}::uuid[])
+        WHERE "boardId" = ANY(${boardIds}::text[])
           AND "createdAt" >= ${thirtyDaysAgo}
         GROUP BY day
         ORDER BY day ASC
@@ -127,7 +127,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
           COUNT(*) AS count
         FROM "Activity" a
         JOIN "User" u ON u.id = a."userId"
-        WHERE a."boardId" = ANY(${boardIds}::uuid[])
+        WHERE a."boardId" = ANY(${boardIds}::text[])
           AND a."createdAt" >= ${thirtyDaysAgo}
         GROUP BY a."userId", u.name, u."avatarUrl"
         ORDER BY count DESC
