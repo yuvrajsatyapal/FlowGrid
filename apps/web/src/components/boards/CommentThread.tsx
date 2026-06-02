@@ -133,7 +133,13 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
     setSubmitError(null)
     try {
       const comment = await commentsApi.create(cardId, newEditor.getHTML())
-      setComments((prev) => [...prev, comment])
+      // The server emits the socket event BEFORE returning the HTTP response,
+      // so handleCreated (above) typically fires and adds the comment first.
+      // Guard here so whichever path wins the race, the other is a no-op.
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, comment]
+      })
       setTotal((t) => t + 1)
       newEditor.commands.clearContent()
     } catch (err) {
