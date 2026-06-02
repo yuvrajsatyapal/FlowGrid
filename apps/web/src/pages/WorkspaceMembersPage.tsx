@@ -114,6 +114,8 @@ export default function WorkspaceMembersPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState("")
+  const [inviteUrl, setInviteUrl] = useState("")
+  const [resendSuccess, setResendSuccess] = useState<Record<string, boolean>>({})
 
   const currentUserMember = members.find((m) => m.userId === user?.id)
   const canManage = currentUserMember?.role === "OWNER" || currentUserMember?.role === "ADMIN"
@@ -172,9 +174,11 @@ export default function WorkspaceMembersPage() {
     setInviting(true)
     setInviteError("")
     setInviteSuccess("")
+    setInviteUrl("")
     try {
-      await invitesApi.create(workspaceId, inviteEmail.trim(), inviteRole)
+      const result = await invitesApi.create(workspaceId, inviteEmail.trim(), inviteRole)
       setInviteSuccess(`Invite sent to ${inviteEmail.trim()}`)
+      setInviteUrl(result.inviteUrl)
       setInviteEmail("")
       void fetchInvites()
     } catch (err: unknown) {
@@ -186,8 +190,11 @@ export default function WorkspaceMembersPage() {
 
   const handleResend = async (inviteId: string) => {
     try {
-      await invitesApi.resend(inviteId)
-      void fetchInvites()
+      const result = await invitesApi.resend(inviteId)
+      setResendSuccess((prev) => ({ ...prev, [inviteId]: true }))
+      // Update the invite URL in the list in case it changed
+      setInvites((prev) => prev.map((i) => i.id === inviteId ? { ...i, ...result.invite, inviteUrl: result.inviteUrl } : i))
+      setTimeout(() => setResendSuccess((prev) => ({ ...prev, [inviteId]: false })), 3000)
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to resend invite")
     }
@@ -265,7 +272,18 @@ export default function WorkspaceMembersPage() {
               <p style={{ margin: "8px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{inviteError}</p>
             )}
             {inviteSuccess && (
-              <p style={{ margin: "8px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>{inviteSuccess}</p>
+              <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
+                <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>{inviteSuccess}</p>
+                {inviteUrl && (
+                  <button
+                    type="button"
+                    onClick={() => { void navigator.clipboard.writeText(inviteUrl) }}
+                    style={{ ...ghostBtn, fontSize: "var(--text-xs)" }}
+                  >
+                    Copy invite link
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -395,6 +413,7 @@ export default function WorkspaceMembersPage() {
               {invites.map((invite) => {
                 const expiresDate = new Date(invite.expiresAt)
                 const isExpired = expiresDate < new Date()
+                const didResend = resendSuccess[invite.id] ?? false
                 return (
                   <div
                     key={invite.id}
@@ -404,6 +423,7 @@ export default function WorkspaceMembersPage() {
                       gap: "12px",
                       padding: "12px 20px",
                       borderBottom: "1px solid oklch(var(--color-border))",
+                      opacity: isExpired ? 0.7 : 1,
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -413,9 +433,21 @@ export default function WorkspaceMembersPage() {
                       </p>
                     </div>
                     <RoleBadge role={invite.role} />
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button onClick={() => handleResend(invite.id)} style={ghostBtn}>Resend</button>
-                      <button onClick={() => handleRevoke(invite.id)} style={dangerGhostBtn}>Revoke</button>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      {didResend && (
+                        <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Sent!</span>
+                      )}
+                      {invite.inviteUrl && (
+                        <button
+                          onClick={() => { void navigator.clipboard.writeText(invite.inviteUrl!) }}
+                          style={ghostBtn}
+                          title="Copy invite link"
+                        >
+                          Copy link
+                        </button>
+                      )}
+                      <button onClick={() => { void handleResend(invite.id) }} style={ghostBtn}>Resend</button>
+                      <button onClick={() => { void handleRevoke(invite.id) }} style={dangerGhostBtn}>Revoke</button>
                     </div>
                   </div>
                 )

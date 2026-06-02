@@ -102,6 +102,7 @@ export interface WorkspaceInvite {
   status: InviteStatus
   expiresAt: string
   createdAt: string
+  inviteUrl?: string
 }
 
 
@@ -237,7 +238,7 @@ export interface AttachmentResponse {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export type NotificationType = 'CARD_ASSIGNED' | 'COMMENT_ADDED' | 'INVITE_ACCEPTED'
+export type NotificationType = 'CARD_ASSIGNED' | 'COMMENT_ADDED' | 'INVITE_ACCEPTED' | 'WORKSPACE_INVITE'
 
 export interface AppNotification {
   id: string
