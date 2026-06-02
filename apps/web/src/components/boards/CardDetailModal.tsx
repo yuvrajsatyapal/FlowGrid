@@ -66,6 +66,21 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0].value)
   const [creatingLabel, setCreatingLabel] = useState(false)
 
+  // Local date state — prevents controlled input from snapping back to "" while
+  // the async saveField call is in-flight and localCard hasn't updated yet.
+  const [localStartDate, setLocalStartDate] = useState(() =>
+    localCard.startDate ? new Date(localCard.startDate).toISOString().split("T")[0] : ""
+  )
+  const [localDueDate, setLocalDueDate] = useState(() =>
+    localCard.dueDate ? new Date(localCard.dueDate).toISOString().split("T")[0] : ""
+  )
+  useEffect(() => {
+    setLocalStartDate(localCard.startDate ? new Date(localCard.startDate).toISOString().split("T")[0] : "")
+  }, [localCard.startDate])
+  useEffect(() => {
+    setLocalDueDate(localCard.dueDate ? new Date(localCard.dueDate).toISOString().split("T")[0] : "")
+  }, [localCard.dueDate])
+
   // Debounce ref for description
   const descDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingDescRef = useRef<string | null>(null)
@@ -189,11 +204,13 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   async function handleStartDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
+    setLocalStartDate(val) // optimistic — prevents revert during async save
     await saveField({ startDate: val ? new Date(val).toISOString() : null })
   }
 
   async function handleDueDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
+    setLocalDueDate(val) // optimistic — prevents revert during async save
     await saveField({ dueDate: val ? new Date(val).toISOString() : null })
   }
 
@@ -253,13 +270,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
-  const startDateValue = localCard.startDate
-    ? new Date(localCard.startDate).toISOString().split("T")[0]
-    : ""
-
-  const dueDateValue = localCard.dueDate
-    ? new Date(localCard.dueDate).toISOString().split("T")[0]
-    : ""
+  // startDateValue / dueDateValue are now kept in localStartDate / localDueDate state
 
   return (
     <motion.div
@@ -472,7 +483,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input
                   type="date"
-                  value={startDateValue}
+                  value={localStartDate}
                   onChange={handleStartDateChange}
                   disabled={!canEdit}
                   style={{
@@ -481,15 +492,15 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     borderRadius: "var(--radius-input)",
                     border: "1px solid oklch(var(--color-border))",
                     background: "oklch(var(--color-paper-2))",
-                    color: startDateValue ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                    color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
                     cursor: canEdit ? "pointer" : "default",
                   }}
                 />
-                {startDateValue && canEdit && (
+                {localStartDate && canEdit && (
                   <button
-                    onClick={() => saveField({ startDate: null })}
+                    onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
                     aria-label="Clear start date"
                     style={{
                       background: "none",
@@ -514,7 +525,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input
                   type="date"
-                  value={dueDateValue}
+                  value={localDueDate}
                   onChange={handleDueDateChange}
                   disabled={!canEdit}
                   style={{
@@ -523,15 +534,15 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     borderRadius: "var(--radius-input)",
                     border: "1px solid oklch(var(--color-border))",
                     background: "oklch(var(--color-paper-2))",
-                    color: dueDateValue ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                    color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
                     cursor: canEdit ? "pointer" : "default",
                   }}
                 />
-                {dueDateValue && canEdit && (
+                {localDueDate && canEdit && (
                   <button
-                    onClick={() => saveField({ dueDate: null })}
+                    onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
                     aria-label="Clear due date"
                     style={{
                       background: "none",
@@ -571,7 +582,9 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               >
                 <option value="">Unassigned</option>
                 {members.map((m) => (
-                  <option key={m.id} value={m.id}>
+                  // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
+                  // The backend validates assigneeId against workspaceMember.userId
+                  <option key={m.id} value={m.userId}>
                     {m.name ?? m.email}
                   </option>
                 ))}

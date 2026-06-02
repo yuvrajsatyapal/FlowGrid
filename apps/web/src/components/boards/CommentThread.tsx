@@ -296,17 +296,21 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
         </div>
       )}
 
-      {/* New comment editor */}
-      <div style={{
-        border: "1px solid oklch(var(--color-border))",
-        borderRadius: "var(--radius-input)",
-        background: "oklch(var(--color-paper-2))",
-        padding: "8px 10px",
-        fontSize: "var(--text-sm)",
-        fontFamily: "var(--font-body)",
-        color: "oklch(var(--color-ink))",
-        minHeight: 60,
-      }}>
+      {/* New comment editor — clicking anywhere in the container focuses the editor */}
+      <div
+        onClick={() => newEditor?.commands.focus()}
+        style={{
+          border: "1px solid oklch(var(--color-border))",
+          borderRadius: "var(--radius-input)",
+          background: "oklch(var(--color-paper-2))",
+          padding: "8px 10px",
+          fontSize: "var(--text-sm)",
+          fontFamily: "var(--font-body)",
+          color: "oklch(var(--color-ink))",
+          minHeight: 60,
+          cursor: "text",
+        }}
+      >
         <EditorContent editor={newEditor} />
       </div>
 

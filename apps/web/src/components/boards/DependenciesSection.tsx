@@ -13,40 +13,58 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
   const [boardCards, setBoardCards] = useState<BoardCard[]>([])
   const [pickerOpen, setPickerOpen] = useState<"blocking" | "blockedBy" | null>(null)
   const [search, setSearch] = useState("")
+  const [depError, setDepError] = useState("")
 
   const load = useCallback(async () => {
     try {
       const data = await cardDependenciesApi.get(cardId)
       setBlocking(data.blocking)
       setBlockedBy(data.blockedBy)
-    } catch { /* silent */ }
+    } catch (err) {
+      setDepError((err as Error).message || "Failed to load dependencies")
+    }
   }, [cardId])
 
   useEffect(() => { void load() }, [load])
 
   async function openPicker(type: "blocking" | "blockedBy") {
-    if (boardCards.length === 0) {
-      const cards = await cardDependenciesApi.getBoardCards(boardId)
-      setBoardCards(cards)
+    setDepError("")
+    try {
+      if (boardCards.length === 0) {
+        const cards = await cardDependenciesApi.getBoardCards(boardId)
+        setBoardCards(cards)
+      }
+      setPickerOpen(type)
+      setSearch("")
+    } catch (err) {
+      setDepError((err as Error).message || "Failed to load board cards")
     }
-    setPickerOpen(type)
-    setSearch("")
   }
 
   async function handleAdd(targetCardId: string) {
     if (!pickerOpen) return
-    if (pickerOpen === "blocking") {
-      await cardDependenciesApi.add(cardId, targetCardId)
-    } else {
-      await cardDependenciesApi.add(targetCardId, cardId)
+    setDepError("")
+    try {
+      if (pickerOpen === "blocking") {
+        await cardDependenciesApi.add(cardId, targetCardId)
+      } else {
+        await cardDependenciesApi.add(targetCardId, cardId)
+      }
+      setPickerOpen(null)
+      void load()
+    } catch (err) {
+      setDepError((err as Error).message || "Failed to add dependency")
     }
-    setPickerOpen(null)
-    void load()
   }
 
   async function handleRemove(depId: string) {
-    await cardDependenciesApi.remove(depId)
-    void load()
+    setDepError("")
+    try {
+      await cardDependenciesApi.remove(depId)
+      void load()
+    } catch (err) {
+      setDepError((err as Error).message || "Failed to remove dependency")
+    }
   }
 
   const existingIds = new Set([
@@ -91,6 +109,9 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "oklch(var(--color-ink-3))" }}>Dependencies</span>
+      {depError && (
+        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{depError}</p>
+      )}
 
       <DepList
         entries={blocking}

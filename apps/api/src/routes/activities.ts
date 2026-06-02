@@ -97,7 +97,7 @@ router.get("/", validateJWT, async (req, res) => {
     const [items, total] = await prisma.$transaction([
       prisma.activity.findMany({
         where: { cardId },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         skip: offset,
         take: limit,
         include: { user: { select: { id: true, name: true, avatarUrl: true } } },
