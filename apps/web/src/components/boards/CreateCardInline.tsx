@@ -10,19 +10,24 @@ export default function CreateCardInline({ onSubmit }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Synchronous in-flight guard — state updates are async and can be missed
+  // when onBlur fires while setSaving(true) hasn't committed yet (e.g. on
+  // textarea unmount or when disabled={saving} causes a blur).
+  const inflightRef = useRef(false)
 
   useEffect(() => {
     if (expanded) textareaRef.current?.focus()
   }, [expanded])
 
   const handleSave = async () => {
-    if (saving) return
+    if (inflightRef.current) return
     const trimmed = value.trim()
     if (!trimmed) {
       setExpanded(false)
       setValue("")
       return
     }
+    inflightRef.current = true
     setSaving(true)
     setError("")
     try {
@@ -32,6 +37,7 @@ export default function CreateCardInline({ onSubmit }: Props) {
     } catch (err) {
       setError((err as Error).message || "Failed to create card")
     } finally {
+      inflightRef.current = false
       setSaving(false)
     }
   }
