@@ -12,6 +12,7 @@ interface AuthContextValue extends AuthState {
   setTokenAndUser: (token: string, user: AuthUser) => void
   logout: () => Promise<void>
   refresh: () => Promise<void>
+  updateUser: (patch: Partial<AuthUser>) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -65,6 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Keep refreshRef in sync with the latest `refresh` so the timer always calls the current closure
   refreshRef.current = refresh
 
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
+    setState((prev) =>
+      prev.user ? { ...prev, user: { ...prev.user, ...patch } } : prev
+    )
+  }, [])
+
   const logout = useCallback(async () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     try {
@@ -88,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ ...state, setTokenAndUser, logout, refresh }}>
+    <AuthContext.Provider value={{ ...state, setTokenAndUser, logout, refresh, updateUser }}>
       {children}
     </AuthContext.Provider>
   )
