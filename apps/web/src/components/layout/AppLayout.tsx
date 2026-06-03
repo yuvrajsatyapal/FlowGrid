@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Outlet, NavLink, useNavigate, useParams } from "react-router-dom"
+import { Outlet, NavLink, useNavigate, useParams, Link } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTheme } from "../../contexts/ThemeContext"
@@ -258,69 +258,79 @@ function SidebarContent({
       <div style={{ height: "1px", background: "oklch(var(--color-border))", margin: "6px 0" }} />
 
       {/* User section */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "6px 8px",
-          borderRadius: "6px",
-        }}
-      >
-        {/* Avatar */}
-        <div
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <Link
+          to={activeWorkspace ? `/${activeWorkspace.id}/profile` : "#"}
           style={{
-            width: "28px",
-            height: "28px",
-            borderRadius: "50%",
-            background: user?.avatarUrl ? "transparent" : "oklch(52% 0.22 260)",
-            color: "#fff",
+            flex: 1,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.6875rem",
-            fontWeight: 600,
-            flexShrink: 0,
-            overflow: "hidden",
+            gap: "8px",
+            padding: "6px 8px",
+            borderRadius: "6px",
+            textDecoration: "none",
+            color: "oklch(var(--color-ink))",
+            transition: "background var(--dur-fast) var(--ease-out)",
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))" }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
         >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : (
-            userInitials
-          )}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p
+          {/* Avatar */}
+          <div
             style={{
-              margin: 0,
-              fontSize: "var(--text-xs)",
-              fontWeight: 500,
-              color: "oklch(var(--color-ink))",
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              background: user?.avatarUrl ? "transparent" : "oklch(52% 0.22 260)",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.6875rem",
+              fontWeight: 600,
+              flexShrink: 0,
               overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
             }}
           >
-            {user?.name ?? user?.email}
-          </p>
-          {user?.name && (
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              userInitials
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p
               style={{
                 margin: 0,
                 fontSize: "var(--text-xs)",
-                color: "oklch(var(--color-ink-3))",
+                fontWeight: 500,
+                color: "oklch(var(--color-ink))",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {user.email}
+              {user?.name ?? user?.email}
             </p>
-          )}
-        </div>
+            {user?.name && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "var(--text-xs)",
+                  color: "oklch(var(--color-ink-3))",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {user.email}
+              </p>
+            )}
+          </div>
+        </Link>
 
+        {/* Sign-out button stays outside the link */}
         <button
           onClick={handleLogout}
           title="Sign out"
