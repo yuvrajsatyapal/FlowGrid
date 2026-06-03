@@ -1,0 +1,102 @@
+/* ─── Landing page — isolated styles ─────────────────────────────────────── */
+
+/* Flip cards */
+.lp-flip-card { perspective: 1200px; }
+.lp-flip-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp-flip-card:hover .lp-flip-inner { transform: rotateY(180deg); }
+.lp-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+.lp-flip-back { transform: rotateY(180deg); }
+
+/* Scroll reveal */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.72s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.72s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp-reveal.lp-visible { opacity: 1; transform: translateY(0); }
+.lp-d1 { transition-delay: 80ms; }
+.lp-d2 { transition-delay: 160ms; }
+.lp-d3 { transition-delay: 240ms; }
+.lp-d4 { transition-delay: 320ms; }
+
+/* Hard button (zero radius, flat) */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #E05A3A;
+  color: #fff;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px 28px;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.lp-btn:hover { background: #c94d30; }
+.lp-btn-outline {
+  background: transparent;
+  border: 2px solid #E05A3A;
+  color: #E05A3A;
+}
+.lp-btn-outline:hover { background: #E05A3A; color: #fff; }
+
+/* Hard card (0 radius) */
+.lp-hard-card { border-radius: 0 !important; }
+
+/* Hero entrance — starts visible, slides up from +12px */
+@keyframes lp-hero-in {
+  from { transform: translateY(12px); }
+  to   { transform: translateY(0); }
+}
+.lp-hero-anim {
+  opacity: 1;
+  animation: lp-hero-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.lp-hero-d0 { animation-delay: 0ms; }
+.lp-hero-d1 { animation-delay: 100ms; }
+.lp-hero-d2 { animation-delay: 200ms; }
+.lp-hero-d3 { animation-delay: 300ms; }
+.lp-hero-d4 { animation-delay: 400ms; }
+
+/* Section label */
+.lp-label {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #E05A3A;
+}
+
+/* Process step */
+.lp-step { transition: color 0.3s, border-color 0.3s; }
+.lp-step-active h3 { color: #E05A3A; }
+.lp-step-active { border-color: rgba(26, 114, 121, 0.7) !important; }
+
+/* Mobile menu */
+.lp-mobile-menu {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* Dark footer panel — initially shifted below viewport */
+.lp-dark-panel {
+  transform: translateY(100%);
+  transition: none;
+}

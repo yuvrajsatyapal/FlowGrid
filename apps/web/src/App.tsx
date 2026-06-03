@@ -14,6 +14,7 @@ import InviteAcceptPage from "./pages/InviteAcceptPage"
 import BoardPage from "./pages/BoardPage"
 import AnalyticsPage from "./pages/AnalyticsPage"
 import ProfilePage from "./pages/ProfilePage"
+import LandingPage from "./pages/LandingPage"
 
 export default function App() {
   return (
@@ -21,6 +22,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Landing */}
+          <Route path="/" element={<LandingPage />} />
+
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
