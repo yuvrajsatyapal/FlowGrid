@@ -28,6 +28,7 @@ interface Props {
   listName?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
+  onCardDeleted?: (id: string) => void
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error"
@@ -57,25 +58,11 @@ function taskShortId(id: string): string {
 }
 
 // Icons for header buttons
-const EYE_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M1 7c1.5-3 8.5-3 12 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
-  </svg>
-)
-
-const SHARE_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M8 2l4 5-4 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 7H5a3 3 0 000 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-  </svg>
-)
-
-const DOTS_H_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <circle cx="2.5" cy="7" r="1.25" fill="currentColor" />
-    <circle cx="7" cy="7" r="1.25" fill="currentColor" />
-    <circle cx="11.5" cy="7" r="1.25" fill="currentColor" />
+const TRASH_ICON = (
+  <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 6v4M8 6v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
   </svg>
 )
 
@@ -94,11 +81,12 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, listName, onClose, onCardUpdated }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, listName, onClose, onCardUpdated, onCardDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   // Sidebar data
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -183,6 +171,20 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   useEffect(() => {
     flushAndCloseRef.current = flushAndClose
   })
+
+  const handleDelete = useCallback(async () => {
+    if (deleting) return
+    if (!window.confirm("Delete this card? This cannot be undone.")) return
+    setDeleting(true)
+    try {
+      await cardsApi.deleteCard(localCard.id)
+      onCardDeleted?.(localCard.id)
+      onClose()
+    } catch (err: unknown) {
+      setDeleting(false)
+      alert((err as Error).message || "Failed to delete card")
+    }
+  }, [deleting, localCard.id, onCardDeleted, onClose])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -424,45 +426,20 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             {/* Spacer */}
             <div style={{ flex: 1 }} />
 
-            {/* Watch button */}
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(window.location.href)
-              }}
-              aria-label="Watch card"
-              title="Watch"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {EYE_ICON}
-            </button>
-
-            {/* Share / copy link button */}
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}${window.location.pathname}?card=${localCard.id}`
-                void navigator.clipboard.writeText(url)
-              }}
-              aria-label="Copy link to card"
-              title="Copy link"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {SHARE_ICON}
-            </button>
-
-            {/* Overflow menu (⋯) */}
-            <button
-              aria-label="More options"
-              title="More"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {DOTS_H_ICON}
-            </button>
+            {/* Delete card */}
+            {canEdit && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                aria-label="Delete card"
+                title="Delete card"
+                style={{ ...iconBtnStyle, cursor: deleting ? "default" : "pointer", opacity: deleting ? 0.5 : 1 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-error) / 0.12)"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-error))" }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+              >
+                {TRASH_ICON}
+              </button>
+            )}
 
             {/* Close */}
             <button

@@ -593,6 +593,16 @@ export default function BoardPage() {
             listName={lists.find((l) => l.id === openCard.listId)?.name}
             onClose={() => setOpenCardId(null)}
             onCardUpdated={handleCardUpdated}
+            onCardDeleted={(id) => {
+              setBoardCards((prev) => {
+                const next: Record<string, CardSummary[]> = {}
+                for (const [lid, cards] of Object.entries(prev)) {
+                  next[lid] = cards.filter((c) => c.id !== id)
+                }
+                return next
+              })
+              setOpenCardId(null)
+            }}
           />
         )}
       </AnimatePresence>
