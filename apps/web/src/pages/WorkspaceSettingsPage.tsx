@@ -57,6 +57,19 @@ const dangerBtn: React.CSSProperties = {
   transition: "background var(--dur-fast), color var(--dur-fast)",
 }
 
+const COLOR_GRADIENTS: Record<string, string> = {
+  blue:   "linear-gradient(135deg, #3b82f6, #2563eb)",
+  teal:   "linear-gradient(135deg, #10b981, #06b6d4)",
+  purple: "linear-gradient(135deg, #8b5cf6, #6366f1)",
+  orange: "linear-gradient(135deg, #f97316, #ef4444)",
+  pink:   "linear-gradient(135deg, #ec4899, #8b5cf6)",
+  yellow: "linear-gradient(135deg, #f59e0b, #eab308)",
+  slate:  "linear-gradient(135deg, #64748b, #475569)",
+  red:    "linear-gradient(135deg, #ef4444, #b91c1c)",
+}
+
+const COLOR_OPTIONS = ["blue", "teal", "purple", "orange", "pink", "yellow", "slate", "red"] as const
+
 // ── Delete confirmation dialog ─────────────────────────────────────────────────
 
 function DeleteDialog({
@@ -173,6 +186,14 @@ export default function WorkspaceSettingsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
 
+  // Identity state
+  const logoFileInputRef = useRef<HTMLInputElement>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState("")
+  const [selectedColor, setSelectedColor] = useState<string>(detail?.color ?? "blue")
+  const [colorSaving, setColorSaving] = useState(false)
+  const [colorSaveSuccess, setColorSaveSuccess] = useState(false)
+
   const [nameFocused, setNameFocused] = useState(false)
   const [descFocused, setDescFocused] = useState(false)
   const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -190,6 +211,7 @@ export default function WorkspaceSettingsPage() {
         setDetail(ws)
         setName(ws.name)
         setDescription(ws.description ?? "")
+        setSelectedColor(ws.color ?? "blue")
       })
       .catch((err: Error) => setLoadError(err.message || "Failed to load workspace"))
       .finally(() => setLoading(false))
@@ -197,6 +219,57 @@ export default function WorkspaceSettingsPage() {
 
   const isOwner = detail?.role === "OWNER"
   const canEdit = detail?.role === "OWNER" || detail?.role === "ADMIN"
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !workspaceId) return
+    e.target.value = ""
+    setLogoUploading(true)
+    setLogoError("")
+    try {
+      const updated = await workspacesApi.uploadLogo(workspaceId, file)
+      setDetail((prev) => prev ? { ...prev, logoUrl: updated.logoUrl } : prev)
+      updateWorkspace(workspaceId, { logoUrl: updated.logoUrl ?? undefined })
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
+      setLogoError(axiosErr?.response?.data?.error?.message ?? "Failed to upload logo")
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const handleRemoveLogo = async () => {
+    if (!workspaceId) return
+    setLogoUploading(true)
+    setLogoError("")
+    try {
+      const updated = await workspacesApi.removeLogo(workspaceId)
+      setDetail((prev) => prev ? { ...prev, logoUrl: updated.logoUrl } : prev)
+      updateWorkspace(workspaceId, { logoUrl: updated.logoUrl ?? undefined })
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
+      setLogoError(axiosErr?.response?.data?.error?.message ?? "Failed to remove logo")
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const handleSaveColor = async (color: string) => {
+    if (!workspaceId) return
+    setSelectedColor(color)
+    setColorSaving(true)
+    setColorSaveSuccess(false)
+    try {
+      await workspacesApi.update(workspaceId, { color })
+      updateWorkspace(workspaceId, { color })
+      setColorSaveSuccess(true)
+      setTimeout(() => setColorSaveSuccess(false), 2000)
+    } catch {
+      // color reverts on next load — no extra error UI needed
+    } finally {
+      setColorSaving(false)
+    }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -290,6 +363,120 @@ export default function WorkspaceSettingsPage() {
           {detail?.name}
         </p>
       </div>
+
+      {/* Identity section — OWNER/ADMIN only */}
+      {canEdit && (
+        <div style={{ ...sectionCard, marginBottom: "24px" }}>
+          <div style={sectionHeader}>
+            <h2 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600 }}>Identity</h2>
+          </div>
+          <div style={sectionBody}>
+            {/* Logo upload */}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "10px",
+                  background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[detail?.color ?? "blue"] ?? COLOR_GRADIENTS.blue),
+                  flexShrink: 0,
+                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: logoUploading ? "default" : "pointer",
+                  opacity: logoUploading ? 0.6 : 1,
+                  border: "2px solid oklch(var(--color-border))",
+                }}
+                onClick={() => !logoUploading && logoFileInputRef.current?.click()}
+                title="Click to change logo"
+              >
+                {detail?.logoUrl ? (
+                  <img src={detail.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>
+                    {(detail?.name ?? "W").split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "W"}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={logoUploading}
+                    style={{ ...primaryBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
+                    onMouseEnter={(e) => { if (!logoUploading) e.currentTarget.style.background = "oklch(var(--color-accent-hover))" }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "oklch(var(--color-accent))" }}
+                  >
+                    {logoUploading ? "Uploading…" : "Upload logo"}
+                  </button>
+                  {detail?.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      disabled={logoUploading}
+                      style={{ ...dangerBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
+                      onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.background = "oklch(var(--color-error))"; e.currentTarget.style.color = "#fff" } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-error))" }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                  PNG or JPG, max 2 MB. Used in the workspace badge.
+                </p>
+                {logoError && (
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{logoError}</p>
+                )}
+              </div>
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+                style={{ display: "none" }}
+                onChange={handleLogoFileChange}
+              />
+            </div>
+
+            {/* Color picker */}
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
+                Workspace color
+              </p>
+              <p style={{ margin: "0 0 10px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                Used when no logo is set.
+              </p>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {COLOR_OPTIONS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={c}
+                    onClick={() => handleSaveColor(c)}
+                    disabled={colorSaving}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "7px",
+                      background: COLOR_GRADIENTS[c],
+                      border: selectedColor === c ? "2.5px solid oklch(var(--color-ink))" : "2px solid transparent",
+                      cursor: colorSaving ? "not-allowed" : "pointer",
+                      transform: selectedColor === c ? "scale(1.15)" : "scale(1)",
+                      transition: "transform 0.1s, border 0.1s",
+                      padding: 0,
+                    }}
+                  />
+                ))}
+              </div>
+              {colorSaveSuccess && (
+                <p style={{ margin: "8px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Color saved</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* General section */}
       <div style={sectionCard}>
