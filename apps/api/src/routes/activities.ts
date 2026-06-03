@@ -79,6 +79,43 @@ async function resolveCardAccess(
   return { card, board, membership }
 }
 
+// GET /api/activities/workspace?workspaceId=&limit= — recent activities across a workspace
+router.get("/workspace", validateJWT, async (req, res) => {
+  const workspaceId = req.query.workspaceId as string | undefined
+  if (!workspaceId) {
+    res.status(400).json({ error: { message: "workspaceId is required", status: 400 } })
+    return
+  }
+
+  const limit = Math.min(50, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10))
+
+  try {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+    })
+    if (!membership) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+
+    const items = await prisma.activity.findMany({
+      where: {
+        card: {
+          deletedAt: null,
+          list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+    })
+
+    res.json({ items: items.map(formatActivity) })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to fetch activities", status: 500 } })
+  }
+})
+
 // GET /api/activities?cardId=&offset=&limit= — paginated activity feed for a card
 router.get("/", validateJWT, async (req, res) => {
   const cardId = req.query.cardId as string | undefined

@@ -8,6 +8,7 @@ import logger from "../lib/logger"
 import type { Role } from "../../generated/prisma"
 import multer from "multer"
 import { storage, keyFromUrl } from "../lib/storage"
+import { getOnlineUserIds } from "../lib/socket"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
 
@@ -325,6 +326,8 @@ router.get("/members", validateJWT, async (req, res) => {
       orderBy: { user: { name: "asc" } },
     })
 
+    const onlineIds = new Set(await getOnlineUserIds(memberships.map((m) => m.user.id)))
+
     const members = memberships.map((m) => ({
       id: m.id,           // WorkspaceMember.id — used for update/remove calls
       userId: m.user.id,  // User.id — used for identity comparisons
@@ -332,6 +335,7 @@ router.get("/members", validateJWT, async (req, res) => {
       email: m.user.email,
       avatarUrl: m.user.avatarUrl,
       role: m.role,
+      online: onlineIds.has(m.user.id),
     }))
 
     res.json({ members })

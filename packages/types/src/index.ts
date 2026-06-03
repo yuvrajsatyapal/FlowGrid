@@ -331,6 +331,10 @@ export interface AnalyticsTotals {
   totalBoards: number
   totalMembers: number
   totalActivities: number
+  cardsTrendPct: number
+  boardsTrendPct: number
+  membersTrendPct: number
+  activitiesTrendPct: number
 }
 
 export interface CardsByPriority {

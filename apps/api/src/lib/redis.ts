@@ -13,4 +13,9 @@ export const redisKeys = {
   rateLimit: (ip: string) => `rl:${ip}`,
   boardPresenceUsers: (boardId: string) => `board:${boardId}:presence:users`,
   boardPresenceCounts: (boardId: string) => `board:${boardId}:presence:counts`,
+  // Global user online presence: a set of online user IDs + a hash of connection counts per user.
+  // Both are reset on server boot (no sockets are connected yet) to self-heal stale entries
+  // left behind by an unclean shutdown.
+  onlineUsers: () => `presence:online:users`,
+  onlineCounts: () => `presence:online:counts`,
 }

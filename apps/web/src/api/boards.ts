@@ -15,6 +15,12 @@ export interface CalendarCard {
   coverColor: string | null
 }
 
+export interface BoardMemberSummary {
+  id: string
+  name: string | null
+  avatarUrl: string | null
+}
+
 export interface BoardSummary {
   id: string
   workspaceId: string
@@ -26,6 +32,9 @@ export interface BoardSummary {
   updatedAt: string
   deletedAt: string | null
   listCount: number
+  cardCount: number
+  members: BoardMemberSummary[]
+  memberCount: number
 }
 
 export interface BoardDetail extends BoardSummary {

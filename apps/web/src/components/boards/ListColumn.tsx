@@ -18,6 +18,11 @@ interface Props {
   onCardClick?: (cardId: string) => void
 }
 
+function isDoneList(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
+}
+
 export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
@@ -114,7 +119,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
               borderRadius: "var(--radius-input)",
               padding: "2px 6px",
               fontSize: "var(--text-sm)",
-              fontWeight: 600,
+              fontWeight: 700,
               fontFamily: "var(--font-body)",
               background: "oklch(var(--color-paper))",
               color: "oklch(var(--color-ink))",
@@ -131,10 +136,12 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
               border: "none",
               padding: "2px 4px",
               borderRadius: "var(--radius-badge)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 600,
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
               fontFamily: "var(--font-body)",
-              color: "oklch(var(--color-ink))",
+              color: "oklch(var(--color-ink-2))",
               cursor: canEdit ? "pointer" : "default",
               lineHeight: 1.4,
             }}
@@ -144,16 +151,26 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
           </button>
         )}
 
-        <span
-          style={{
-            fontSize: "var(--text-xs)",
-            color: "oklch(var(--color-ink-3))",
-            fontVariantNumeric: "tabular-nums",
-            flexShrink: 0,
-          }}
-        >
-          {cards.length}
-        </span>
+        {/* Card count badge + optional blip for non-empty columns */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          {cards.length > 0 && (
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "oklch(var(--color-accent))", opacity: 0.7, flexShrink: 0 }} />
+          )}
+          <span
+            style={{
+              fontSize: "var(--text-xs)",
+              fontWeight: 600,
+              color: "oklch(var(--color-ink-2))",
+              background: "oklch(var(--color-paper-3))",
+              borderRadius: "var(--radius-badge)",
+              padding: "1px 6px",
+              fontVariantNumeric: "tabular-nums",
+              flexShrink: 0,
+            }}
+          >
+            {cards.length}
+          </span>
+        </div>
 
         {canEdit && (
           <div style={{ position: "relative", flexShrink: 0 }}>
@@ -229,7 +246,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
-            <CardItem key={card.id} card={card} onCardClick={onCardClick} />
+            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} onCardClick={onCardClick} />
           ))}
         </SortableContext>
       </div>

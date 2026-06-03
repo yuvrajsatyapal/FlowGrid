@@ -40,6 +40,7 @@
     overflow-wrap: anywhere;
     min-width: 0;
     font-family: var(--font-display);
+    letter-spacing: var(--display-tracking, -0.01em);
   }
 }
 
@@ -104,4 +105,42 @@
   padding-left: 12px;
   color: oklch(var(--color-ink-2));
   margin: 0 0 8px;
+}
+
+/* ── Surface helpers ─────────────────────────────────────────────────────────
+   .surface-pop: Apex (dark) = glass blur; Editorial (light) = flat           */
+
+[data-theme=dark] .surface-pop {
+  background: oklch(var(--color-paper-2) / 0.82) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-theme=light] .surface-pop {
+  background: oklch(var(--color-paper-2)) !important;
+  backdrop-filter: none;
+}
+
+/* ── Blip breathing animation ─────────────────────────────────────────────── */
+
+@keyframes blip-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.75); }
+}
+
+.blip {
+  animation: blip-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blip { animation: none; }
+}
+
+/* ── Responsive: settings two-column grid ───────────────────────────────────
+   Stack Preview under forms on narrow screens                                 */
+
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+  }
 }

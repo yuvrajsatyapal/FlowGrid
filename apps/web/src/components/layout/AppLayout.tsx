@@ -103,6 +103,27 @@ const CloseIcon = () => (
   </svg>
 )
 
+// ── Section label ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        margin: "12px 0 4px",
+        padding: "0 10px",
+        fontSize: "0.6875rem",
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        color: "oklch(var(--color-ink-3))",
+        fontFamily: "var(--font-body)",
+      }}
+    >
+      {children}
+    </p>
+  )
+}
+
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
 function NavItem({
@@ -110,11 +131,13 @@ function NavItem({
   icon,
   label,
   onClick,
+  end,
 }: {
   to: string
   icon: React.ReactNode
   label: string
   onClick?: () => void
+  end?: boolean
 }) {
   const navLinkStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
     display: "flex",
@@ -126,8 +149,9 @@ function NavItem({
     background: isActive ? "oklch(var(--color-accent-muted))" : "transparent",
     color: isActive ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-2))",
     fontSize: "var(--text-sm)",
-    fontWeight: isActive ? 500 : 400,
+    fontWeight: isActive ? 600 : 400,
     textDecoration: "none",
+    boxShadow: isActive ? "inset 2px 0 0 oklch(var(--color-accent))" : "none",
     transition: "background var(--dur-fast) var(--ease-out), color var(--dur-fast)",
     cursor: "pointer",
   })
@@ -135,6 +159,7 @@ function NavItem({
   return (
     <NavLink
       to={to}
+      end={end}
       style={navLinkStyle}
       className={({ isActive }) => (isActive ? "nav-item--active" : "")}
       onClick={onClick}
@@ -206,13 +231,18 @@ function SidebarContent({
       {/* Divider */}
       <div style={{ height: "1px", background: "oklch(var(--color-border))", margin: "6px 0" }} />
 
-      {/* Nav items */}
+      {/* Nav items — grouped to match the design mockups */}
       {activeWorkspace && (
         <nav style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <NavItem to={`/${activeWorkspace.id}`} icon={<BoardsIcon />} label="Boards" onClick={onNavClick} />
-          <NavItem to={`/${activeWorkspace.id}/settings`} icon={<SettingsIcon />} label="Settings" onClick={onNavClick} />
+          <SectionLabel>Overview</SectionLabel>
+          <NavItem to={`/${activeWorkspace.id}`} icon={<BoardsIcon />} label="Boards" onClick={onNavClick} end />
           <NavItem to={`/${activeWorkspace.id}/members`} icon={<MembersIcon />} label="Members" onClick={onNavClick} />
+
+          <SectionLabel>Insights</SectionLabel>
           <NavItem to={`/${activeWorkspace.id}/analytics`} icon={<AnalyticsIcon />} label="Analytics" onClick={onNavClick} />
+
+          <SectionLabel>Manage</SectionLabel>
+          <NavItem to={`/${activeWorkspace.id}/settings`} icon={<SettingsIcon />} label="Settings" onClick={onNavClick} />
         </nav>
       )}
 

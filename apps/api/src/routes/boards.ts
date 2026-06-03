@@ -107,29 +107,45 @@ router.get("/", validateJWT, async (req, res) => {
       return
     }
 
-    const boards = await prisma.board.findMany({
-      where: {
-        workspaceId,
-        deletedAt: null,
-        OR: [
-          { visibility: { not: "PRIVATE" } },
-          { members: { some: { userId: req.user!.id } } },
-        ],
-      },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        workspaceId: true,
-        name: true,
-        description: true,
-        visibility: true,
-        coverColor: true,
-        createdAt: true,
-        updatedAt: true,
-        deletedAt: true,
-        _count: { select: { lists: true } },
-      },
-    })
+    const [boards, wsMembersRaw] = await Promise.all([
+      prisma.board.findMany({
+        where: {
+          workspaceId,
+          deletedAt: null,
+          OR: [
+            { visibility: { not: "PRIVATE" } },
+            { members: { some: { userId: req.user!.id } } },
+          ],
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          workspaceId: true,
+          name: true,
+          description: true,
+          visibility: true,
+          coverColor: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          _count: { select: { lists: true } },
+          lists: {
+            where: { deletedAt: null },
+            select: {
+              _count: { select: { cards: { where: { deletedAt: null } } } },
+            },
+          },
+        },
+      }),
+      prisma.workspaceMember.findMany({
+        where: { workspaceId },
+        take: 5,
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+      }),
+    ])
+
+    const wsMembers = wsMembersRaw.map((m) => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl }))
 
     res.json({
       boards: boards.map((b) => ({
@@ -143,6 +159,9 @@ router.get("/", validateJWT, async (req, res) => {
         updatedAt: b.updatedAt,
         deletedAt: b.deletedAt,
         listCount: b._count.lists,
+        cardCount: b.lists.reduce((acc, l) => acc + l._count.cards, 0),
+        members: wsMembers.slice(0, 3),
+        memberCount: wsMembersRaw.length,
       })),
     })
   } catch {

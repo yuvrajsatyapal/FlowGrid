@@ -576,6 +576,7 @@ export default function BoardPage() {
             canEdit={canEdit}
             userRole={board.role}
             socket={socket}
+            listName={lists.find((l) => l.id === openCard.listId)?.name}
             onClose={() => setOpenCardId(null)}
             onCardUpdated={handleCardUpdated}
           />

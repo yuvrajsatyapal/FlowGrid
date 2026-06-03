@@ -87,6 +87,8 @@ function formatCard(
   },
   assignee?: CardAssignee | null,
   labels?: CardLabelItem[],
+  commentCount = 0,
+  attachmentCount = 0,
 ) {
   return {
     id: card.id,
@@ -104,6 +106,8 @@ function formatCard(
     createdAt: card.createdAt,
     updatedAt: card.updatedAt,
     deletedAt: card.deletedAt,
+    commentCount,
+    attachmentCount,
   }
 }
 
@@ -189,6 +193,7 @@ router.get("/", validateJWT, async (req, res) => {
       include: {
         assignee: { select: { id: true, name: true, avatarUrl: true } },
         labels: { include: { label: true } },
+        _count: { select: { comments: true, attachments: true } },
       },
     })
 
@@ -201,7 +206,7 @@ router.get("/", validateJWT, async (req, res) => {
         name: cl.label.name,
         color: cl.label.color,
       }))
-      return formatCard(card, assignee, labels)
+      return formatCard(card, assignee, labels, card._count.comments, card._count.attachments)
     })
 
     res.json({ cards: formatted })
@@ -659,6 +664,58 @@ router.post("/labels/remove", validateJWT, async (req, res) => {
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to remove label", status: 500 } })
+  }
+})
+
+// GET /api/cards/upcoming?workspaceId=&days= — cards with dueDate within N days across the workspace
+router.get("/upcoming", validateJWT, async (req, res) => {
+  const workspaceId = req.query.workspaceId as string | undefined
+  if (!workspaceId) {
+    res.status(400).json({ error: { message: "workspaceId is required", status: 400 } })
+    return
+  }
+
+  const days = Math.min(90, Math.max(1, parseInt((req.query.days as string) ?? "14", 10) || 14))
+  const now = new Date()
+  const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+
+  try {
+    const membership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+    })
+    if (!membership) {
+      res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
+      return
+    }
+
+    const cards = await prisma.card.findMany({
+      where: {
+        deletedAt: null,
+        dueDate: { gte: now, lte: cutoff },
+        list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        dueDate: true,
+        listId: true,
+        list: { select: { boardId: true } },
+      },
+    })
+
+    res.json({
+      cards: cards.map((c) => ({
+        id: c.id,
+        title: c.title,
+        dueDate: c.dueDate,
+        listId: c.listId,
+        boardId: c.list.boardId,
+      })),
+    })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to fetch upcoming cards", status: 500 } })
   }
 })
 

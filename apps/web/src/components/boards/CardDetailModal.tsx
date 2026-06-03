@@ -25,6 +25,7 @@ interface Props {
   canEdit: boolean
   userRole?: string // workspace role — used for comment moderation
   socket?: Socket | null
+  listName?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
 }
@@ -50,7 +51,50 @@ const LABEL_COLORS = [
   { name: "Slate", value: "#64748b" },
 ]
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, onClose, onCardUpdated }: Props) {
+// Derive short task ID from card ID (last 4 chars uppercased)
+function taskShortId(id: string): string {
+  return `TASK-${id.replace(/-/g, "").slice(-4).toUpperCase()}`
+}
+
+// Icons for header buttons
+const EYE_ICON = (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <path d="M1 7c1.5-3 8.5-3 12 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
+  </svg>
+)
+
+const SHARE_ICON = (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <path d="M8 2l4 5-4 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 7H5a3 3 0 000 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+  </svg>
+)
+
+const DOTS_H_ICON = (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <circle cx="2.5" cy="7" r="1.25" fill="currentColor" />
+    <circle cx="7" cy="7" r="1.25" fill="currentColor" />
+    <circle cx="11.5" cy="7" r="1.25" fill="currentColor" />
+  </svg>
+)
+
+const iconBtnStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 28,
+  height: 28,
+  borderRadius: "var(--radius-button)",
+  border: "none",
+  background: "transparent",
+  color: "oklch(var(--color-ink-3))",
+  cursor: "pointer",
+  transition: "background var(--dur-fast), color var(--dur-fast)",
+  flexShrink: 0,
+}
+
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, listName, onClose, onCardUpdated }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -314,6 +358,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
         role="dialog"
         aria-modal="true"
         aria-labelledby="card-modal-title"
+        className="surface-pop"
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -324,7 +369,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
           border: "1px solid oklch(var(--color-border))",
           width: "100%",
           maxWidth: 680,
-          boxShadow: "0 20px 60px oklch(0% 0 0 / 0.20)",
+          boxShadow: "var(--shadow-pop, 0 20px 60px oklch(0% 0 0 / 0.20))",
           display: "flex",
           flexDirection: "column",
         }}
@@ -332,70 +377,142 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
         {/* ── Header ── */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "16px 20px 12px",
+            padding: "14px 20px 12px",
             borderBottom: "1px solid oklch(var(--color-border))",
           }}
         >
-          <input
-            id="card-modal-title"
-            defaultValue={localCard.title}
-            onBlur={handleTitleBlur}
-            disabled={!canEdit}
-            style={{
-              flex: 1,
-              fontSize: "var(--text-base)",
-              fontWeight: 600,
-              fontFamily: "var(--font-display)",
-              color: "oklch(var(--color-ink))",
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              padding: "2px 4px",
-              borderRadius: 4,
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.background = "oklch(var(--color-paper-2))"
-            }}
-            onBlurCapture={(e) => {
-              e.currentTarget.style.background = "transparent"
-            }}
-          />
+          {/* Top row: task badge + status pill + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            {/* TASK-XXXX badge */}
+            <span
+              style={{
+                fontSize: "0.625rem",
+                fontFamily: "var(--font-mono)",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                padding: "2px 7px",
+                borderRadius: "var(--radius-badge)",
+                background: "oklch(var(--color-paper-3))",
+                color: "oklch(var(--color-ink-3))",
+                flexShrink: 0,
+              }}
+            >
+              {taskShortId(localCard.id)}
+            </span>
 
-          {/* Save indicator */}
-          <span
-            style={{
-              fontSize: "var(--text-xs)",
-              color: saveState === "error" ? "oklch(var(--color-error))" : "oklch(var(--color-ink-3))",
-              minWidth: 56,
-              textAlign: "right",
-              flexShrink: 0,
-            }}
-          >
-            {saveState === "saving" && "Saving…"}
-            {saveState === "saved" && "Saved ✓"}
-            {saveState === "error" && (saveError || "Error")}
-          </span>
+            {/* Status pill = list name */}
+            {listName && (
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: "0.625rem",
+                  fontWeight: 600,
+                  padding: "2px 7px",
+                  borderRadius: "var(--radius-badge)",
+                  background: "oklch(var(--color-accent-muted))",
+                  color: "oklch(var(--color-accent))",
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "oklch(var(--color-accent))", flexShrink: 0 }} />
+                {listName}
+              </span>
+            )}
 
-          <button
-            onClick={flushAndClose}
-            aria-label="Close"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "oklch(var(--color-ink-3))",
-              fontSize: 18,
-              lineHeight: 1,
-              padding: "2px 4px",
-              borderRadius: 4,
-              flexShrink: 0,
-            }}
-          >
-            ×
-          </button>
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* Watch button */}
+            <button
+              onClick={() => {
+                void navigator.clipboard.writeText(window.location.href)
+              }}
+              aria-label="Watch card"
+              title="Watch"
+              style={iconBtnStyle}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+            >
+              {EYE_ICON}
+            </button>
+
+            {/* Share / copy link button */}
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}${window.location.pathname}?card=${localCard.id}`
+                void navigator.clipboard.writeText(url)
+              }}
+              aria-label="Copy link to card"
+              title="Copy link"
+              style={iconBtnStyle}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+            >
+              {SHARE_ICON}
+            </button>
+
+            {/* Overflow menu (⋯) */}
+            <button
+              aria-label="More options"
+              title="More"
+              style={iconBtnStyle}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+            >
+              {DOTS_H_ICON}
+            </button>
+
+            {/* Close */}
+            <button
+              onClick={flushAndClose}
+              aria-label="Close"
+              style={{ ...iconBtnStyle, fontSize: 16, fontWeight: 400 }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Bottom row: title + save indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              id="card-modal-title"
+              defaultValue={localCard.title}
+              onBlur={handleTitleBlur}
+              disabled={!canEdit}
+              style={{
+                flex: 1,
+                fontSize: "var(--text-base)",
+                fontWeight: 600,
+                fontFamily: "var(--font-display)",
+                color: "oklch(var(--color-ink))",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                padding: "2px 4px",
+                borderRadius: 4,
+              }}
+              onFocus={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-2))" }}
+              onBlurCapture={(e) => { e.currentTarget.style.background = "transparent" }}
+            />
+            {/* Save indicator */}
+            <span
+              style={{
+                fontSize: "var(--text-xs)",
+                color: saveState === "error" ? "oklch(var(--color-error))" : "oklch(var(--color-ink-3))",
+                minWidth: 56,
+                textAlign: "right",
+                flexShrink: 0,
+              }}
+            >
+              {saveState === "saving" && "Saving…"}
+              {saveState === "saved" && "Saved ✓"}
+              {saveState === "error" && (saveError || "Error")}
+            </span>
+          </div>
         </div>
 
         {/* ── Body ── */}

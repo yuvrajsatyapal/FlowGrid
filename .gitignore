@@ -44,3 +44,8 @@ coverage/
 
 # Local file uploads (dev only — served by Express static)
 apps/api/uploads/
+
+# Local agent tooling / session artifacts (not part of the codebase)
+.claude/
+.superpowers/
+.playwright-mcp/

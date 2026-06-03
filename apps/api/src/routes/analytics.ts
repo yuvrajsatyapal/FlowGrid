@@ -47,7 +47,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
     // Short-circuit: no boards → empty analytics (avoids $queryRaw with empty array)
     if (boardIds.length === 0) {
       res.json({
-        totals: { totalCards: 0, totalBoards: 0, totalMembers, totalActivities: 0 },
+        totals: { totalCards: 0, totalBoards: 0, totalMembers, totalActivities: 0, cardsTrendPct: 0, boardsTrendPct: 0, membersTrendPct: 0, activitiesTrendPct: 0 },
         cardsByPriority: PRIORITY_ORDER.map((p) => ({ priority: p, count: 0 })),
         cardsByBoard: [],
         activityOverTime: [],
@@ -64,11 +64,19 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
     const listIds = lists.map((l) => l.id)
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+
+    function trendPct(curr: number, prev: number): number {
+      if (prev === 0) return curr > 0 ? 100 : 0
+      return Math.round(((curr - prev) / prev) * 100)
+    }
 
     // Run all aggregations in parallel — $queryRaw uses ::uuid[] for proper index usage
     const [
       totalCards,
       totalActivities,
+      prevActivities,
+      prevTotalMembers,
       rawCardsByPriority,
       rawCardsByBoard,
       rawActivityOverTime,
@@ -83,6 +91,14 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
       prisma.activity.count({
         where: { boardId: { in: boardIds }, createdAt: { gte: thirtyDaysAgo } },
       }),
+
+      // Previous period activities (30-60 days ago)
+      prisma.activity.count({
+        where: { boardId: { in: boardIds }, createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+      }),
+
+      // Previous period member count approximation (members joined before 30 days ago)
+      prisma.workspaceMember.count({ where: { workspaceId, createdAt: { lt: thirtyDaysAgo } } }),
 
       // Cards grouped by priority
       listIds.length > 0
@@ -164,12 +180,22 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
       count: Number(r.count),
     }))
 
+    // Previous period card count: cards created before 30 days ago (approximate trend)
+    const prevTotalCards = listIds.length > 0
+      ? await prisma.card.count({ where: { listId: { in: listIds }, deletedAt: null, createdAt: { lt: thirtyDaysAgo } } })
+      : 0
+    const prevTotalBoards = await prisma.board.count({ where: { workspaceId, deletedAt: null, createdAt: { lt: thirtyDaysAgo } } })
+
     const data: AnalyticsData = {
       totals: {
         totalCards,
         totalBoards: boards.length,
         totalMembers,
         totalActivities,
+        cardsTrendPct: trendPct(totalCards, prevTotalCards),
+        boardsTrendPct: trendPct(boards.length, prevTotalBoards),
+        membersTrendPct: trendPct(totalMembers, prevTotalMembers),
+        activitiesTrendPct: trendPct(totalActivities, prevActivities),
       },
       cardsByPriority,
       cardsByBoard,
