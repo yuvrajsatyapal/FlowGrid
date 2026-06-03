@@ -174,7 +174,6 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   const handleDelete = useCallback(async () => {
     if (deleting) return
-    if (!window.confirm("Delete this card? This cannot be undone.")) return
     setDeleting(true)
     try {
       await cardsApi.deleteCard(localCard.id)
