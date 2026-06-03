@@ -17,13 +17,13 @@ const C = {
 
 /* ─── data ─────────────────────────────────────────────────────────────────── */
 const HERO_CARDS = [
-  { label: 'Boards',    bg: C.cream,    textDark: true,  code: 'FG-BORD-01',
+  { num: '01', label: 'Boards',    bg: C.cream,    textDark: true,  code: 'FG-BORD-01',
     icon: <><rect x="7" y="7" width="4" height="4"/><rect x="13" y="7" width="4" height="4"/><rect x="7" y="13" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/></> },
-  { label: 'Timeline',  bg: C.coral,    textDark: false, code: 'FG-TMLN-02',
+  { num: '02', label: 'Timeline',  bg: C.coral,    textDark: false, code: 'FG-TMLN-02',
     icon: <><rect x="6" y="8" width="12" height="2.5"/><rect x="6" y="12.5" width="9" height="2.5"/><rect x="6" y="17" width="6" height="2.5"/></> },
-  { label: 'Analytics', bg: C.tealCard, textDark: false, code: 'FG-ANLT-03',
+  { num: '03', label: 'Analytics', bg: C.tealCard, textDark: false, code: 'FG-ANLT-03',
     icon: <><rect x="6" y="14" width="3" height="6"/><rect x="11" y="10" width="3" height="10"/><rect x="16" y="6" width="3" height="14"/></> },
-  { label: 'Real-time', bg: C.blush,    textDark: true,  code: 'FG-RLTM-04',
+  { num: '04', label: 'Real-time', bg: C.blush,    textDark: true,  code: 'FG-RLTM-04',
     icon: <polyline points="5,16 9,10 13,14 17,6 19,10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/> },
 ]
 
@@ -95,30 +95,71 @@ function useClock() {
   return time
 }
 
-/* ─── word-by-word animated text ────────────────────────────────────────────── */
-function AnimatedParagraph({ text }: { text: string }) {
-  const [visible, setVisible] = useState(false)
-  const ref = useRef<HTMLParagraphElement>(null)
+/* ─── scroll-driven per-character text reveal ────────────────────────────────── */
+function ScrollRevealText({ text }: { text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const charsRef = useRef<(HTMLSpanElement | null)[]>([])
+  const chars = text.split('')
+
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) setVisible(true) },
-      { threshold: 0.1 }
-    )
-    if (ref.current) obs.observe(ref.current)
-    return () => obs.disconnect()
-  }, [])
-  const words = text.split(' ')
+    charsRef.current = charsRef.current.slice(0, chars.length)
+  }, [chars.length])
+
+  useEffect(() => {
+    const update = () => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const wh = window.innerHeight
+      // Reveal starts when element enters viewport, completes when element center
+      // passes 25% from the top of the viewport
+      const scrolled = wh - rect.top
+      const total = wh * 0.85
+      const progress = Math.max(0, Math.min(1, scrolled / total))
+      const revealedCount = Math.floor(progress * chars.length)
+      charsRef.current.forEach((span, i) => {
+        if (!span) return
+        span.style.opacity = i < revealedCount ? '1' : '0'
+      })
+    }
+    window.addEventListener('scroll', update, { passive: true })
+    update()
+    return () => window.removeEventListener('scroll', update)
+  }, [chars.length])
+
+  const sharedStyle: React.CSSProperties = {
+    fontFamily: "'Hanken Grotesk', sans-serif",
+    fontSize: 'clamp(24px,3.2vw,48px)',
+    fontWeight: 600,
+    lineHeight: 1.15,
+  }
+
   return (
-    <p ref={ref} style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(24px,3.2vw,48px)', fontWeight: 400, lineHeight: 1.15, opacity: 0.35, maxWidth: '75%' }} aria-label={text}>
-      {words.map((word, i) => (
-        <span key={i} style={{ display: 'inline-block', marginRight: '0.25em',
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'translateY(0)' : 'translateY(8px)',
-          transition: `opacity 0.4s ${i * 18}ms, transform 0.4s ${i * 18}ms` }}>
-          {word}
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {/* Screen-reader text */}
+      <h2 className="sr-only">{text}</h2>
+
+      {/* Background layer: dim placeholder always visible */}
+      <p aria-hidden="true" style={{ ...sharedStyle, opacity: 0.35 }}>
+        <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+          {chars.map((ch, i) => <span key={i}>{ch}</span>)}
         </span>
-      ))}
-    </p>
+      </p>
+
+      {/* Foreground layer: characters revealed on scroll */}
+      <p aria-hidden="true" style={{ ...sharedStyle, position: 'absolute', inset: 0, margin: 0 }}>
+        <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+          {chars.map((ch, i) => (
+            <span
+              key={i}
+              ref={el => { charsRef.current[i] = el }}
+              style={{ opacity: 0, transition: 'opacity 80ms linear' }}
+            >
+              {ch}
+            </span>
+          ))}
+        </span>
+      </p>
+    </div>
   )
 }
 
@@ -184,26 +225,31 @@ function HeroSection({ time }: { time: string }) {
   return (
     <section style={{ minHeight: '100svh', paddingTop: 80, paddingBottom: 40, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: C.bg }}
              className="px-6 md:px-16">
-      {/* headline */}
+      {/* headline — two-tier: sans-serif lines flanking a large Anton display line */}
       <div className="lp-hero-anim lp-hero-d0" style={{ paddingTop: 40 }}>
-        <h1 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(44px,7.5vw,128px)', fontWeight: 400, lineHeight: 0.9, letterSpacing: '-0.01em', textTransform: 'none', maxWidth: '14em' }}>
+        <h1 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(44px,7.5vw,128px)', fontWeight: 400, lineHeight: 0.92, letterSpacing: '-0.01em' }}>
           Organize work.<br />
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(50px,8.5vw,140px)', lineHeight: 0.84 }}>Collaborate faster.</span><br />
+          Collaborate faster.<br />
           Stay in sync.
         </h1>
       </div>
 
-      {/* hero cards */}
-      <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginTop: 40 }} className="justify-center">
-        {HERO_CARDS.map((card, i) => {
+      {/* hero cards — whole group animates in together */}
+      <div className="lp-hero-cards-anim lp-hero-d1" style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginTop: 40 }}>
+        {HERO_CARDS.map((card) => {
           const tc = card.textDark ? 'rgba(28,27,27,0.72)' : 'rgba(255,255,255,0.9)'
           return (
-            <div key={card.label} className={`lp-hero-anim lp-hero-d${i + 1} lp-hard-card`}
+            <div key={card.label}
+                 className="lp-hard-card"
                  style={{ backgroundColor: card.bg, position: 'relative', overflow: 'hidden', cursor: 'pointer',
                    width: 'clamp(130px, 18vw, 178px)', aspectRatio: '89/128',
-                   flexShrink: 0, transition: 'transform 0.3s' }}
+                   flexShrink: 0, transition: 'transform 0.3s', willChange: 'transform' }}
                  onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px)')}
                  onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}>
+              {/* ghost numeral — large, low-opacity, bottom-right */}
+              <span aria-hidden style={{ position: 'absolute', right: '-0.16em', bottom: '-0.18em', fontFamily: "'Anton', sans-serif", fontSize: 'clamp(120px,18vw,200px)', lineHeight: 1, color: card.textDark ? 'rgba(28,27,27,0.07)' : 'rgba(0,0,0,0.07)', pointerEvents: 'none', userSelect: 'none' }}>
+                {card.num}
+              </span>
               {/* label top-left */}
               <span style={{ position: 'absolute', top: 12, left: 12, fontFamily: "'Hanken Grotesk'", fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>
                 {card.label}
@@ -229,7 +275,7 @@ function HeroSection({ time }: { time: string }) {
       {/* bottom bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 24, borderTop: `1px solid ${C.border}`, marginTop: 24 }}>
         <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted }}>
-          ↓ SCROLL DOWN
+          SCROLL DOWN
         </span>
         <span id="lp-clock" style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums' }}>
           {time}
@@ -244,8 +290,8 @@ function WhatIsFlowGrid() {
   return (
     <section style={{ padding: 'clamp(80px, 10vw, 144px) clamp(24px, 5vw, 64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
       <p className="lp-label lp-reveal" style={{ marginBottom: 20 }}>What is FlowGrid</p>
-      <div className="lp-reveal lp-d1" style={{ maxWidth: '75%' }}>
-        <AnimatedParagraph text="FlowGrid is where your team's work lives. We stripped away the noise to build a platform that prioritises clarity over complexity. Designed for high-performance teams who need to move from ideation to delivery without the typical friction of legacy tools." />
+      <div style={{ maxWidth: '75%' }}>
+        <ScrollRevealText text="FlowGrid is where your team's work lives. We stripped away the noise to build a platform that prioritises clarity over complexity. Designed for high-performance teams who need to move from ideation to delivery without the typical friction of legacy tools." />
       </div>
     </section>
   )

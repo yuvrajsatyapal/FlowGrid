@@ -60,17 +60,26 @@
 /* Hard card (0 radius) */
 .lp-hard-card { border-radius: 0 !important; }
 
-/* Hero entrance — starts visible, slides up from +12px */
+/* Hero entrance — h1: opacity 0→1 + translateY(14px)→0 */
 @keyframes lp-hero-in {
-  from { transform: translateY(12px); }
-  to   { transform: translateY(0); }
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .lp-hero-anim {
-  opacity: 1;
   animation: lp-hero-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
+
+/* Hero cards group: opacity 0→1 + translateY(18px)→0 */
+@keyframes lp-hero-cards-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lp-hero-cards-anim {
+  animation: lp-hero-cards-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
 .lp-hero-d0 { animation-delay: 0ms; }
-.lp-hero-d1 { animation-delay: 100ms; }
+.lp-hero-d1 { animation-delay: 120ms; }
 .lp-hero-d2 { animation-delay: 200ms; }
 .lp-hero-d3 { animation-delay: 300ms; }
 .lp-hero-d4 { animation-delay: 400ms; }
