@@ -6,8 +6,8 @@ import { useTheme } from "../../contexts/ThemeContext"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
 import { workspacesApi } from "../../api/workspaces"
 import WorkspaceSwitcher from "./WorkspaceSwitcher"
-import { NotificationBell } from "../notifications/NotificationBell"
 import { SearchModal } from "../search/SearchModal"
+import { useNotifications } from "../../hooks/useNotifications"
 
 // ── Responsive hook ────────────────────────────────────────────────────────────
 
@@ -60,6 +60,18 @@ const AnalyticsIcon = () => (
     <rect x="1" y="9" width="3" height="6" rx="1" stroke="currentColor" strokeWidth="1.25" />
     <rect x="6" y="5" width="3" height="10" rx="1" stroke="currentColor" strokeWidth="1.25" />
     <rect x="11" y="1" width="3" height="14" rx="1" stroke="currentColor" strokeWidth="1.25" />
+  </svg>
+)
+
+const InboxIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5v2.5L2 10h12l-1.5-1.5V6A4.5 4.5 0 0 0 8 1.5z"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+    <path d="M6.5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
   </svg>
 )
 
@@ -132,12 +144,14 @@ function NavItem({
   label,
   onClick,
   end,
+  badge,
 }: {
   to: string
   icon: React.ReactNode
   label: string
   onClick?: () => void
   end?: boolean
+  badge?: React.ReactNode
 }) {
   const navLinkStyle = ({ isActive }: { isActive: boolean }): React.CSSProperties => ({
     display: "flex",
@@ -175,8 +189,34 @@ function NavItem({
       }}
     >
       {icon}
-      {label}
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge}
     </NavLink>
+  )
+}
+
+// Small pill showing the unread notification count next to the Inbox nav item.
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span
+      aria-label={`${count} unread`}
+      style={{
+        minWidth: "18px",
+        height: "18px",
+        padding: "0 5px",
+        borderRadius: "9px",
+        background: "oklch(var(--color-accent))",
+        color: "#fff",
+        fontSize: "0.625rem",
+        fontWeight: 700,
+        lineHeight: "18px",
+        textAlign: "center",
+        flexShrink: 0,
+      }}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
   )
 }
 
@@ -190,6 +230,7 @@ function SidebarContent({
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { activeWorkspace } = useWorkspaceStore()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -240,6 +281,13 @@ function SidebarContent({
 
           <SectionLabel>Insights</SectionLabel>
           <NavItem to={`/${activeWorkspace.id}/analytics`} icon={<AnalyticsIcon />} label="Analytics" onClick={onNavClick} />
+          <NavItem
+            to={`/${activeWorkspace.id}/inbox`}
+            icon={<InboxIcon />}
+            label="Inbox"
+            onClick={onNavClick}
+            badge={<UnreadBadge count={unreadCount} />}
+          />
 
           <SectionLabel>Manage</SectionLabel>
           <NavItem to={`/${activeWorkspace.id}/settings`} icon={<SettingsIcon />} label="Settings" onClick={onNavClick} />
@@ -249,27 +297,26 @@ function SidebarContent({
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Bottom controls row: notifications + dark mode toggle */}
-      <div style={{ display: "flex", alignItems: "center", gap: "4px", padding: "0 2px" }}>
-        <div style={{ flex: 1 }}>
-          <NotificationBell />
-        </div>
+      {/* Bottom controls row: dark mode toggle */}
+      <div style={{ display: "flex", alignItems: "center", padding: "0 2px" }}>
         <button
           onClick={toggleTheme}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           style={{
-            padding: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "9px",
+            width: "100%",
+            padding: "7px 10px",
             borderRadius: "6px",
             border: "none",
             background: "transparent",
-            color: "oklch(var(--color-ink-3))",
+            color: "oklch(var(--color-ink-2))",
+            fontSize: "var(--text-sm)",
+            fontFamily: "var(--font-body)",
             cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             transition: "background var(--dur-fast), color var(--dur-fast)",
-            flexShrink: 0,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "oklch(var(--color-paper-3))"
@@ -277,10 +324,11 @@ function SidebarContent({
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent"
-            e.currentTarget.style.color = "oklch(var(--color-ink-3))"
+            e.currentTarget.style.color = "oklch(var(--color-ink-2))"
           }}
         >
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
         </button>
       </div>
 

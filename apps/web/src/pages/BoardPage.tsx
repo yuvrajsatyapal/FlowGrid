@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { AnimatePresence } from "framer-motion"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useSearchParams } from "react-router-dom"
 import {
   DndContext,
   DragOverlay,
@@ -69,6 +69,7 @@ const DEFAULT_COVER = "#64748b"
 
 export default function BoardPage() {
   const { workspaceId, boardId } = useParams<{ workspaceId: string; boardId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [board, setBoard] = useState<BoardDetail | null>(null)
   const [lists, setLists] = useState<ListSummary[]>([])
@@ -145,6 +146,19 @@ export default function BoardPage() {
       })
       .finally(() => setLoadingBoard(false))
   }, [boardId, loadLists])
+
+  // Deep-link: open a specific card when arriving via ?card=<id> (e.g. from the Inbox).
+  // Runs once cards are loaded; clears the param so closing the modal doesn't reopen it.
+  useEffect(() => {
+    const cardParam = searchParams.get("card")
+    if (!cardParam) return
+    const exists = Object.values(boardCards).flat().some((c) => c.id === cardParam)
+    if (exists) {
+      setOpenCardId(cardParam)
+      searchParams.delete("card")
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [boardCards, searchParams, setSearchParams])
 
   // ─── Modal helpers ──────────────────────────────────────────────────────────
 
