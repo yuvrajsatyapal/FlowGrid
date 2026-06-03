@@ -538,7 +538,7 @@ export default function AppLayout() {
   const sidebarStyle: React.CSSProperties = {
     // Comfortable fixed width on desktop; a capped overlay on mobile so it never
     // covers the whole screen on small devices.
-    width: isMobile ? "min(84vw, 300px)" : "256px",
+    width: isMobile ? "min(84vw, 300px)" : "240px",
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
