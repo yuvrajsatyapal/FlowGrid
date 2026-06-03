@@ -13,6 +13,9 @@ export function initSocket(httpServer: http.Server): Server {
     cors: { origin: env.CORS_ORIGIN, credentials: true },
   })
 
+  // No sockets are connected yet on boot — drop any presence left over from a prior crash.
+  void resetGlobalPresence()
+
   // Reject connections with missing or invalid JWT
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined
@@ -32,6 +35,9 @@ export function initSocket(httpServer: http.Server): Server {
 
     // Per-user room for notification:new events
     socket.join(userId)
+
+    // Global online presence (any active socket connection marks the user online)
+    void markUserOnline(userId)
 
     socket.on("board:join", async ({ boardId }: { boardId: string }) => {
       if (!boardId || typeof boardId !== "string") return
@@ -89,6 +95,7 @@ export function initSocket(httpServer: http.Server): Server {
         const users = await removePresence(boardId, userId)
         io.to(boardId).emit("board:presence", { boardId, users })
       }
+      await markUserOffline(userId)
     })
   })
 
@@ -103,6 +110,42 @@ export function emitBoardEvent(boardId: string, event: string, payload: unknown)
 export function emitToUser(userId: string, event: string, payload: unknown): void {
   if (!io) return
   io.to(userId).emit(event, payload)
+}
+
+// ── Global user presence ───────────────────────────────────────────────────────
+// A user is "online" while they hold at least one active socket connection.
+// The counts hash handles multiple tabs/devices; the set gives O(1) membership lookups.
+// Both keys are cleared on server boot (see resetGlobalPresence) so a hard crash can't
+// leave a user stuck "online" forever.
+
+async function markUserOnline(userId: string): Promise<void> {
+  const count = await redis.hincrby(redisKeys.onlineCounts(), userId, 1)
+  if (count === 1) {
+    await redis.sadd(redisKeys.onlineUsers(), userId)
+  }
+}
+
+async function markUserOffline(userId: string): Promise<void> {
+  const count = await redis.hincrby(redisKeys.onlineCounts(), userId, -1)
+  if (count <= 0) {
+    await redis.hdel(redisKeys.onlineCounts(), userId)
+    await redis.srem(redisKeys.onlineUsers(), userId)
+  }
+}
+
+// Clear global presence state. Called once on boot — no sockets are connected yet,
+// so any leftover entries are stale and must be dropped.
+async function resetGlobalPresence(): Promise<void> {
+  await redis.del(redisKeys.onlineUsers())
+  await redis.del(redisKeys.onlineCounts())
+}
+
+// Returns the subset of `userIds` that are currently online.
+export async function getOnlineUserIds(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return []
+  const online = await redis.smembers(redisKeys.onlineUsers())
+  const onlineSet = new Set(online)
+  return userIds.filter((id) => onlineSet.has(id))
 }
 
 // ── Presence helpers ──────────────────────────────────────────────────────────

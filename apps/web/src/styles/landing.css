@@ -48,6 +48,7 @@
   border: none;
   transition: background 0.2s;
   white-space: nowrap;
+  text-decoration: none;
 }
 .lp-btn:hover { background: #c94d30; }
 .lp-btn-outline {
@@ -60,7 +61,27 @@
 /* Hard card (0 radius) */
 .lp-hard-card { border-radius: 0 !important; }
 
-/* Hero entrance — h1: opacity 0→1 + translateY(14px)→0 */
+/* ─── Hero dual-font headline ─────────────────────────────────────────────── */
+.lp-hero-line1 {
+  display: block;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: clamp(24px, 5.05vw, 80px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.lp-hero-line2 {
+  display: block;
+  font-family: 'Anton', sans-serif;
+  font-size: clamp(28px, 7.05vw, 116px);
+  font-weight: 400;
+  line-height: 0.88;
+  letter-spacing: -0.01em;
+  margin-top: -0.04em;
+}
+
+/* Hero entrance — h1 */
 @keyframes lp-hero-in {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -78,13 +99,21 @@
   animation: lp-hero-cards-in 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.lp-hero-d0 { animation-delay: 0ms; }
+.lp-hero-d0 { animation-delay:   0ms; }
 .lp-hero-d1 { animation-delay: 120ms; }
 .lp-hero-d2 { animation-delay: 200ms; }
 .lp-hero-d3 { animation-delay: 300ms; }
 .lp-hero-d4 { animation-delay: 400ms; }
 
-/* Section label */
+/* ─── Hero card parallax wrapper ──────────────────────────────────────────── */
+.lp-parallax-card {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* No CSS transition — rAF lerp handles smoothing */
+}
+
+/* ─── Section label ───────────────────────────────────────────────────────── */
 .lp-label {
   font-family: 'Hanken Grotesk', sans-serif;
   font-size: 11px;
@@ -94,18 +123,57 @@
   color: #E05A3A;
 }
 
-/* Process step */
-.lp-step { transition: color 0.3s, border-color 0.3s; }
-.lp-step-active h3 { color: #E05A3A; }
+/* ─── Process step ────────────────────────────────────────────────────────── */
+.lp-step {
+  transition: border-color 0.5s ease-in-out;
+}
+.lp-step-num,
+.lp-step-title,
+.lp-step-desc {
+  transition: color 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
 .lp-step-active { border-color: rgba(26, 114, 121, 0.7) !important; }
 
-/* Mobile menu */
+/* ─── FAQ plus/minus toggle ───────────────────────────────────────────────── */
+.lp-faq-toggle {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(28,27,27,0.8);
+  transition: color 0.25s;
+}
+.lp-faq-toggle-open { color: #E05A3A; }
+
+.lp-faq-bar-h {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 16px; height: 2px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+.lp-faq-bar-v {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 2px; height: 16px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp-faq-toggle-open .lp-faq-bar-v {
+  transform: translate(-50%, -50%) scaleY(0);
+}
+
+/* ─── Mobile menu ─────────────────────────────────────────────────────────── */
 .lp-mobile-menu {
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
-/* Dark footer panel — initially shifted below viewport */
+/* ─── Dark footer panel — clip-path reveal from bottom ───────────────────── */
 .lp-dark-panel {
-  transform: translateY(100%);
-  transition: none;
+  /* JS overrides clip-path on scroll */
+  clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
 }

@@ -29,6 +29,8 @@ export interface CardSummary {
   createdAt: string
   updatedAt: string
   deletedAt: string | null
+  commentCount: number
+  attachmentCount: number
 }
 
 export const cardsApi = {
@@ -77,4 +79,17 @@ export const cardsApi = {
   async deleteCard(id: string): Promise<void> {
     await api.post("/cards/delete", {}, { params: { id } })
   },
+
+  async upcoming(workspaceId: string, days = 14): Promise<UpcomingCard[]> {
+    const res = await api.get<{ cards: UpcomingCard[] }>("/cards/upcoming", { params: { workspaceId, days } })
+    return res.data.cards
+  },
+}
+
+export interface UpcomingCard {
+  id: string
+  title: string
+  dueDate: string
+  listId: string
+  boardId: string
 }

@@ -1,22 +1,43 @@
 import { useNavigate } from "react-router-dom"
 import type { BoardSummary } from "../../api/boards"
+import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 const DEFAULT_COVER = "#64748b"
 
 const LockIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+  <svg width="10" height="10" viewBox="0 0 11 11" fill="none" aria-hidden="true">
     <rect x="1.5" y="4.5" width="8" height="6" rx="1.25" stroke="currentColor" strokeWidth="1.1" />
     <path d="M3 4.5V3.25a2.5 2.5 0 0 1 5 0V4.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
   </svg>
 )
 
 const GlobeIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+  <svg width="10" height="10" viewBox="0 0 11 11" fill="none" aria-hidden="true">
     <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.1" />
     <ellipse cx="5.5" cy="5.5" rx="1.8" ry="4" stroke="currentColor" strokeWidth="1.1" />
     <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeWidth="1.1" />
   </svg>
 )
+
+const BoardGlyph = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="3" width="7" height="18" rx="2" fill="rgba(255,255,255,0.25)" />
+    <rect x="13" y="3" width="8" height="11" rx="2" fill="rgba(255,255,255,0.25)" />
+    <rect x="13" y="17" width="8" height="4" rx="2" fill="rgba(255,255,255,0.15)" />
+  </svg>
+)
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return "just now"
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `${d}d ago`
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
 
 interface Props {
   board: BoardSummary
@@ -25,8 +46,8 @@ interface Props {
 
 export default function BoardCard({ board, workspaceId }: Props) {
   const navigate = useNavigate()
-
   const coverBg = board.coverColor ?? DEFAULT_COVER
+  const extra = board.memberCount - board.members.length
 
   return (
     <button
@@ -46,9 +67,8 @@ export default function BoardCard({ board, workspaceId }: Props) {
         textAlign: "left",
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px oklch(0% 0 0 / 0.10)"
-        ;(e.currentTarget as HTMLButtonElement).style.borderColor = "oklch(var(--color-border))"
-        ;(e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"
+        ;(e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-card)"
+        ;(e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLButtonElement).style.boxShadow = "none"
@@ -59,14 +79,20 @@ export default function BoardCard({ board, workspaceId }: Props) {
       {/* Cover strip */}
       <div
         style={{
-          height: "52px",
+          height: "60px",
           background: coverBg,
           flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: 0.95,
         }}
-      />
+      >
+        <BoardGlyph />
+      </div>
 
       {/* Content */}
-      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
+      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
         <span
           style={{
             fontSize: "var(--text-sm)",
@@ -82,7 +108,9 @@ export default function BoardCard({ board, workspaceId }: Props) {
           {board.name}
         </span>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "auto" }}>
+        {/* Footer row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "auto" }}>
+          {/* Visibility chip */}
           {board.visibility === "PRIVATE" && (
             <span
               style={{
@@ -111,17 +139,72 @@ export default function BoardCard({ board, workspaceId }: Props) {
               Public
             </span>
           )}
-          {board.listCount > 0 && (
-            <span
-              style={{
-                fontSize: "var(--text-xs)",
-                color: "oklch(var(--color-ink-3))",
-                marginLeft: board.visibility === "WORKSPACE" ? "0" : "auto",
-              }}
-            >
-              {board.listCount} {board.listCount === 1 ? "list" : "lists"}
-            </span>
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Member avatars cluster */}
+          {board.members.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {board.members.map((m, i) => (
+                <div
+                  key={m.id}
+                  title={m.name ?? undefined}
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    border: "1.5px solid oklch(var(--color-paper))",
+                    marginLeft: i === 0 ? 0 : -5,
+                    background: m.avatarUrl ? "transparent" : getAvatarBg(m.id),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  {m.avatarUrl ? (
+                    <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "7px", fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? "?")}</span>
+                  )}
+                </div>
+              ))}
+              {extra > 0 && (
+                <div
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    border: "1.5px solid oklch(var(--color-paper))",
+                    marginLeft: -5,
+                    background: "oklch(var(--color-paper-3))",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "6px",
+                    fontWeight: 700,
+                    color: "oklch(var(--color-ink-2))",
+                    flexShrink: 0,
+                  }}
+                >
+                  +{extra}
+                </div>
+              )}
+            </div>
           )}
+        </div>
+
+        {/* Meta row: list count + time ago */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "0.625rem", color: "oklch(var(--color-ink-3))" }}>
+            {board.listCount} {board.listCount === 1 ? "list" : "lists"}
+            {board.cardCount > 0 && ` · ${board.cardCount} cards`}
+          </span>
+          <span style={{ fontSize: "0.625rem", color: "oklch(var(--color-ink-3))" }}>
+            {timeAgo(board.updatedAt)}
+          </span>
         </div>
       </div>
     </button>
