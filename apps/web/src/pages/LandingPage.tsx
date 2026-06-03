@@ -29,28 +29,28 @@ const HERO_CARDS = [
 
 const PROCESS_STEPS = [
   { num: '01', title: 'Planning',
-    body: <>Create a <strong style={{color: C.teal}}>CLEAR STRUCTURE</strong> for every project with drag-and-drop boards, lists, and customisable card fields.</> },
+    body: <>Create a <strong style={{color: C.teal}}>CLEAR WORKFLOW</strong> using drag-and-drop boards, lists, labels, priorities, and rich card details.</> },
   { num: '02', title: 'Collaborate',
-    body: <>Work together with <strong style={{color: C.teal}}>INSTANT REAL-TIME SYNC</strong> — see every cursor, comment, and change appear across all teammates simultaneously.</> },
-  { num: '03', title: 'Automate',
-    body: <>Remove repetitive work using our smart <strong style={{color: C.teal}}>AUTOMATION ENGINE</strong> — trigger actions, send alerts, and keep pipelines moving without manual effort.</> },
+    body: <>Work together with <strong style={{color: C.teal}}>INSTANT REAL-TIME SYNC</strong> — see cards, comments, and updates appear across teammates immediately.</> },
+  { num: '03', title: 'Organize',
+    body: <>Reduce repetitive work with <strong style={{color: C.teal}}>RECURRING TASKS</strong>, notifications, dependencies, and streamlined workflows.</> },
   { num: '04', title: 'Deliver',
-    body: <>Export reports and velocity maps to ensure your team <strong style={{color: C.teal}}>SHIPS ON TIME</strong>, every sprint, with full visibility into blockers before they hit.</> },
+    body: <>Track progress with <strong style={{color: C.teal}}>ANALYTICS</strong> and activity history to keep projects moving and blockers visible.</> },
 ]
 
 const FEATURES = [
-  { num: '01', bg: C.coral,    textLight: true,  title: 'Grid Management',
-    desc: 'Visualize your entire pipeline in a high-density grid. See more while doing more.',
-    list: ['Kanban & list views', 'Drag-and-drop', 'Custom fields', 'Card templates', 'Bulk actions', 'Priority flags', 'Subtask nesting', 'Due date tracking'] },
-  { num: '02', bg: C.cream,    textLight: false, title: 'Atomic Tasks',
-    desc: 'Break down complex features into atomic units of work easy to track and assign.',
-    list: ['Sub-tasks', 'Dependencies', 'Story points', 'Time tracking', 'Assignments', 'Deadlines', 'Status workflows', 'Labels & tags'] },
-  { num: '03', bg: C.tealCard, textLight: true,  title: 'Neural Connect',
-    desc: 'Automatically link related tasks across departments using our semantic engine.',
-    list: ['Auto-linking', 'Relationship graph', 'Cross-board refs', 'Semantic search', 'Dependency maps', 'Smart suggestions', 'Mention threading', 'Context awareness'] },
-  { num: '04', bg: C.blush,    textLight: false, title: 'Velocity Maps',
-    desc: "Real-time visualisation of your team's velocity and bottlenecks before they happen.",
-    list: ['Sprint burndown', 'Team velocity', 'Cycle time', 'Throughput charts', 'Bottleneck alerts', 'Cumulative flow', 'Lead time', 'Forecast engine'] },
+  { num: '01', bg: C.coral,    textLight: true,  title: 'Planning',
+    desc: 'Create a clear workflow using drag-and-drop boards, lists, labels, priorities, and rich card details.',
+    list: ['Drag-and-drop boards', 'Lists & labels', 'Priority flags', 'Rich card details', 'Custom fields', 'Board templates', 'Multiple views', 'Due dates'] },
+  { num: '02', bg: C.cream,    textLight: false, title: 'Collaborate',
+    desc: 'Work together with instant real-time sync — see cards, comments, and updates appear across teammates immediately.',
+    list: ['Real-time sync', 'Live cursors', 'Comments', 'Activity feed', 'Team mentions', 'Notifications', 'Shared workspaces', 'Member roles'] },
+  { num: '03', bg: C.tealCard, textLight: true,  title: 'Organize',
+    desc: 'Reduce repetitive work with recurring tasks, notifications, dependencies, and streamlined workflows.',
+    list: ['Recurring tasks', 'Notifications', 'Dependencies', 'Workflows', 'Status rules', 'Smart filters', 'Automation', 'Bulk actions'] },
+  { num: '04', bg: C.blush,    textLight: false, title: 'Deliver',
+    desc: 'Track progress with analytics, activity history, and insights to keep projects moving and blockers visible.',
+    list: ['Analytics', 'Activity history', 'Progress tracking', 'Blocker visibility', 'Burndown charts', 'Insights', 'Reports', 'Export data'] },
 ]
 
 const FAQ_ITEMS = [
@@ -258,25 +258,31 @@ function ProcessSection() {
   const articleRefs = useRef<(HTMLElement | null)[]>([])
 
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      entries => {
-        entries.forEach(e => {
-          if (e.isIntersecting) {
-            const idx = articleRefs.current.indexOf(e.target as HTMLElement)
-            if (idx !== -1) setActiveStep(idx)
-          }
-        })
-      },
-      { threshold: 0.5, rootMargin: '-15% 0px -15% 0px' }
-    )
-    articleRefs.current.forEach(el => el && obs.observe(el))
-    return () => obs.disconnect()
+    const update = () => {
+      const target = window.innerHeight * 0.4
+      let bestIdx = 0
+      let bestDist = Infinity
+      articleRefs.current.forEach((el, idx) => {
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const elCenter = (rect.top + rect.bottom) / 2
+        const dist = Math.abs(elCenter - target)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestIdx = idx
+        }
+      })
+      setActiveStep(bestIdx)
+    }
+    window.addEventListener('scroll', update, { passive: true })
+    update()
+    return () => window.removeEventListener('scroll', update)
   }, [])
 
   const progress = ((activeStep + 1) / PROCESS_STEPS.length) * 100
 
   return (
-    <section style={{ padding: '0 clamp(24px,5vw,64px) clamp(80px,10vw,144px)', background: C.bg }}>
+    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg }}>
       {/* Mobile: accordion */}
       <div className="lg:hidden">
         <p className="lp-label" style={{ marginBottom: 12 }}>From idea to shipped product</p>
@@ -675,7 +681,7 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div style={{ background: C.bg, color: C.text, overflowX: 'hidden' }}>
+    <div style={{ background: C.bg, color: C.text, overflowX: 'clip' }}>
       <LandingNav scrolled={scrolled} />
       <HeroSection time={time} />
       <WhatIsFlowGrid />
