@@ -336,11 +336,12 @@ function SidebarContent({
       <div style={{ height: "1px", background: "oklch(var(--color-border))", margin: "6px 0" }} />
 
       {/* User section */}
-      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}>
         <Link
           to={activeWorkspace ? `/${activeWorkspace.id}/profile` : "#"}
           style={{
             flex: 1,
+            minWidth: 0,
             display: "flex",
             alignItems: "center",
             gap: "8px",
@@ -535,16 +536,20 @@ export default function AppLayout() {
   }, [])
 
   const sidebarStyle: React.CSSProperties = {
-    width: "220px",
+    // Comfortable fixed width on desktop; a capped overlay on mobile so it never
+    // covers the whole screen on small devices.
+    width: isMobile ? "min(84vw, 300px)" : "256px",
     flexShrink: 0,
     display: "flex",
     flexDirection: "column",
     background: "oklch(var(--color-paper-2))",
     borderRight: "1px solid oklch(var(--color-border))",
-    padding: "12px 10px",
+    padding: "14px 12px",
     gap: "4px",
     overflowY: "auto",
+    overflowX: "hidden",
     height: "100%",
+    boxSizing: "border-box",
   }
 
   return (
