@@ -1,23 +1,23 @@
 import { api } from "../lib/axiosInstance"
 import type { AuthUser } from "./auth"
 
-interface UpdateMeRequest {
-  name?: string
-  avatarUrl?: string
-}
-
-interface UserResponse {
-  user: AuthUser
-}
-
 export const usersApi = {
-  async updateMe(data: UpdateMeRequest): Promise<AuthUser> {
-    const res = await api.patch<UserResponse>("/users/me", data)
+  async updateName(name: string): Promise<AuthUser> {
+    const res = await api.patch<{ user: AuthUser }>("/users/me", { name })
     return res.data.user
   },
 
-  async getMe(): Promise<AuthUser> {
-    const res = await api.get<UserResponse>("/users/me")
+  async uploadAvatar(file: File): Promise<AuthUser> {
+    const formData = new FormData()
+    formData.append("file", file)
+    const res = await api.post<{ user: AuthUser }>("/users/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    return res.data.user
+  },
+
+  async removeAvatar(): Promise<AuthUser> {
+    const res = await api.post<{ user: AuthUser }>("/users/avatar/remove", {})
     return res.data.user
   },
 }

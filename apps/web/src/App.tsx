@@ -13,6 +13,7 @@ import WorkspaceMembersPage from "./pages/WorkspaceMembersPage"
 import InviteAcceptPage from "./pages/InviteAcceptPage"
 import BoardPage from "./pages/BoardPage"
 import AnalyticsPage from "./pages/AnalyticsPage"
+import ProfilePage from "./pages/ProfilePage"
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
               <Route path="/:workspaceId/members" element={<WorkspaceMembersPage />} />
               <Route path="/:workspaceId/analytics" element={<AnalyticsPage />} />
+              <Route path="/:workspaceId/profile" element={<ProfilePage />} />
               <Route path="/:workspaceId/:boardId" element={<BoardPage />} />
             </Route>
           </Route>

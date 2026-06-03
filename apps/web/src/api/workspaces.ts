@@ -16,6 +16,8 @@ export interface WorkspaceSummary {
   slug: string
   organizationId: string
   role?: Role
+  logoUrl?: string | null
+  color?: string
 }
 
 // Shape returned by GET /workspaces/one — a lighter API response, not the full domain model
@@ -44,6 +46,7 @@ interface CreateWorkspaceRequest {
 interface UpdateWorkspaceRequest {
   name?: string
   description?: string | null
+  color?: string
 }
 
 export const workspacesApi = {
@@ -71,6 +74,21 @@ export const workspacesApi = {
 
   async deleteWorkspace(id: string): Promise<void> {
     await api.post("/workspaces/delete", {}, { params: { id } })
+  },
+
+  async uploadLogo(id: string, file: File): Promise<WorkspaceSummary> {
+    const formData = new FormData()
+    formData.append("file", file)
+    const res = await api.post<{ workspace: WorkspaceSummary }>("/workspaces/logo", formData, {
+      params: { id },
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    return res.data.workspace
+  },
+
+  async removeLogo(id: string): Promise<WorkspaceSummary> {
+    const res = await api.post<{ workspace: WorkspaceSummary }>("/workspaces/logo/remove", {}, { params: { id } })
+    return res.data.workspace
   },
 
   async listMembers(workspaceId: string): Promise<WorkspaceMember[]> {

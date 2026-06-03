@@ -131,6 +131,8 @@ model Workspace {
   name           String
   slug           String
   description    String?
+  logoUrl        String?
+  color          String    @default("blue")
   createdAt      DateTime  @default(now()) @db.Timestamptz()
   updatedAt      DateTime  @updatedAt @db.Timestamptz()
   deletedAt      DateTime? @db.Timestamptz()
