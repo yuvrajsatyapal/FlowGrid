@@ -16,16 +16,25 @@ const CHECK = (
   </svg>
 )
 
-function WorkspaceInitials({ name }: { name: string }) {
+const COLOR_GRADIENTS: Record<string, string> = {
+  blue:   "linear-gradient(135deg, #3b82f6, #2563eb)",
+  teal:   "linear-gradient(135deg, #10b981, #06b6d4)",
+  purple: "linear-gradient(135deg, #8b5cf6, #6366f1)",
+  orange: "linear-gradient(135deg, #f97316, #ef4444)",
+  pink:   "linear-gradient(135deg, #ec4899, #8b5cf6)",
+  yellow: "linear-gradient(135deg, #f59e0b, #eab308)",
+  slate:  "linear-gradient(135deg, #64748b, #475569)",
+  red:    "linear-gradient(135deg, #ef4444, #b91c1c)",
+}
+
+function WorkspaceBadge({ name, logoUrl, color }: { name: string; logoUrl?: string | null; color?: string }) {
   const initials = name
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("")
 
-  // Deterministic color from name
-  const hues = [220, 200, 240, 260, 280, 180, 160]
-  const hue = hues[name.charCodeAt(0) % hues.length]
+  const background = COLOR_GRADIENTS[color ?? "blue"] ?? COLOR_GRADIENTS.blue
 
   return (
     <div
@@ -33,7 +42,7 @@ function WorkspaceInitials({ name }: { name: string }) {
         width: "28px",
         height: "28px",
         borderRadius: "6px",
-        background: `oklch(52% 0.18 ${hue})`,
+        background: logoUrl ? "transparent" : background,
         color: "#fff",
         display: "flex",
         alignItems: "center",
@@ -42,9 +51,14 @@ function WorkspaceInitials({ name }: { name: string }) {
         fontWeight: 600,
         letterSpacing: "0.02em",
         flexShrink: 0,
+        overflow: "hidden",
       }}
     >
-      {initials || "W"}
+      {logoUrl ? (
+        <img src={logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        initials || "W"
+      )}
     </div>
   )
 }
@@ -137,7 +151,7 @@ export default function WorkspaceSwitcher() {
         onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))" }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
       >
-        <WorkspaceInitials name={activeWorkspace.name} />
+        <WorkspaceBadge name={activeWorkspace.name} logoUrl={activeWorkspace.logoUrl} color={activeWorkspace.color} />
         <span
           style={{
             flex: 1,
@@ -205,7 +219,7 @@ export default function WorkspaceSwitcher() {
               onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-2))" }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
             >
-              <WorkspaceInitials name={ws.name} />
+              <WorkspaceBadge name={ws.name} logoUrl={ws.logoUrl} color={ws.color} />
               <span
                 style={{
                   flex: 1,
