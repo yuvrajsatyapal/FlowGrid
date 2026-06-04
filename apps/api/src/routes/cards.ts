@@ -8,8 +8,13 @@ import { canWrite } from "../lib/roles"
 import { emitBoardEvent } from "../lib/socket"
 import { storage, keyFromUrl } from "../lib/storage"
 import logger from "../lib/logger"
+import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 
 const router = Router()
+
+// Thrown inside the create transaction when a list is already at MAX_CARDS_PER_LIST,
+// so the surrounding catch can map it to a 409 instead of a generic 500.
+class ListFullError extends Error {}
 
 const VALID_PRIORITIES = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"] as const
 type CardPriority = (typeof VALID_PRIORITIES)[number]
@@ -156,7 +161,12 @@ router.post("/", validateJWT, async (req, res) => {
     if (!access) return
 
     // SERIALIZABLE to prevent two concurrent creates computing the same position
+    // (and to make the MAX_CARDS_PER_LIST check race-free against concurrent creates)
     const card = await prisma.$transaction(async (tx) => {
+      const count = await tx.card.count({ where: { listId, deletedAt: null } })
+      if (count >= MAX_CARDS_PER_LIST) {
+        throw new ListFullError()
+      }
       const last = await tx.card.findFirst({
         where: { listId, deletedAt: null },
         orderBy: { position: "desc" },
@@ -171,7 +181,11 @@ router.post("/", validateJWT, async (req, res) => {
     void logActivity({ cardId: card.id, userId: req.user!.id, action: "card_created", metadata: {}, boardId: access.board.id })
     emitBoardEvent(access.board.id, "card:created", formatCard(card, null, []))
     res.status(201).json({ card: formatCard(card) })
-  } catch {
+  } catch (err) {
+    if (err instanceof ListFullError) {
+      res.status(409).json({ error: { message: `A list can hold at most ${MAX_CARDS_PER_LIST} cards. Delete a card before adding a new one.`, status: 409 } })
+      return
+    }
     res.status(500).json({ error: { message: "Failed to create card", status: 500 } })
   }
 })
@@ -517,6 +531,14 @@ router.post("/move", validateJWT, async (req, res) => {
       where: { listId: targetListId, deletedAt: null },
       select: { id: true },
     })
+
+    // Reject cross-list moves that would push the target list past the card cap.
+    // (Same-list reorders don't change the count, so they're always allowed.)
+    if (card.listId !== targetListId && targetExisting.length >= MAX_CARDS_PER_LIST) {
+      res.status(409).json({ error: { message: `A list can hold at most ${MAX_CARDS_PER_LIST} cards. Delete a card in the target list first.`, status: 409 } })
+      return
+    }
+
     const targetSet = new Set([cardId, ...targetExisting.map((c) => c.id)])
     const invalid = cardIds.filter((id) => !targetSet.has(id))
     if (invalid.length > 0) {

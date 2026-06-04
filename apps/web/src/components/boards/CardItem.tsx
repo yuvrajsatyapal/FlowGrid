@@ -11,6 +11,8 @@ interface Props {
   isDoneList?: boolean
   /** True when the card is blocked by an incomplete dependency */
   blocked?: boolean
+  /** Min height for the card so a full list fills the column; omitted for the drag overlay */
+  minHeight?: number
   /** When true, renders as the DragOverlay clone — no transform/ref needed */
   overlay?: boolean
   onCardClick?: (cardId: string) => void
@@ -75,7 +77,7 @@ function formatCompletedDate(iso: string): string {
 function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | null; avatarUrl: string | null }) {
   if (avatarUrl) {
     return (
-      <img src={avatarUrl} alt={name ?? "Assignee"} width={18} height={18}
+      <img src={avatarUrl} alt={name ?? "Assignee"} width={22} height={22}
         style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }} />
     )
   }
@@ -84,10 +86,10 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
       aria-label={name ?? "Assigned user"}
       title={name ?? undefined}
       style={{
-        width: 18, height: 18, borderRadius: "50%",
+        width: 22, height: 22, borderRadius: "50%",
         background: getAvatarBg(id),
         display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, color: "#fff", fontSize: 8, fontWeight: 700,
+        flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 700,
         fontFamily: "var(--font-body)", userSelect: "none",
       }}
     >
@@ -98,7 +100,7 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, listName, isDoneList = false, blocked = false, overlay = false, onCardClick }: Props) {
+export default function CardItem({ card, listName, isDoneList = false, blocked = false, minHeight, overlay = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
@@ -116,6 +118,12 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
         opacity: isDragging && !overlay ? 0.35 : 1,
         cursor: overlay ? "grabbing" : "grab",
         touchAction: "none",
+        // Fill the slot in a full list (parent stretches to the column height); a no-op in a
+        // content-sized partial list, where cards just take their minHeight.
+        flex: overlay ? undefined : "1 1 0",
+        display: overlay ? undefined : "flex",
+        flexDirection: "column",
+        minHeight: overlay ? undefined : minHeight,
       }}
       {...(overlay ? {} : { ...attributes, ...listeners })}
     >
@@ -135,12 +143,13 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",
           border: "1px solid oklch(var(--color-border))",
-          padding: "10px 10px 8px",
-          marginBottom: 4,
-          boxShadow: overlay ? "0 8px 24px oklch(0% 0 0 / 0.16)" : undefined,
+          padding: "13px 14px 12px",
+          flex: overlay ? undefined : 1,
+          minHeight: overlay ? undefined : minHeight,
+          boxShadow: overlay ? "0 8px 24px oklch(0% 0 0 / 0.16)" : "0 1px 2px oklch(0% 0 0 / 0.04)",
           display: "flex",
           flexDirection: "column",
-          gap: 6,
+          gap: 8,
         }}
         onMouseEnter={(e) => {
           if (overlay || isDragging) return
@@ -193,14 +202,14 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
           <span
             style={{
               fontFamily: "var(--font-body)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
+              fontSize: "var(--text-base)",
+              fontWeight: 600,
               color: done ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink))",
-              lineHeight: 1.4,
+              lineHeight: 1.45,
               flex: 1,
               overflow: "hidden",
               display: "-webkit-box",
-              WebkitLineClamp: 2,
+              WebkitLineClamp: 3,
               WebkitBoxOrient: "vertical",
               wordBreak: "break-word",
               textDecoration: done ? "line-through" : "none",
@@ -238,8 +247,8 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
           </span>
         )}
 
-        {/* Footer row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+        {/* Footer row — pinned to the bottom so taller cards stay balanced */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 2 }}>
           {/* Assignee avatar */}
           {card.assignee && (
             <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
