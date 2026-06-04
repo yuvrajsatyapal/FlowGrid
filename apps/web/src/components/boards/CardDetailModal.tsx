@@ -750,8 +750,10 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                 </div>
               )}
 
-              {/* Add label button */}
+              {/* Add label button + popover (popover opens upward as an overlay so it
+                  doesn't push the rest of the modal down) */}
               {canEdit && (
+                <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setLabelPopoverOpen((v) => !v)}
                   style={{
@@ -767,18 +769,23 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                 >
                   + Add label
                 </button>
-              )}
 
               {/* Label popover */}
               {labelPopoverOpen && (
                 <div
                   style={{
-                    marginTop: 8,
+                    position: "absolute",
+                    bottom: "calc(100% + 6px)",
+                    left: 0,
+                    width: 240,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                    zIndex: 30,
                     padding: "10px",
                     background: "oklch(var(--color-paper))",
                     border: "1px solid oklch(var(--color-border))",
                     borderRadius: "var(--radius-card)",
-                    boxShadow: "0 4px 16px oklch(0% 0 0 / 0.12)",
+                    boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
                   }}
                 >
                   {/* Existing labels */}
@@ -860,15 +867,12 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                           padding: "5px 10px",
                           borderRadius: "var(--radius-button)",
                           border: "none",
-                          background: creatingLabel || !newLabelName.trim()
-                            ? "oklch(var(--color-muted))"
-                            : "oklch(var(--color-accent))",
-                          color: creatingLabel || !newLabelName.trim()
-                            ? "oklch(var(--color-ink-3))"
-                            : "#fff",
+                          background: "oklch(var(--color-accent))",
+                          color: "#fff",
                           fontSize: "var(--text-xs)",
                           fontWeight: 600,
                           cursor: creatingLabel || !newLabelName.trim() ? "not-allowed" : "pointer",
+                          opacity: creatingLabel || !newLabelName.trim() ? 0.55 : 1,
                           fontFamily: "var(--font-body)",
                         }}
                       >
@@ -876,6 +880,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                       </button>
                     </form>
                   </div>
+                </div>
+              )}
                 </div>
               )}
             </div>

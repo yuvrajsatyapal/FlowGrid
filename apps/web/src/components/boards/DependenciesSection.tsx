@@ -107,7 +107,7 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
   )
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "relative" }}>
       <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "oklch(var(--color-ink-3))" }}>Dependencies</span>
       {depError && (
         <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{depError}</p>
@@ -128,9 +128,9 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
         onRemove={(id) => void handleRemove(id)}
       />
 
-      {/* Card picker dropdown */}
+      {/* Card picker dropdown — opens upward as an overlay so it doesn't push the modal layout */}
       {pickerOpen && (
-        <div style={{ border: "1px solid oklch(var(--color-border))", borderRadius: "var(--radius-card)", background: "oklch(var(--color-paper))", overflow: "hidden", boxShadow: "0 4px 12px oklch(0% 0 0 / 0.1)" }}>
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0, zIndex: 30, border: "1px solid oklch(var(--color-border))", borderRadius: "var(--radius-card)", background: "oklch(var(--color-paper))", overflow: "hidden", boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)" }}>
           <div style={{ padding: "8px" }}>
             <input
               autoFocus
