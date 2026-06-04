@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from "react"
 
 interface Props {
   onSubmit: (name: string) => Promise<void>
+  width?: number
 }
 
-export default function CreateListInline({ onSubmit }: Props) {
+export default function CreateListInline({ onSubmit, width = 272 }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
@@ -40,7 +41,7 @@ export default function CreateListInline({ onSubmit }: Props) {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          width: 272,
+          width,
           flexShrink: 0,
           padding: "10px 14px",
           borderRadius: "var(--radius-card)",
@@ -71,7 +72,7 @@ export default function CreateListInline({ onSubmit }: Props) {
   return (
     <div
       style={{
-        width: 272,
+        width,
         flexShrink: 0,
         background: "oklch(var(--color-paper-2))",
         borderRadius: "var(--radius-card)",

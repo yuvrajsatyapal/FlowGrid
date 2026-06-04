@@ -1,160 +1,179 @@
 import { useEffect, useState, useCallback } from "react"
-import { checklistsApi, type Checklist } from "../../api/checklists"
+import { checklistsApi, type Checklist, type ChecklistItem } from "../../api/checklists"
 
 interface Props {
   cardId: string
   canEdit: boolean
 }
 
+const CHECK_ICON = (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <path d="M2.5 6.2l2.2 2.2L9.5 3.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const DEFAULT_CHECKLIST_TITLE = "Checklist"
+
 export default function ChecklistSection({ cardId, canEdit }: Props) {
   const [checklists, setChecklists] = useState<Checklist[]>([])
-  const [newTitle, setNewTitle] = useState("")
-  const [addingNew, setAddingNew] = useState(false)
-  const [newItemText, setNewItemText] = useState<Record<string, string>>({})
+  const [newItem, setNewItem] = useState("")
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
     try {
-      const data = await checklistsApi.list(cardId)
-      setChecklists(data)
+      setChecklists(await checklistsApi.list(cardId))
     } catch { /* silent */ }
   }, [cardId])
 
   useEffect(() => { void load() }, [load])
 
-  const totalItems = checklists.reduce((s, cl) => s + cl.items.length, 0)
-  const checkedItems = checklists.reduce((s, cl) => s + cl.items.filter((i) => i.checked).length, 0)
-  const pct = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0
+  // Flatten all items into a single checkable list (no checklist nesting shown to the user)
+  const items: ChecklistItem[] = checklists.flatMap((cl) => cl.items)
+  const total = items.length
+  const done = items.filter((i) => i.checked).length
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
 
-  async function handleCreateChecklist() {
-    if (!newTitle.trim()) return
-    const cl = await checklistsApi.create(cardId, newTitle.trim())
-    setChecklists((prev) => [...prev, cl])
-    setNewTitle("")
-    setAddingNew(false)
-  }
-
-  async function handleDeleteChecklist(id: string) {
-    await checklistsApi.deleteChecklist(id)
-    setChecklists((prev) => prev.filter((cl) => cl.id !== id))
-  }
-
-  async function handleToggleItem(checklistId: string, itemId: string, checked: boolean) {
-    const item = await checklistsApi.updateItem(itemId, { checked })
+  async function handleToggle(item: ChecklistItem) {
+    const updated = await checklistsApi.updateItem(item.id, { checked: !item.checked })
     setChecklists((prev) =>
-      prev.map((cl) =>
-        cl.id === checklistId ? { ...cl, items: cl.items.map((i) => (i.id === itemId ? item : i)) } : cl,
-      ),
+      prev.map((cl) => ({ ...cl, items: cl.items.map((i) => (i.id === item.id ? updated : i)) })),
     )
   }
 
-  async function handleDeleteItem(checklistId: string, itemId: string) {
-    await checklistsApi.deleteItem(itemId)
+  async function handleDelete(item: ChecklistItem) {
+    await checklistsApi.deleteItem(item.id)
     setChecklists((prev) =>
-      prev.map((cl) => (cl.id === checklistId ? { ...cl, items: cl.items.filter((i) => i.id !== itemId) } : cl)),
+      prev.map((cl) => ({ ...cl, items: cl.items.filter((i) => i.id !== item.id) })),
     )
   }
 
-  async function handleAddItem(checklistId: string) {
-    const text = newItemText[checklistId]?.trim()
-    if (!text) return
-    const item = await checklistsApi.addItem(checklistId, text)
-    setChecklists((prev) =>
-      prev.map((cl) => (cl.id === checklistId ? { ...cl, items: [...cl.items, item] } : cl)),
-    )
-    setNewItemText((prev) => ({ ...prev, [checklistId]: "" }))
+  async function handleAdd() {
+    const text = newItem.trim()
+    if (!text || adding) return
+    setAdding(true)
+    try {
+      // Add to the card's existing checklist, creating a single default one if none exists.
+      let target = checklists[0]
+      if (!target) {
+        target = await checklistsApi.create(cardId, DEFAULT_CHECKLIST_TITLE)
+        setChecklists((prev) => [...prev, target])
+      }
+      const targetId = target.id
+      const item = await checklistsApi.addItem(targetId, text)
+      setChecklists((prev) =>
+        prev.map((cl) => (cl.id === targetId ? { ...cl, items: [...cl.items, item] } : cl)),
+      )
+      setNewItem("")
+    } finally {
+      setAdding(false)
+    }
   }
 
-  const s: React.CSSProperties = {
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "7px 10px",
+    borderRadius: "var(--radius-input)",
+    border: "1px solid oklch(var(--color-border))",
+    background: "oklch(var(--color-paper))",
+    color: "oklch(var(--color-ink))",
     fontSize: "var(--text-sm)",
-    color: "oklch(var(--color-ink-2))",
     fontFamily: "var(--font-body)",
+    outline: "none",
+    boxSizing: "border-box",
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Section header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "oklch(var(--color-ink-3))" }}>
-          Checklist {totalItems > 0 && `· ${checkedItems}/${totalItems}`}
-        </span>
-        {canEdit && (
-          <button
-            onClick={() => setAddingNew(true)}
-            style={{ ...s, background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-accent))", padding: 0 }}
-          >
-            + Add checklist
-          </button>
-        )}
-      </div>
+      <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "oklch(var(--color-ink-3))" }}>
+        Checklist{total > 0 && ` · ${done}/${total}`}
+      </span>
 
-      {/* Global progress bar */}
-      {totalItems > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "oklch(var(--color-ink-3))", minWidth: 28, textAlign: "right" }}>{pct}%</span>
-          <div style={{ flex: 1, height: 6, borderRadius: 3, background: "oklch(var(--color-paper-3))", overflow: "hidden" }}>
-            <div style={{ width: `${pct}%`, height: "100%", background: "oklch(var(--color-success))", borderRadius: 3, transition: "width 0.3s" }} />
+      {/* Progress bar */}
+      {total > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, height: 6, borderRadius: 999, background: "oklch(var(--color-paper-3))", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: "oklch(var(--color-success))", borderRadius: 999, transition: "width 0.3s ease" }} />
           </div>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "oklch(var(--color-ink-3))", minWidth: 34, textAlign: "right" }}>{pct}%</span>
         </div>
       )}
 
-      {/* New checklist form */}
-      {addingNew && (
-        <div style={{ display: "flex", gap: 6 }}>
-          <input
-            autoFocus
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void handleCreateChecklist(); if (e.key === "Escape") setAddingNew(false) }}
-            placeholder="Checklist title…"
-            style={{ flex: 1, padding: "5px 8px", borderRadius: "var(--radius-input)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper-2))", ...s }}
-          />
-          <button onClick={() => void handleCreateChecklist()} style={{ padding: "5px 12px", borderRadius: "var(--radius-btn)", background: "oklch(var(--color-accent))", color: "#fff", border: "none", cursor: "pointer", fontSize: "var(--text-sm)" }}>Add</button>
-          <button onClick={() => setAddingNew(false)} style={{ padding: "5px 10px", borderRadius: "var(--radius-btn)", background: "oklch(var(--color-paper-2))", border: "1px solid oklch(var(--color-border))", cursor: "pointer", fontSize: "var(--text-sm)" }}>×</button>
-        </div>
-      )}
-
-      {/* Checklists */}
-      {checklists.map((cl) => (
-        <div key={cl.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))" }}>{cl.title}</span>
-            {canEdit && (
-              <button onClick={() => void handleDeleteChecklist(cl.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 13 }}>Delete</button>
-            )}
-          </div>
-
-          {cl.items.map((item) => (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}>
-              <input
-                type="checkbox"
-                checked={item.checked}
+      {/* Flat checkable list */}
+      {(total > 0 || canEdit) && (
+        <div
+          style={{
+            border: "1px solid oklch(var(--color-border))",
+            borderRadius: "var(--radius-card)",
+            background: "oklch(var(--color-paper))",
+            overflow: "hidden",
+          }}
+        >
+          {items.map((item, idx) => (
+            <div
+              key={item.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 12px",
+                borderBottom: idx === items.length - 1 ? "none" : "1px solid oklch(var(--color-border))",
+              }}
+            >
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={item.checked}
+                aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
                 disabled={!canEdit}
-                onChange={(e) => void handleToggleItem(cl.id, item.id, e.target.checked)}
-                style={{ width: 14, height: 14, cursor: canEdit ? "pointer" : "default", accentColor: "oklch(var(--color-accent))", flexShrink: 0 }}
-              />
-              <span style={{ flex: 1, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.5 : 1 }}>
+                onClick={() => canEdit && void handleToggle(item)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  flexShrink: 0,
+                  borderRadius: 5,
+                  border: item.checked ? "none" : "1.5px solid oklch(var(--color-border))",
+                  background: item.checked ? "oklch(var(--color-accent))" : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: canEdit ? "pointer" : "default",
+                  padding: 0,
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+              >
+                {item.checked && CHECK_ICON}
+              </button>
+              <span style={{ flex: 1, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.55 : 1 }}>
                 {item.text}
               </span>
               {canEdit && (
-                <button onClick={() => void handleDeleteItem(cl.id, item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 12, padding: "0 2px" }}>×</button>
+                <button onClick={() => void handleDelete(item)} aria-label="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 13, padding: "0 2px", lineHeight: 1 }}>×</button>
               )}
             </div>
           ))}
 
+          {/* Add item */}
           {canEdit && (
-            <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+            <div style={{ display: "flex", gap: 6, padding: "10px 12px", borderTop: items.length > 0 ? "1px solid oklch(var(--color-border))" : "none" }}>
               <input
-                value={newItemText[cl.id] ?? ""}
-                onChange={(e) => setNewItemText((prev) => ({ ...prev, [cl.id]: e.target.value }))}
-                onKeyDown={(e) => { if (e.key === "Enter") void handleAddItem(cl.id) }}
+                value={newItem}
+                onChange={(e) => setNewItem(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAdd() }}
                 placeholder="Add an item…"
-                style={{ flex: 1, padding: "4px 8px", borderRadius: "var(--radius-input)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper-2))", ...s }}
+                style={inputStyle}
               />
-              <button onClick={() => void handleAddItem(cl.id)} style={{ padding: "4px 10px", borderRadius: "var(--radius-btn)", background: "oklch(var(--color-paper-2))", border: "1px solid oklch(var(--color-border))", cursor: "pointer", fontSize: "var(--text-xs)" }}>Add</button>
+              <button
+                onClick={() => void handleAdd()}
+                disabled={adding || !newItem.trim()}
+                style={{ padding: "7px 16px", borderRadius: "var(--radius-button)", background: "oklch(var(--color-accent))", border: "none", color: "#fff", cursor: adding || !newItem.trim() ? "default" : "pointer", fontSize: "var(--text-sm)", fontWeight: 600, opacity: adding || !newItem.trim() ? 0.55 : 1 }}
+              >
+                Add
+              </button>
             </div>
           )}
         </div>
-      ))}
+      )}
     </div>
   )
 }

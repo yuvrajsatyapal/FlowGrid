@@ -3,7 +3,6 @@ import { motion } from "framer-motion"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
-import type { Socket } from "socket.io-client"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary, CardLabel } from "../../api/cards"
 import { cardsApi } from "../../api/cards"
@@ -11,8 +10,6 @@ import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
 import { useAuth } from "../../contexts/AuthContext"
-import { CommentThread } from "./CommentThread"
-import { ActivityFeed } from "./ActivityFeed"
 import { AttachmentSection } from "./AttachmentSection"
 import ChecklistSection from "./ChecklistSection"
 import DependenciesSection from "./DependenciesSection"
@@ -23,11 +20,10 @@ interface Props {
   boardId: string
   workspaceId: string
   canEdit: boolean
-  userRole?: string // workspace role — used for comment moderation
-  socket?: Socket | null
   listName?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
+  onCardDeleted?: (id: string) => void
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error"
@@ -57,25 +53,11 @@ function taskShortId(id: string): string {
 }
 
 // Icons for header buttons
-const EYE_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M1 7c1.5-3 8.5-3 12 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
-  </svg>
-)
-
-const SHARE_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M8 2l4 5-4 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 7H5a3 3 0 000 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-  </svg>
-)
-
-const DOTS_H_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <circle cx="2.5" cy="7" r="1.25" fill="currentColor" />
-    <circle cx="7" cy="7" r="1.25" fill="currentColor" />
-    <circle cx="11.5" cy="7" r="1.25" fill="currentColor" />
+const TRASH_ICON = (
+  <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 6v4M8 6v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
   </svg>
 )
 
@@ -94,11 +76,12 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, listName, onClose, onCardUpdated }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, listName, onClose, onCardUpdated, onCardDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState("")
+  const [deleting, setDeleting] = useState(false)
 
   // Sidebar data
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -183,6 +166,19 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   useEffect(() => {
     flushAndCloseRef.current = flushAndClose
   })
+
+  const handleDelete = useCallback(async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await cardsApi.deleteCard(localCard.id)
+      onCardDeleted?.(localCard.id)
+      onClose()
+    } catch (err: unknown) {
+      setDeleting(false)
+      alert((err as Error).message || "Failed to delete card")
+    }
+  }, [deleting, localCard.id, onCardDeleted, onClose])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -424,45 +420,20 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             {/* Spacer */}
             <div style={{ flex: 1 }} />
 
-            {/* Watch button */}
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(window.location.href)
-              }}
-              aria-label="Watch card"
-              title="Watch"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {EYE_ICON}
-            </button>
-
-            {/* Share / copy link button */}
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}${window.location.pathname}?card=${localCard.id}`
-                void navigator.clipboard.writeText(url)
-              }}
-              aria-label="Copy link to card"
-              title="Copy link"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {SHARE_ICON}
-            </button>
-
-            {/* Overflow menu (⋯) */}
-            <button
-              aria-label="More options"
-              title="More"
-              style={iconBtnStyle}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink))" }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
-            >
-              {DOTS_H_ICON}
-            </button>
+            {/* Delete card */}
+            {canEdit && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                aria-label="Delete card"
+                title="Delete card"
+                style={{ ...iconBtnStyle, cursor: deleting ? "default" : "pointer", opacity: deleting ? 0.5 : 1 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-error) / 0.12)"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-error))" }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "oklch(var(--color-ink-3))" }}
+              >
+                {TRASH_ICON}
+              </button>
+            )}
 
             {/* Close */}
             <button
@@ -562,23 +533,6 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             {/* Attachments */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
               <AttachmentSection cardId={localCard.id} canEdit={canEdit} />
-            </div>
-
-            {/* Comments */}
-            {user && (
-              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-                <CommentThread
-                  cardId={localCard.id}
-                  currentUserId={user.id}
-                  currentUserRole={userRole ?? (canEdit ? "OWNER" : "MEMBER")}
-                  socket={socket}
-                />
-              </div>
-            )}
-
-            {/* Activity */}
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <ActivityFeed cardId={localCard.id} />
             </div>
           </div>
 
@@ -796,8 +750,10 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 </div>
               )}
 
-              {/* Add label button */}
+              {/* Add label button + popover (popover opens upward as an overlay so it
+                  doesn't push the rest of the modal down) */}
               {canEdit && (
+                <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setLabelPopoverOpen((v) => !v)}
                   style={{
@@ -813,18 +769,23 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 >
                   + Add label
                 </button>
-              )}
 
               {/* Label popover */}
               {labelPopoverOpen && (
                 <div
                   style={{
-                    marginTop: 8,
+                    position: "absolute",
+                    bottom: "calc(100% + 6px)",
+                    left: 0,
+                    width: 240,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                    zIndex: 30,
                     padding: "10px",
                     background: "oklch(var(--color-paper))",
                     border: "1px solid oklch(var(--color-border))",
                     borderRadius: "var(--radius-card)",
-                    boxShadow: "0 4px 16px oklch(0% 0 0 / 0.12)",
+                    boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
                   }}
                 >
                   {/* Existing labels */}
@@ -906,15 +867,12 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                           padding: "5px 10px",
                           borderRadius: "var(--radius-button)",
                           border: "none",
-                          background: creatingLabel || !newLabelName.trim()
-                            ? "oklch(var(--color-muted))"
-                            : "oklch(var(--color-accent))",
-                          color: creatingLabel || !newLabelName.trim()
-                            ? "oklch(var(--color-ink-3))"
-                            : "#fff",
+                          background: "oklch(var(--color-accent))",
+                          color: "#fff",
                           fontSize: "var(--text-xs)",
                           fontWeight: 600,
                           cursor: creatingLabel || !newLabelName.trim() ? "not-allowed" : "pointer",
+                          opacity: creatingLabel || !newLabelName.trim() ? 0.55 : 1,
                           fontFamily: "var(--font-body)",
                         }}
                       >
@@ -922,6 +880,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                       </button>
                     </form>
                   </div>
+                </div>
+              )}
                 </div>
               )}
             </div>

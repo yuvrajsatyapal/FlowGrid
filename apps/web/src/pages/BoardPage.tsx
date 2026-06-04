@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { AnimatePresence } from "framer-motion"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useSearchParams } from "react-router-dom"
 import {
   DndContext,
   DragOverlay,
@@ -67,8 +67,26 @@ const GLOBE_ICON = (
 
 const DEFAULT_COVER = "#64748b"
 
+function pagerBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 12px",
+    borderRadius: "var(--radius-button)",
+    border: "1px solid oklch(var(--color-border))",
+    background: "oklch(var(--color-paper-2))",
+    color: disabled ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink-2))",
+    fontSize: "var(--text-xs)",
+    fontWeight: 600,
+    fontFamily: "var(--font-body)",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+  }
+}
+
 export default function BoardPage() {
   const { workspaceId, boardId } = useParams<{ workspaceId: string; boardId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [board, setBoard] = useState<BoardDetail | null>(null)
   const [lists, setLists] = useState<ListSummary[]>([])
@@ -81,6 +99,11 @@ export default function BoardPage() {
   const [listsError, setListsError] = useState("")
   const [boardView, setBoardView] = useState<BoardView>("kanban")
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  // Column pagination — show a page of lists at a time (responsive count, no horizontal scroll)
+  const [listPage, setListPage] = useState(0)
+  const [colsWidth, setColsWidth] = useState(0)
+  const kanbanRef = useRef<HTMLDivElement>(null)
 
   useKeyboardShortcuts([
     { key: "?", description: "Open keyboard shortcuts", handler: () => setShortcutsOpen(true) },
@@ -132,6 +155,7 @@ export default function BoardPage() {
     setBoard(null)
     setLists([])
     setBoardCards({})
+    setListPage(0)
     boardsApi
       .getOne(boardId)
       .then((b) => {
@@ -146,11 +170,64 @@ export default function BoardPage() {
       .finally(() => setLoadingBoard(false))
   }, [boardId, loadLists])
 
+  // Deep-link: open a specific card when arriving via ?card=<id> (e.g. from the Inbox).
+  // Runs once cards are loaded; clears the param so closing the modal doesn't reopen it.
+  useEffect(() => {
+    const cardParam = searchParams.get("card")
+    if (!cardParam) return
+    const exists = Object.values(boardCards).flat().some((c) => c.id === cardParam)
+    if (exists) {
+      setOpenCardId(cardParam)
+      searchParams.delete("card")
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [boardCards, searchParams, setSearchParams])
+
   // ─── Modal helpers ──────────────────────────────────────────────────────────
 
   const openCard = openCardId
     ? Object.values(boardCards).flat().find((c) => c.id === openCardId) ?? null
     : null
+
+  // ─── Column pagination ────────────────────────────────────────────────────────
+  // Measure the kanban viewport so we can fit a whole number of columns per page
+  // (no horizontal scroll), responsive to the screen size.
+  useEffect(() => {
+    if (boardView !== "kanban") return
+    const el = kanbanRef.current
+    if (!el) return
+    const measure = () => setColsWidth(el.clientWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [boardView, loadingLists, listsError])
+
+  const COL_GAP = 12
+  const COL_PAD = 16 // horizontal padding inside the kanban viewport (each side)
+  const MIN_COL = 220
+  const MAX_COL = 300
+  const MAX_COLS_PER_PAGE = 5
+  const colsAvail = Math.max(0, colsWidth - COL_PAD * 2)
+  const colsPerPage = Math.max(
+    1,
+    Math.min(MAX_COLS_PER_PAGE, colsAvail > 0 ? Math.floor((colsAvail + COL_GAP) / (MIN_COL + COL_GAP)) : MAX_COLS_PER_PAGE),
+  )
+  const colWidth = Math.min(MAX_COL, Math.floor((colsAvail - (colsPerPage - 1) * COL_GAP) / colsPerPage))
+
+  // Items to page through: each list, plus an "add list" tile at the end (when editable)
+  type ColumnItem = { kind: "list"; list: ListSummary } | { kind: "add" }
+  const columnItems: ColumnItem[] = [
+    ...lists.map((l) => ({ kind: "list" as const, list: l })),
+    ...(canEdit ? [{ kind: "add" as const }] : []),
+  ]
+  const totalListPages = Math.max(1, Math.ceil(columnItems.length / colsPerPage))
+  const safeListPage = Math.min(listPage, totalListPages - 1)
+  const visibleColumnItems = columnItems.slice(safeListPage * colsPerPage, safeListPage * colsPerPage + colsPerPage)
+
+  useEffect(() => {
+    if (listPage > totalListPages - 1) setListPage(totalListPages - 1)
+  }, [listPage, totalListPages])
 
   const handleCardUpdated = useCallback((updated: CardSummary) => {
     setBoardCards((prev) => {
@@ -275,7 +352,7 @@ export default function BoardPage() {
 
   // ─── Real-time socket ────────────────────────────────────────────────────────
 
-  const { onlineUsers, socket } = useBoardSocket(boardId, {
+  const { onlineUsers } = useBoardSocket(boardId, {
     onCardCreated: (card) => {
       // Dedup: sender already added the card via local handleCardCreated; skip if present
       setBoardCards((prev) => {
@@ -498,18 +575,53 @@ export default function BoardPage() {
           <BoardTimelineView boardId={boardId} onCardClick={(id) => setOpenCardId(id)} />
         </div>
       ) : (
-        /* Kanban columns */
-        <div
-          style={{
-            flex: 1,
-            overflowX: "auto",
-            overflowY: "hidden",
-            padding: "20px 24px",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 12,
-          }}
-        >
+        /* Kanban columns (paginated — a page of lists at a time) */
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {/* Pagination controls */}
+          {!loadingLists && !listsError && totalListPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 8,
+                padding: `10px ${COL_PAD}px 0`,
+              }}
+            >
+              <button
+                onClick={() => setListPage((p) => Math.max(0, p - 1))}
+                disabled={safeListPage === 0}
+                aria-label="Previous page"
+                style={pagerBtnStyle(safeListPage === 0)}
+              >
+                ‹ Prev
+              </button>
+              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", minWidth: 92, textAlign: "center" }}>
+                Page {safeListPage + 1} of {totalListPages}
+              </span>
+              <button
+                onClick={() => setListPage((p) => Math.min(totalListPages - 1, p + 1))}
+                disabled={safeListPage >= totalListPages - 1}
+                aria-label="Next page"
+                style={pagerBtnStyle(safeListPage >= totalListPages - 1)}
+              >
+                Next ›
+              </button>
+            </div>
+          )}
+
+          <div
+            ref={kanbanRef}
+            style={{
+              flex: 1,
+              overflowX: "hidden",
+              overflowY: "auto",
+              padding: `16px ${COL_PAD}px`,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: COL_GAP,
+            }}
+          >
           {loadingLists ? (
             <div style={{ display: "flex", gap: 12 }}>
               {[1, 2, 3].map((n) => (
@@ -539,19 +651,23 @@ export default function BoardPage() {
               onDragEnd={handleDragEnd}
               onDragCancel={handleDragCancel}
             >
-              {lists.map((list) => (
-                <ListColumn
-                  key={list.id}
-                  list={list}
-                  canEdit={canEdit}
-                  cards={boardCards[list.id] ?? []}
-                  onRenamed={handleRenamed}
-                  onDeleted={handleDeleted}
-                  onCardCreated={handleCardCreated}
-                  onCardClick={(id) => setOpenCardId(id)}
-                />
-              ))}
-              {canEdit && <CreateListInline onSubmit={handleCreateList} />}
+              {visibleColumnItems.map((item) =>
+                item.kind === "list" ? (
+                  <ListColumn
+                    key={item.list.id}
+                    list={item.list}
+                    canEdit={canEdit}
+                    cards={boardCards[item.list.id] ?? []}
+                    onRenamed={handleRenamed}
+                    onDeleted={handleDeleted}
+                    onCardCreated={handleCardCreated}
+                    onCardClick={(id) => setOpenCardId(id)}
+                    width={colWidth}
+                  />
+                ) : (
+                  <CreateListInline key="__add_list__" onSubmit={handleCreateList} width={colWidth} />
+                ),
+              )}
               {!canEdit && lists.length === 0 && (
                 <div style={{ color: "oklch(var(--color-ink-3))", fontSize: "var(--text-sm)" }}>
                   This board has no lists yet.
@@ -563,6 +679,7 @@ export default function BoardPage() {
               </DragOverlay>
             </DndContext>
           )}
+          </div>
         </div>
       )}
 
@@ -574,11 +691,19 @@ export default function BoardPage() {
             boardId={board.id}
             workspaceId={workspaceId}
             canEdit={canEdit}
-            userRole={board.role}
-            socket={socket}
             listName={lists.find((l) => l.id === openCard.listId)?.name}
             onClose={() => setOpenCardId(null)}
             onCardUpdated={handleCardUpdated}
+            onCardDeleted={(id) => {
+              setBoardCards((prev) => {
+                const next: Record<string, CardSummary[]> = {}
+                for (const [lid, cards] of Object.entries(prev)) {
+                  next[lid] = cards.filter((c) => c.id !== id)
+                }
+                return next
+              })
+              setOpenCardId(null)
+            }}
           />
         )}
       </AnimatePresence>
