@@ -3,7 +3,6 @@ import { motion } from "framer-motion"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
-import type { Socket } from "socket.io-client"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary, CardLabel } from "../../api/cards"
 import { cardsApi } from "../../api/cards"
@@ -11,8 +10,6 @@ import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
 import { useAuth } from "../../contexts/AuthContext"
-import { CommentThread } from "./CommentThread"
-import { ActivityFeed } from "./ActivityFeed"
 import { AttachmentSection } from "./AttachmentSection"
 import ChecklistSection from "./ChecklistSection"
 import DependenciesSection from "./DependenciesSection"
@@ -23,8 +20,6 @@ interface Props {
   boardId: string
   workspaceId: string
   canEdit: boolean
-  userRole?: string // workspace role — used for comment moderation
-  socket?: Socket | null
   listName?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
@@ -81,7 +76,7 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, socket, listName, onClose, onCardUpdated, onCardDeleted }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, listName, onClose, onCardUpdated, onCardDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -538,23 +533,6 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             {/* Attachments */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
               <AttachmentSection cardId={localCard.id} canEdit={canEdit} />
-            </div>
-
-            {/* Comments */}
-            {user && (
-              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-                <CommentThread
-                  cardId={localCard.id}
-                  currentUserId={user.id}
-                  currentUserRole={userRole ?? (canEdit ? "OWNER" : "MEMBER")}
-                  socket={socket}
-                />
-              </div>
-            )}
-
-            {/* Activity */}
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <ActivityFeed cardId={localCard.id} />
             </div>
           </div>
 

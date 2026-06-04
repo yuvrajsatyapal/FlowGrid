@@ -352,7 +352,7 @@ export default function BoardPage() {
 
   // ─── Real-time socket ────────────────────────────────────────────────────────
 
-  const { onlineUsers, socket } = useBoardSocket(boardId, {
+  const { onlineUsers } = useBoardSocket(boardId, {
     onCardCreated: (card) => {
       // Dedup: sender already added the card via local handleCardCreated; skip if present
       setBoardCards((prev) => {
@@ -691,8 +691,6 @@ export default function BoardPage() {
             boardId={board.id}
             workspaceId={workspaceId}
             canEdit={canEdit}
-            userRole={board.role}
-            socket={socket}
             listName={lists.find((l) => l.id === openCard.listId)?.name}
             onClose={() => setOpenCardId(null)}
             onCardUpdated={handleCardUpdated}
