@@ -2,6 +2,12 @@
 // Plain TypeScript interfaces (no Prisma import) so apps/web can safely use them.
 // Optional fields use `T | null` to match Prisma's output convention.
 
+// ─── Board limits ─────────────────────────────────────────────────────────────
+
+// Hard cap on the number of (non-deleted) cards a single list may hold.
+// Enforced on the backend (create + move) and reflected in the web UI.
+export const MAX_CARDS_PER_LIST = 5
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export type Priority = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'

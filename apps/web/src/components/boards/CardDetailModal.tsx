@@ -26,6 +26,10 @@ interface Props {
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
   onCardDeleted?: (id: string) => void
+  /** Propagate a label rename/recolor to every card on the board */
+  onLabelUpdated?: (label: LabelSummary) => void
+  /** Propagate a label deletion to every card on the board */
+  onLabelDeleted?: (labelId: string) => void
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error"
@@ -46,7 +50,6 @@ const LABEL_COLORS = [
   { name: "Blue", value: "#3b82f6" },
   { name: "Indigo", value: "#6366f1" },
   { name: "Purple", value: "#a855f7" },
-  { name: "Slate", value: "#64748b" },
 ]
 
 // Derive short task ID from card ID (last 4 chars uppercased)
@@ -78,7 +81,22 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, listName, onClose, onCardUpdated, onCardDeleted }: Props) {
+// Compact icon button used for the per-label edit / delete actions in the picker
+const labelIconBtnStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 24,
+  height: 24,
+  borderRadius: 4,
+  border: "none",
+  background: "transparent",
+  color: "oklch(var(--color-ink-3))",
+  cursor: "pointer",
+  flexShrink: 0,
+}
+
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, listName, onClose, onCardUpdated, onCardDeleted, onLabelUpdated, onLabelDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -100,6 +118,13 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
   const [newLabelName, setNewLabelName] = useState("")
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0].value)
   const [creatingLabel, setCreatingLabel] = useState(false)
+
+  // Edit / delete an existing board label (from inside the picker)
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
+  const [editLabelName, setEditLabelName] = useState("")
+  const [editLabelColor, setEditLabelColor] = useState(LABEL_COLORS[0].value)
+  const [confirmDeleteLabelId, setConfirmDeleteLabelId] = useState<string | null>(null)
+  const [labelBusy, setLabelBusy] = useState(false)
 
   // Local date state — prevents controlled input from snapping back to "" while
   // the async saveField call is in-flight and localCard hasn't updated yet.
@@ -363,6 +388,74 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
       setSaveError((err as Error).message || "Failed to create label")
     } finally {
       setCreatingLabel(false)
+    }
+  }
+
+  function startEditLabel(label: LabelSummary) {
+    setConfirmDeleteLabelId(null)
+    setEditingLabelId(label.id)
+    setEditLabelName(label.name)
+    setEditLabelColor(label.color)
+  }
+
+  function cancelEditLabel() {
+    setEditingLabelId(null)
+    setEditLabelName("")
+  }
+
+  async function handleSaveLabelEdit(label: LabelSummary) {
+    const name = editLabelName.trim()
+    if (!name) return
+    if (name === label.name && editLabelColor === label.color) {
+      cancelEditLabel()
+      return
+    }
+    setLabelBusy(true)
+    setSaveState("saving")
+    setSaveError("")
+    try {
+      const updated = await labelsApi.update(label.id, { name, color: editLabelColor })
+      setBoardLabels((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+      if (localCard.labels.some((l) => l.id === updated.id)) {
+        const next: CardSummary = {
+          ...localCard,
+          labels: localCard.labels.map((l) => (l.id === updated.id ? { ...l, name: updated.name, color: updated.color } : l)),
+        }
+        setLocalCard(next)
+        onCardUpdated(next)
+      }
+      onLabelUpdated?.(updated)
+      cancelEditLabel()
+      showSaved()
+    } catch (err: unknown) {
+      setSaveState("error")
+      setSaveError((err as Error).message || "Failed to update label")
+    } finally {
+      setLabelBusy(false)
+    }
+  }
+
+  async function handleDeleteLabel(labelId: string) {
+    setLabelBusy(true)
+    setSaveState("saving")
+    setSaveError("")
+    try {
+      await labelsApi.remove(labelId)
+      setBoardLabels((prev) => prev.filter((l) => l.id !== labelId))
+      if (localCard.labels.some((l) => l.id === labelId)) {
+        const next: CardSummary = { ...localCard, labels: localCard.labels.filter((l) => l.id !== labelId) }
+        setLocalCard(next)
+        onCardUpdated(next)
+      }
+      onLabelDeleted?.(labelId)
+      setConfirmDeleteLabelId(null)
+      if (editingLabelId === labelId) cancelEditLabel()
+      showSaved()
+    } catch (err: unknown) {
+      setSaveState("error")
+      setSaveError((err as Error).message || "Failed to delete label")
+    } finally {
+      setLabelBusy(false)
     }
   }
 
@@ -877,26 +970,146 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
                       {boardLabels.map((label) => {
                         const assigned = localCard.labels.some((l) => l.id === label.id)
+
+                        // Inline editor for this label
+                        if (editingLabelId === label.id) {
+                          return (
+                            <div
+                              key={label.id}
+                              style={{
+                                display: "flex", flexDirection: "column", gap: 8,
+                                padding: 10,
+                                background: "oklch(var(--color-paper-2))",
+                                border: "1px solid oklch(var(--color-accent) / 0.5)",
+                                borderRadius: 8,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: editLabelColor, flexShrink: 0 }} />
+                                <span style={{ flex: 1, fontSize: "0.625rem", fontWeight: 700, color: "oklch(var(--color-ink-3))", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Edit label
+                                </span>
+                              </div>
+                              <input
+                                value={editLabelName}
+                                onChange={(e) => setEditLabelName(e.target.value)}
+                                maxLength={32}
+                                autoFocus
+                                placeholder="Label name"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") { e.preventDefault(); handleSaveLabelEdit(label) }
+                                  if (e.key === "Escape") cancelEditLabel()
+                                }}
+                                style={{
+                                  width: "100%", boxSizing: "border-box",
+                                  padding: "6px 8px", borderRadius: "var(--radius-input)",
+                                  border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))",
+                                  color: "oklch(var(--color-ink))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", outline: "none",
+                                }}
+                              />
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {LABEL_COLORS.map((c) => (
+                                  <button
+                                    key={c.value}
+                                    type="button"
+                                    aria-label={c.name}
+                                    onClick={() => setEditLabelColor(c.value)}
+                                    style={{
+                                      width: 20, height: 20, borderRadius: "50%", background: c.value,
+                                      border: editLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid oklch(var(--color-border))",
+                                      cursor: "pointer", padding: 0, flexShrink: 0,
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button
+                                  onClick={() => handleSaveLabelEdit(label)}
+                                  disabled={labelBusy || !editLabelName.trim()}
+                                  style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: labelBusy || !editLabelName.trim() ? "not-allowed" : "pointer", opacity: labelBusy || !editLabelName.trim() ? 0.55 : 1 }}
+                                >
+                                  {labelBusy ? "Saving…" : "Save"}
+                                </button>
+                                <button
+                                  onClick={cancelEditLabel}
+                                  disabled={labelBusy}
+                                  style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        // Delete confirmation for this label
+                        if (confirmDeleteLabelId === label.id) {
+                          return (
+                            <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, background: "oklch(var(--color-error) / 0.08)", borderRadius: 6 }}>
+                              <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
+                                Delete “{label.name}”?
+                              </span>
+                              <button
+                                onClick={() => handleDeleteLabel(label.id)}
+                                disabled={labelBusy}
+                                style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-error))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                              >
+                                {labelBusy ? "…" : "Delete"}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteLabelId(null)}
+                                disabled={labelBusy}
+                                style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "none", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", cursor: "pointer" }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )
+                        }
+
+                        // Normal row: toggle assignment + edit + delete
                         return (
-                          <button
-                            key={label.id}
-                            onClick={() => handleLabelToggle(label)}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 8,
-                              background: assigned ? "oklch(var(--color-paper-2))" : "none",
-                              border: "none", borderRadius: 4,
-                              padding: "4px 6px", cursor: "pointer", textAlign: "left",
-                              width: "100%",
-                            }}
-                          >
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
-                            <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))" }}>
-                              {label.name}
-                            </span>
-                            {assigned && (
-                              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))" }}>✓</span>
-                            )}
-                          </button>
+                          <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                            <button
+                              onClick={() => handleLabelToggle(label)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 8, flex: 1,
+                                background: assigned ? "oklch(var(--color-paper-2))" : "none",
+                                border: "none", borderRadius: 4,
+                                padding: "4px 6px", cursor: "pointer", textAlign: "left",
+                              }}
+                            >
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))" }}>
+                                {label.name}
+                              </span>
+                              {assigned && (
+                                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))" }}>✓</span>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => startEditLabel(label)}
+                              aria-label={`Edit label ${label.name}`}
+                              style={labelIconBtnStyle}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))"; e.currentTarget.style.color = "oklch(var(--color-ink))" }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-ink-3))" }}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                <path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => { setEditingLabelId(null); setConfirmDeleteLabelId(label.id) }}
+                              aria-label={`Delete label ${label.name}`}
+                              style={{ ...labelIconBtnStyle, color: "oklch(var(--color-error))" }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-error) / 0.12)" }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          </div>
                         )
                       })}
                     </div>

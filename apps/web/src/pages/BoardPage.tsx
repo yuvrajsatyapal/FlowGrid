@@ -27,6 +27,7 @@ import { useBoardSocket } from "../hooks/useBoardSocket"
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
 import { cardDependenciesApi } from "../api/cardDependencies"
 import { computeBlockedCardIds } from "../utils/dependencies"
+import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -102,9 +103,20 @@ export default function BoardPage() {
   const [boardView, setBoardView] = useState<BoardView>("kanban")
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
+  // Transient banner shown when a card-cap rule blocks an action (e.g. drag into a full list)
+  const [capNotice, setCapNotice] = useState("")
+  const capTimerRef = useRef<number | null>(null)
+  const showCapNotice = useCallback((msg: string) => {
+    setCapNotice(msg)
+    if (capTimerRef.current) window.clearTimeout(capTimerRef.current)
+    capTimerRef.current = window.setTimeout(() => setCapNotice(""), 3000)
+  }, [])
+  useEffect(() => () => { if (capTimerRef.current) window.clearTimeout(capTimerRef.current) }, [])
+
   // Column pagination — show a page of lists at a time (responsive count, no horizontal scroll)
   const [listPage, setListPage] = useState(0)
   const [colsWidth, setColsWidth] = useState(0)
+  const [colsHeight, setColsHeight] = useState(0)
   const kanbanRef = useRef<HTMLDivElement>(null)
 
   // Dependency graph → set of blocked card ids (for the 🔒 Blocked badge)
@@ -210,7 +222,10 @@ export default function BoardPage() {
     if (boardView !== "kanban") return
     const el = kanbanRef.current
     if (!el) return
-    const measure = () => setColsWidth(el.clientWidth)
+    const measure = () => {
+      setColsWidth(el.clientWidth)
+      setColsHeight(el.clientHeight)
+    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
@@ -219,15 +234,32 @@ export default function BoardPage() {
 
   const COL_GAP = 12
   const COL_PAD = 16 // horizontal padding inside the kanban viewport (each side)
-  const MIN_COL = 220
-  const MAX_COL = 300
-  const MAX_COLS_PER_PAGE = 5
+  const MIN_COL = 240
+  const MAX_COL = 340
+  const MAX_COLS_PER_PAGE = 4 // cap at 4 columns/page even on wide screens → roomier columns
   const colsAvail = Math.max(0, colsWidth - COL_PAD * 2)
   const colsPerPage = Math.max(
     1,
     Math.min(MAX_COLS_PER_PAGE, colsAvail > 0 ? Math.floor((colsAvail + COL_GAP) / (MIN_COL + COL_GAP)) : MAX_COLS_PER_PAGE),
   )
   const colWidth = Math.min(MAX_COL, Math.floor((colsAvail - (colsPerPage - 1) * COL_GAP) / colsPerPage))
+
+  // Per-card height so a FULL list (MAX_CARDS_PER_LIST) fills the column top-to-bottom with no
+  // leftover gap. A full list has no "Add a card" row, so the only vertical chrome is the
+  // scroll-container padding + the list header. Each card adds CARD_GAP (its marginBottom).
+  //   colHeight = CONTAINER_VPAD + LIST_HEADER + MAX * (slot + CARD_GAP)
+  // Solve for slot so the column exactly fills the measured viewport (colsHeight).
+  const CONTAINER_VPAD = 32 // kanban scroll container top+bottom padding (16 each)
+  const LIST_HEADER = 44 // list title row (slightly generous → avoid a scrollbar)
+  const CARD_GAP = 8 // matches CardItem marginBottom
+  const CARD_MIN = 96
+  const cardSlotHeight =
+    colsHeight > 0
+      ? Math.max(
+          CARD_MIN,
+          Math.floor((colsHeight - CONTAINER_VPAD - LIST_HEADER) / MAX_CARDS_PER_LIST) - CARD_GAP,
+        )
+      : CARD_MIN
 
   // Items to page through: each list, plus an "add list" tile at the end (when editable)
   type ColumnItem = { kind: "list"; list: ListSummary } | { kind: "add" }
@@ -255,6 +287,34 @@ export default function BoardPage() {
     // Completion may have changed → recompute blocked badges
     void refreshDepGraph()
   }, [refreshDepGraph])
+
+  // Label rename/recolor → update that label on every card across the board
+  const handleLabelUpdated = useCallback((label: { id: string; name: string; color: string }) => {
+    setBoardCards((prev) => {
+      const next: Record<string, CardSummary[]> = {}
+      for (const [lid, cards] of Object.entries(prev)) {
+        next[lid] = cards.map((c) => ({
+          ...c,
+          labels: c.labels.map((l) => (l.id === label.id ? { ...l, name: label.name, color: label.color } : l)),
+        }))
+      }
+      return next
+    })
+  }, [])
+
+  // Label deletion → strip that label from every card across the board
+  const handleLabelDeleted = useCallback((labelId: string) => {
+    setBoardCards((prev) => {
+      const next: Record<string, CardSummary[]> = {}
+      for (const [lid, cards] of Object.entries(prev)) {
+        next[lid] = cards.map((c) => ({
+          ...c,
+          labels: c.labels.filter((l) => l.id !== labelId),
+        }))
+      }
+      return next
+    })
+  }, [])
 
   // ─── DnD helpers ────────────────────────────────────────────────────────────
 
@@ -299,6 +359,12 @@ export default function BoardPage() {
       const destCards = boardCards[destListId]
       const card = sourceCards.find((c) => c.id === activeId)
       if (!card) return
+
+      // Enforce the per-list card cap on cross-list moves (mirrors the backend check)
+      if (destCards.length >= MAX_CARDS_PER_LIST) {
+        showCapNotice(`A list can hold at most ${MAX_CARDS_PER_LIST} cards. Delete a card in the target list first.`)
+        return
+      }
 
       const newSourceCards = sourceCards.filter((c) => c.id !== activeId)
       const insertAt =
@@ -594,40 +660,7 @@ export default function BoardPage() {
         </div>
       ) : (
         /* Kanban columns (paginated — a page of lists at a time) */
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          {/* Pagination controls */}
-          {!loadingLists && !listsError && totalListPages > 1 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
-                gap: 8,
-                padding: `10px ${COL_PAD}px 0`,
-              }}
-            >
-              <button
-                onClick={() => setListPage((p) => Math.max(0, p - 1))}
-                disabled={safeListPage === 0}
-                aria-label="Previous page"
-                style={pagerBtnStyle(safeListPage === 0)}
-              >
-                ‹ Prev
-              </button>
-              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", minWidth: 92, textAlign: "center" }}>
-                Page {safeListPage + 1} of {totalListPages}
-              </span>
-              <button
-                onClick={() => setListPage((p) => Math.min(totalListPages - 1, p + 1))}
-                disabled={safeListPage >= totalListPages - 1}
-                aria-label="Next page"
-                style={pagerBtnStyle(safeListPage >= totalListPages - 1)}
-              >
-                Next ›
-              </button>
-            </div>
-          )}
-
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
           <div
             ref={kanbanRef}
             style={{
@@ -681,6 +714,7 @@ export default function BoardPage() {
                     onCardCreated={handleCardCreated}
                     onCardClick={(id) => setOpenCardId(id)}
                     width={colWidth}
+                    cardSlotHeight={cardSlotHeight}
                     blockedCardIds={blockedCardIds}
                   />
                 ) : (
@@ -699,6 +733,66 @@ export default function BoardPage() {
             </DndContext>
           )}
           </div>
+
+          {/* Card-cap notice — floats above the pager, auto-dismisses */}
+          {capNotice && (
+            <div
+              role="status"
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: 56,
+                transform: "translateX(-50%)",
+                maxWidth: "min(90%, 460px)",
+                padding: "8px 14px",
+                borderRadius: "var(--radius-button)",
+                background: "oklch(var(--color-ink))",
+                color: "oklch(var(--color-paper))",
+                fontSize: "var(--text-xs)",
+                fontWeight: 500,
+                boxShadow: "0 6px 20px oklch(0% 0 0 / 0.22)",
+                textAlign: "center",
+                zIndex: 30,
+              }}
+            >
+              {capNotice}
+            </div>
+          )}
+
+          {/* Pagination controls — anchored at the bottom */}
+          {!loadingLists && !listsError && totalListPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: `8px ${COL_PAD}px 12px`,
+                borderTop: "1px solid oklch(var(--color-border))",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => setListPage((p) => Math.max(0, p - 1))}
+                disabled={safeListPage === 0}
+                aria-label="Previous page"
+                style={pagerBtnStyle(safeListPage === 0)}
+              >
+                ‹ Prev
+              </button>
+              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", minWidth: 92, textAlign: "center" }}>
+                Page {safeListPage + 1} of {totalListPages}
+              </span>
+              <button
+                onClick={() => setListPage((p) => Math.min(totalListPages - 1, p + 1))}
+                disabled={safeListPage >= totalListPages - 1}
+                aria-label="Next page"
+                style={pagerBtnStyle(safeListPage >= totalListPages - 1)}
+              >
+                Next ›
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -713,6 +807,8 @@ export default function BoardPage() {
             listName={lists.find((l) => l.id === openCard.listId)?.name}
             onClose={() => { setOpenCardId(null); void refreshDepGraph() }}
             onCardUpdated={handleCardUpdated}
+            onLabelUpdated={handleLabelUpdated}
+            onLabelDeleted={handleLabelDeleted}
             onCardDeleted={(id) => {
               setBoardCards((prev) => {
                 const next: Record<string, CardSummary[]> = {}

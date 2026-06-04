@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 import type { ListSummary } from "../../api/lists"
 import { listsApi } from "../../api/lists"
 import type { CardSummary } from "../../api/cards"
@@ -17,6 +18,8 @@ interface Props {
   onCardCreated: (listId: string, card: CardSummary) => void
   onCardClick?: (cardId: string) => void
   width?: number
+  /** Height each card occupies so a full list (5 cards) fills the column top-to-bottom */
+  cardSlotHeight?: number
   blockedCardIds?: Set<string>
 }
 
@@ -25,7 +28,7 @@ function isDoneList(name: string): boolean {
   return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, blockedCardIds }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, cardSlotHeight, blockedCardIds }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -79,6 +82,8 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
     onCardCreated(list.id, card)
   }
 
+  const isFull = cards.length >= MAX_CARDS_PER_LIST
+
   return (
     <div
       style={{
@@ -86,6 +91,9 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         flexDirection: "column",
         width,
         flexShrink: 0,
+        // A full list stretches to the column height so its cards fill it edge-to-edge;
+        // a partial/empty list stays content-sized (grows with the number of cards).
+        alignSelf: isFull ? "stretch" : "flex-start",
         background: "oklch(var(--color-paper-2))",
         borderRadius: "var(--radius-card)",
         border: "1px solid oklch(var(--color-border))",
@@ -237,24 +245,28 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         </p>
       )}
 
-      {/* Cards area — reserve at least one card's worth of space by default */}
+      {/* Cards area — reserve one card slot when empty; each card fills its slot so a full
+          list spans the column top-to-bottom with no leftover gap */}
       <div
         ref={setDropRef}
         style={{
           flex: 1,
           padding: "0 8px",
-          minHeight: 72,
+          minHeight: cardSlotHeight ?? 96,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
         }}
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
-            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} onCardClick={onCardClick} />
+            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} minHeight={cardSlotHeight} onCardClick={onCardClick} />
           ))}
         </SortableContext>
       </div>
 
-      {/* Add card */}
-      {canEdit && (
+      {/* Add card — hidden once the list hits the card cap (delete a card to add another) */}
+      {canEdit && !isFull && (
         <div style={{ padding: "4px 4px 6px" }}>
           <CreateCardInline onSubmit={handleCreateCard} />
         </div>
