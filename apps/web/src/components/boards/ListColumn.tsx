@@ -236,13 +236,13 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         </p>
       )}
 
-      {/* Cards area */}
+      {/* Cards area — reserve at least one card's worth of space by default */}
       <div
         ref={setDropRef}
         style={{
           flex: 1,
           padding: "0 8px",
-          minHeight: 40,
+          minHeight: 72,
         }}
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
