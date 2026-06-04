@@ -25,6 +25,8 @@ import BoardTimelineView from "../components/boards/BoardTimelineView"
 import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal"
 import { useBoardSocket } from "../hooks/useBoardSocket"
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
+import { cardDependenciesApi } from "../api/cardDependencies"
+import { computeBlockedCardIds } from "../utils/dependencies"
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -104,6 +106,18 @@ export default function BoardPage() {
   const [listPage, setListPage] = useState(0)
   const [colsWidth, setColsWidth] = useState(0)
   const kanbanRef = useRef<HTMLDivElement>(null)
+
+  // Dependency graph → set of blocked card ids (for the 🔒 Blocked badge)
+  const [blockedCardIds, setBlockedCardIds] = useState<Set<string>>(new Set())
+  const refreshDepGraph = useCallback(async () => {
+    if (!boardId) return
+    try {
+      const graph = await cardDependenciesApi.boardGraph(boardId)
+      setBlockedCardIds(computeBlockedCardIds(graph.edges, graph.completedCardIds))
+    } catch { /* non-critical */ }
+  }, [boardId])
+
+  useEffect(() => { void refreshDepGraph() }, [refreshDepGraph])
 
   useKeyboardShortcuts([
     { key: "?", description: "Open keyboard shortcuts", handler: () => setShortcutsOpen(true) },
@@ -238,7 +252,9 @@ export default function BoardPage() {
         [updated.listId]: listCards.map((c) => (c.id === updated.id ? updated : c)),
       }
     })
-  }, [])
+    // Completion may have changed → recompute blocked badges
+    void refreshDepGraph()
+  }, [refreshDepGraph])
 
   // ─── DnD helpers ────────────────────────────────────────────────────────────
 
@@ -367,6 +383,7 @@ export default function BoardPage() {
         if (!listCards) return prev
         return { ...prev, [card.listId]: listCards.map((c) => (c.id === card.id ? card : c)) }
       })
+      void refreshDepGraph()
     },
     onCardMoved: (card) => {
       setBoardCards((prev) => {
@@ -386,6 +403,7 @@ export default function BoardPage() {
         }
         return next
       })
+      void refreshDepGraph()
     },
     onCardReordered: ({ listId, cardIds }) => {
       setBoardCards((prev) => {
@@ -663,6 +681,7 @@ export default function BoardPage() {
                     onCardCreated={handleCardCreated}
                     onCardClick={(id) => setOpenCardId(id)}
                     width={colWidth}
+                    blockedCardIds={blockedCardIds}
                   />
                 ) : (
                   <CreateListInline key="__add_list__" onSubmit={handleCreateList} width={colWidth} />
@@ -692,7 +711,7 @@ export default function BoardPage() {
             workspaceId={workspaceId}
             canEdit={canEdit}
             listName={lists.find((l) => l.id === openCard.listId)?.name}
-            onClose={() => setOpenCardId(null)}
+            onClose={() => { setOpenCardId(null); void refreshDepGraph() }}
             onCardUpdated={handleCardUpdated}
             onCardDeleted={(id) => {
               setBoardCards((prev) => {

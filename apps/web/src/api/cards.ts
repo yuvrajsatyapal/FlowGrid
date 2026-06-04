@@ -26,6 +26,7 @@ export interface CardSummary {
   assignee: CardAssignee | null
   labels: CardLabel[]
   coverColor: string | null
+  completedAt: string | null
   createdAt: string
   updatedAt: string
   deletedAt: string | null
@@ -53,6 +54,7 @@ export const cardsApi = {
       startDate?: string | null
       dueDate?: string | null
       assigneeId?: string | null
+      completed?: boolean
     },
   ): Promise<CardSummary> {
     const res = await api.post<{ card: CardSummary }>("/cards/update", data, { params: { id } })

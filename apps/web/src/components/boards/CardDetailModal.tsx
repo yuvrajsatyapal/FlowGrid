@@ -6,6 +6,8 @@ import Placeholder from "@tiptap/extension-placeholder"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary, CardLabel } from "../../api/cards"
 import { cardsApi } from "../../api/cards"
+import { cardDependenciesApi } from "../../api/cardDependencies"
+import { setCardComplete } from "../../utils/dependencies"
 import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
@@ -82,6 +84,12 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState("")
   const [deleting, setDeleting] = useState(false)
+
+  // Completion + dependency-blocked state
+  const [completing, setCompleting] = useState(false)
+  const [blockedByActive, setBlockedByActive] = useState(false) // ≥1 blocker not completed
+  const [showBlockedWarning, setShowBlockedWarning] = useState(false)
+  const isComplete = localCard.completedAt != null
 
   // Sidebar data
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -187,6 +195,38 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
   }, [])
+
+  // Compute whether this card is currently blocked (any "blocked by" dependency not completed)
+  const refreshBlocked = useCallback(async () => {
+    try {
+      const deps = await cardDependenciesApi.get(localCard.id)
+      setBlockedByActive(deps.blockedBy.some((d) => !d.card.completed))
+    } catch { /* non-critical */ }
+  }, [localCard.id])
+
+  useEffect(() => { void refreshBlocked() }, [refreshBlocked])
+
+  const applyComplete = useCallback(async (complete: boolean) => {
+    if (completing) return
+    setCompleting(true)
+    try {
+      const updated = await setCardComplete(localCard.id, complete)
+      setLocalCard((prev) => ({ ...prev, completedAt: updated.completedAt }))
+      onCardUpdated(updated)
+    } catch (err: unknown) {
+      alert((err as Error).message || "Failed to update completion")
+    } finally {
+      setCompleting(false)
+    }
+  }, [completing, localCard.id, onCardUpdated])
+
+  function handleToggleComplete() {
+    if (!isComplete && blockedByActive) {
+      setShowBlockedWarning(true)
+      return
+    }
+    void applyComplete(!isComplete)
+  }
 
   function handleOverlayClick(e: React.MouseEvent) {
     if (e.target === overlayRef.current) void flushAndClose()
@@ -419,6 +459,46 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
 
             {/* Spacer */}
             <div style={{ flex: 1 }} />
+
+            {/* Completion toggle */}
+            {canEdit && (
+              <button
+                onClick={handleToggleComplete}
+                disabled={completing}
+                aria-pressed={isComplete}
+                title={isComplete ? "Mark as incomplete" : "Mark as complete"}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 12px",
+                  borderRadius: "var(--radius-button)",
+                  border: isComplete ? "none" : "1px solid oklch(var(--color-border))",
+                  background: isComplete ? "oklch(var(--color-success))" : "transparent",
+                  color: isComplete ? "#fff" : "oklch(var(--color-ink-2))",
+                  fontSize: "var(--text-xs)",
+                  fontWeight: 600,
+                  fontFamily: "var(--font-body)",
+                  cursor: completing ? "default" : "pointer",
+                  opacity: completing ? 0.6 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  width: 14, height: 14, borderRadius: 4, flexShrink: 0,
+                  border: isComplete ? "none" : "1.5px solid oklch(var(--color-ink-3))",
+                  background: isComplete ? "rgba(255,255,255,0.25)" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {isComplete && (
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M2.5 6.2l2.2 2.2L9.5 3.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </span>
+                {isComplete ? "Completed" : "Mark as Complete"}
+              </button>
+            )}
 
             {/* Delete card */}
             {canEdit && (
@@ -895,11 +975,42 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
 
             {/* Dependencies */}
             <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={canEdit} />
+              <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={canEdit} onChanged={() => void refreshBlocked()} />
             </div>
 
           </div>
         </div>
+
+        {/* Blocked-completion warning */}
+        {showBlockedWarning && (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setShowBlockedWarning(false) }}
+            style={{ position: "absolute", inset: 0, background: "oklch(0% 0 0 / 0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, borderRadius: "var(--radius-modal)", padding: 24 }}
+          >
+            <div className="surface-pop" style={{ width: "100%", maxWidth: 380, background: "oklch(var(--color-paper))", border: "1px solid oklch(var(--color-border))", borderRadius: "var(--radius-modal)", boxShadow: "var(--shadow-pop, 0 20px 60px oklch(0% 0 0 / 0.2))", padding: 20 }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: "var(--text-base)", fontWeight: 700, fontFamily: "var(--font-display)", color: "oklch(var(--color-ink))" }}>
+                This task is blocked
+              </h3>
+              <p style={{ margin: "0 0 18px", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))", lineHeight: 1.5 }}>
+                This task is still waiting on one or more dependency cards. Are you sure you want to mark it as completed?
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  onClick={() => setShowBlockedWarning(false)}
+                  style={{ padding: "8px 14px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper-2))", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-sm)", fontWeight: 500, cursor: "pointer", fontFamily: "var(--font-body)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setShowBlockedWarning(false); void applyComplete(true) }}
+                  style={{ padding: "8px 14px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)" }}
+                >
+                  Mark Complete Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   )
