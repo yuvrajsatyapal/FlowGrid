@@ -81,6 +81,7 @@ function formatCard(
     dueDate: Date | null
     assigneeId: string | null
     coverColor: string | null
+    completedAt?: Date | null
     createdAt: Date
     updatedAt: Date
     deletedAt: Date | null
@@ -103,6 +104,7 @@ function formatCard(
     assignee: assignee ?? null,
     labels: labels ?? [],
     coverColor: card.coverColor,
+    completedAt: card.completedAt ?? null,
     createdAt: card.createdAt,
     updatedAt: card.updatedAt,
     deletedAt: card.deletedAt,
@@ -223,17 +225,22 @@ router.post("/update", validateJWT, async (req, res) => {
     return
   }
 
-  const { title, description, priority, startDate, dueDate, assigneeId } = req.body as {
+  const { title, description, priority, startDate, dueDate, assigneeId, completed } = req.body as {
     title?: string
     description?: string | null
     priority?: string
     startDate?: string | null
     dueDate?: string | null
     assigneeId?: string | null
+    completed?: boolean
   }
 
-  if (title === undefined && description === undefined && priority === undefined && startDate === undefined && dueDate === undefined && assigneeId === undefined) {
+  if (title === undefined && description === undefined && priority === undefined && startDate === undefined && dueDate === undefined && assigneeId === undefined && completed === undefined) {
     res.status(400).json({ error: { message: "At least one field is required", status: 400 } })
+    return
+  }
+  if (completed !== undefined && typeof completed !== "boolean") {
+    res.status(400).json({ error: { message: "completed must be a boolean", status: 400 } })
     return
   }
   if (assigneeId !== undefined && assigneeId !== null && (typeof assigneeId !== "string" || assigneeId.trim() === "")) {
@@ -294,6 +301,7 @@ router.post("/update", validateJWT, async (req, res) => {
     if (startDate !== undefined) updateData.startDate = startDate === null ? null : new Date(startDate)
     if (dueDate !== undefined) updateData.dueDate = dueDate === null ? null : new Date(dueDate)
     if (assigneeId !== undefined) updateData.assigneeId = assigneeId
+    if (completed !== undefined) updateData.completedAt = completed ? new Date() : null
 
     const updated = await prisma.card.update({
       where: { id: cardId },
@@ -324,6 +332,9 @@ router.post("/update", validateJWT, async (req, res) => {
         }
         if (priority !== undefined && priority !== card.priority) {
           void logActivity({ cardId, userId: actorId, action: "priority_changed", metadata: { from: card.priority, to: priority }, boardId: access.board.id })
+        }
+        if (completed !== undefined && completed !== (card.completedAt !== null)) {
+          void logActivity({ cardId, userId: actorId, action: completed ? "card_completed" : "card_reopened", metadata: {}, boardId: access.board.id })
         }
         if (dueDate !== undefined) {
           const oldDate = card.dueDate ? card.dueDate.toISOString() : null

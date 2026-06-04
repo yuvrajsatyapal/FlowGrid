@@ -3,6 +3,7 @@ import { api } from "../lib/axiosInstance"
 export interface DependencyCard {
   id: string
   title: string
+  completed?: boolean
 }
 
 export interface DependencyEntry {
@@ -14,6 +15,16 @@ export interface BoardCard {
   id: string
   title: string
   listName: string
+}
+
+export interface DependencyEdge {
+  blockerId: string
+  blockedId: string
+}
+
+export interface BoardDependencyGraph {
+  edges: DependencyEdge[]
+  completedCardIds: string[]
 }
 
 export const cardDependenciesApi = {
@@ -36,5 +47,10 @@ export const cardDependenciesApi = {
   async getBoardCards(boardId: string): Promise<BoardCard[]> {
     const res = await api.get<{ cards: BoardCard[] }>("/card-dependencies/board-cards", { params: { boardId } })
     return res.data.cards
+  },
+
+  async boardGraph(boardId: string): Promise<BoardDependencyGraph> {
+    const res = await api.get<BoardDependencyGraph>("/card-dependencies/board-graph", { params: { boardId } })
+    return res.data
   },
 }

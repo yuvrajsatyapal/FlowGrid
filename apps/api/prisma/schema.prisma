@@ -232,6 +232,7 @@ model Card {
   dueDate     DateTime? @db.Timestamptz()
   assigneeId  String?
   coverColor  String?
+  completedAt DateTime? @db.Timestamptz()
   createdAt   DateTime  @default(now()) @db.Timestamptz()
   updatedAt   DateTime  @updatedAt @db.Timestamptz()
   deletedAt   DateTime? @db.Timestamptz()

@@ -17,6 +17,7 @@ interface Props {
   onCardCreated: (listId: string, card: CardSummary) => void
   onCardClick?: (cardId: string) => void
   width?: number
+  blockedCardIds?: Set<string>
 }
 
 function isDoneList(name: string): boolean {
@@ -24,7 +25,7 @@ function isDoneList(name: string): boolean {
   return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272 }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, blockedCardIds }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -247,7 +248,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
-            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} onCardClick={onCardClick} />
+            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} onCardClick={onCardClick} />
           ))}
         </SortableContext>
       </div>

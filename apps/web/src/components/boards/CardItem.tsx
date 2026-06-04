@@ -9,6 +9,8 @@ interface Props {
   card: CardSummary
   listName?: string
   isDoneList?: boolean
+  /** True when the card is blocked by an incomplete dependency */
+  blocked?: boolean
   /** When true, renders as the DragOverlay clone — no transform/ref needed */
   overlay?: boolean
   onCardClick?: (cardId: string) => void
@@ -96,12 +98,14 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, listName, isDoneList = false, overlay = false, onCardClick }: Props) {
+export default function CardItem({ card, listName, isDoneList = false, blocked = false, overlay = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
   const dueDateColor = card.dueDate ? getDueDateColor(card.dueDate) : null
   const prioritySuffix = card.priority !== "NONE" ? ` — ${card.priority.toLowerCase()} priority` : ""
+  const isComplete = card.completedAt != null
+  const done = isComplete || isDoneList
 
   return (
     <div
@@ -191,7 +195,7 @@ export default function CardItem({ card, listName, isDoneList = false, overlay =
               fontFamily: "var(--font-body)",
               fontSize: "var(--text-sm)",
               fontWeight: 500,
-              color: isDoneList ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink))",
+              color: done ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink))",
               lineHeight: 1.4,
               flex: 1,
               overflow: "hidden",
@@ -199,17 +203,38 @@ export default function CardItem({ card, listName, isDoneList = false, overlay =
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               wordBreak: "break-word",
-              textDecoration: isDoneList ? "line-through" : "none",
+              textDecoration: done ? "line-through" : "none",
             }}
           >
             {card.title}
           </span>
         </div>
 
-        {/* Completed date for done lists */}
-        {isDoneList && (
+        {/* Blocked badge */}
+        {blocked && !isComplete && (
+          <span
+            style={{
+              alignSelf: "flex-start",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
+              padding: "1px 6px",
+              borderRadius: "var(--radius-badge)",
+              background: "oklch(var(--color-error) / 0.12)",
+              color: "oklch(var(--color-error))",
+              fontSize: "0.5625rem",
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+            }}
+          >
+            🔒 Blocked
+          </span>
+        )}
+
+        {/* Completed date */}
+        {done && (
           <span style={{ fontSize: "0.5625rem", color: "oklch(var(--color-ink-3))", letterSpacing: "0.04em" }}>
-            Completed {formatCompletedDate(card.updatedAt)}
+            Completed {formatCompletedDate(card.completedAt ?? card.updatedAt)}
           </span>
         )}
 
@@ -254,7 +279,7 @@ export default function CardItem({ card, listName, isDoneList = false, overlay =
           <div style={{ flex: 1 }} />
 
           {/* Status pill = list name */}
-          {listName && !isDoneList && (
+          {listName && !done && (
             <span
               style={{
                 display: "flex",

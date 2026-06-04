@@ -5,9 +5,20 @@ interface Props {
   cardId: string
   boardId: string
   canEdit: boolean
+  onChanged?: () => void
 }
 
-export default function DependenciesSection({ cardId, boardId, canEdit }: Props) {
+// Health indicator for a dependency row.
+// - completed → ✅ Complete
+// - a "blocked by" card that isn't done → 🔒 Blocking This Card
+// - otherwise (a card this one blocks, not yet done) → ⏳ In Progress
+function dependencyIndicator(type: "blocking" | "blockedBy", completed?: boolean) {
+  if (completed) return { icon: "✅", text: "Complete", color: "oklch(var(--color-success))" }
+  if (type === "blockedBy") return { icon: "🔒", text: "Blocking This Card", color: "oklch(var(--color-error))" }
+  return { icon: "⏳", text: "In Progress", color: "oklch(var(--color-ink-3))" }
+}
+
+export default function DependenciesSection({ cardId, boardId, canEdit, onChanged }: Props) {
   const [blocking, setBlocking] = useState<DependencyEntry[]>([])
   const [blockedBy, setBlockedBy] = useState<DependencyEntry[]>([])
   const [boardCards, setBoardCards] = useState<BoardCard[]>([])
@@ -51,7 +62,8 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
         await cardDependenciesApi.add(targetCardId, cardId)
       }
       setPickerOpen(null)
-      void load()
+      await load()
+      onChanged?.()
     } catch (err) {
       setDepError((err as Error).message || "Failed to add dependency")
     }
@@ -61,7 +73,8 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
     setDepError("")
     try {
       await cardDependenciesApi.remove(depId)
-      void load()
+      await load()
+      onChanged?.()
     } catch (err) {
       setDepError((err as Error).message || "Failed to remove dependency")
     }
@@ -149,10 +162,18 @@ export default function DependenciesSection({ cardId, boardId, canEdit }: Props)
           <span style={{ fontSize: 12, color: "oklch(var(--color-ink-3))", fontStyle: "italic" }}>{addLabel}</span>
         )}
         {entries.map((dep) => (
-          <div key={dep.depId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderRadius: "var(--radius-badge)", background: "oklch(var(--color-paper-2))", gap: 8 }}>
+          <div key={dep.depId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 8px", borderRadius: "var(--radius-badge)", background: "oklch(var(--color-paper-2))", gap: 8 }}>
             <span style={{ ...s, color: "oklch(var(--color-ink))", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dep.card.title}</span>
+            {(() => {
+              const ind = dependencyIndicator(type, dep.card.completed)
+              return (
+                <span style={{ fontSize: 11, fontWeight: 600, color: ind.color, whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", gap: 3 }}>
+                  {ind.icon} {ind.text}
+                </span>
+              )
+            })()}
             {canEdit && (
-              <button onClick={() => onRemove(dep.depId)} style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 14, padding: "0 2px", flexShrink: 0 }}>×</button>
+              <button onClick={() => onRemove(dep.depId)} aria-label="Remove dependency" style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 14, padding: "0 2px", flexShrink: 0 }}>×</button>
             )}
           </div>
         ))}
