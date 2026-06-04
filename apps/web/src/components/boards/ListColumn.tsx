@@ -16,6 +16,7 @@ interface Props {
   onDeleted: (id: string) => void
   onCardCreated: (listId: string, card: CardSummary) => void
   onCardClick?: (cardId: string) => void
+  width?: number
 }
 
 function isDoneList(name: string): boolean {
@@ -23,7 +24,7 @@ function isDoneList(name: string): boolean {
   return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272 }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -82,7 +83,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
       style={{
         display: "flex",
         flexDirection: "column",
-        width: 272,
+        width,
         flexShrink: 0,
         background: "oklch(var(--color-paper-2))",
         borderRadius: "var(--radius-card)",
