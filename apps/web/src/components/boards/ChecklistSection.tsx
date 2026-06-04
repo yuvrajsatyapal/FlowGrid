@@ -166,7 +166,7 @@ export default function ChecklistSection({ cardId, canEdit }: Props) {
               <button
                 onClick={() => void handleAdd()}
                 disabled={adding || !newItem.trim()}
-                style={{ padding: "7px 14px", borderRadius: "var(--radius-button)", background: "oklch(var(--color-paper-2))", border: "1px solid oklch(var(--color-border))", color: "oklch(var(--color-ink-2))", cursor: adding || !newItem.trim() ? "default" : "pointer", fontSize: "var(--text-sm)", fontWeight: 500, opacity: adding || !newItem.trim() ? 0.6 : 1 }}
+                style={{ padding: "7px 16px", borderRadius: "var(--radius-button)", background: "oklch(var(--color-accent))", border: "none", color: "#fff", cursor: adding || !newItem.trim() ? "default" : "pointer", fontSize: "var(--text-sm)", fontWeight: 600, opacity: adding || !newItem.trim() ? 0.55 : 1 }}
               >
                 Add
               </button>
