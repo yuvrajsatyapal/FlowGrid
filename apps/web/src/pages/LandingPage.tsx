@@ -183,18 +183,18 @@ function LandingNav({ scrolled }: { scrolled: boolean }) {
 
         {/* Desktop nav */}
         <nav style={{ display: 'flex', gap: 24, alignItems: 'center' }} className="hidden md:flex flex-1 justify-center px-4">
-          {['Features', 'How it Works', 'Pricing', 'Blog'].map(link => (
-            <a key={link} href="#"
+          {[{ label: 'Features', href: '#features' }, { label: 'FAQs', href: '#faqs' }].map(({ label, href }) => (
+            <a key={label} href={href}
                style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(28,27,27,0.72)', textDecoration: 'none', borderBottom: `2px solid ${C.border}`, padding: '8px 4px', transition: 'color 0.2s, border-color 0.2s' }}
                onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderBottomColor = C.text }}
                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(28,27,27,0.72)'; e.currentTarget.style.borderBottomColor = C.border }}>
-              {link}
+              {label}
             </a>
           ))}
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: C.muted }} className="hidden md:inline">EN</span>
+          {/* <span style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: C.muted }} className="hidden md:inline">EN</span> */}
           <a href="/login" className="lp-btn hidden md:inline-flex" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started Free</a>
           <button onClick={() => setMenuOpen(o => !o)} aria-label="Open menu" className="md:hidden" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -208,9 +208,9 @@ function LandingNav({ scrolled }: { scrolled: boolean }) {
 
       {menuOpen && (
         <div style={{ background: C.bg, borderTop: `1px solid ${C.border}`, padding: '16px 24px 24px' }} className="md:hidden">
-          {['Features', 'How it Works', 'Pricing', 'Blog'].map(link => (
-            <a key={link} href="#" style={{ display: 'block', padding: '12px 0', fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.text, textDecoration: 'none', borderBottom: `1px solid ${C.border}` }}>
-              {link}
+          {[{ label: 'Features', href: '#features' }, { label: 'FAQs', href: '#faqs' }].map(({ label, href }) => (
+            <a key={label} href={href} onClick={() => setMenuOpen(false)} style={{ display: 'block', padding: '12px 0', fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.text, textDecoration: 'none', borderBottom: `1px solid ${C.border}` }}>
+              {label}
             </a>
           ))}
           <a href="/login" className="lp-btn" style={{ marginTop: 20, width: '100%', justifyContent: 'center', fontSize: 13 }}>Get Started Free</a>
@@ -324,7 +324,7 @@ function HeroSection({ time }: { time: string }) {
           SCROLL DOWN
         </span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 12, color: C.muted }}>India,</span>
+          <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', color: C.muted }}>India,</span>
           <span id="lp-clock" style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums', minWidth: '6ch', textAlign: 'right' }}>
             {time}
           </span>
@@ -521,7 +521,7 @@ function BoldStatement() {
 /* ─── FEATURES (flip cards) ─────────────────────────────────────────────────── */
 function FeaturesSection() {
   return (
-    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
+    <section id="features" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
       <p className="lp-label lp-reveal" style={{ marginBottom: 24 }}>Features</p>
       <div style={{ display: 'grid', gap: 20 }} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" role="list">
         {FEATURES.map((feat, i) => {
@@ -598,7 +598,7 @@ function FAQSection() {
   const [openIdx, setOpenIdx] = useState<number | null>(0)
 
   return (
-    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, borderTop: `1px solid ${C.border}` }}>
+    <section id="faqs" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, borderTop: `1px solid ${C.border}` }}>
       <div style={{ maxWidth: '100rem', margin: '0 auto', display: 'grid', gap: 64 }} className="lg:grid-cols-[0.78fr_1.22fr] lg:gap-20">
         {/* Sticky left */}
         <div className="lp-reveal lg:sticky lg:top-20 lg:self-start">
