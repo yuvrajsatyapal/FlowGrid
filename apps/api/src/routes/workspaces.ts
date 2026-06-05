@@ -336,6 +336,7 @@ router.get("/members", validateJWT, async (req, res) => {
       avatarUrl: m.user.avatarUrl,
       role: m.role,
       online: onlineIds.has(m.user.id),
+      createdAt: m.createdAt.toISOString(),
     }))
 
     res.json({ members })

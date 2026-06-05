@@ -9,6 +9,7 @@ export interface WorkspaceMember {
   avatarUrl: string | null
   role: Role
   online: boolean  // true while the user holds at least one active socket connection
+  createdAt: string
 }
 
 export interface WorkspaceSummary {

@@ -367,11 +367,21 @@ export default function WorkspaceMembersPage() {
   // The current viewer always holds an active socket connection, so count them as online.
   const onlineCount = members.filter((m) => m.userId === user?.id || m.online).length
 
-  const filteredMembers = members.filter((m) => {
-    const q = memberSearch.trim().toLowerCase()
-    if (!q) return true
-    return (m.name ?? "").toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
-  })
+  const filteredMembers = members
+    .filter((m) => {
+      const q = memberSearch.trim().toLowerCase()
+      if (!q) return true
+      return (m.name ?? "").toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+    })
+    .sort((a, b) => {
+      const tier = (m: typeof a) => {
+        if (m.role === "OWNER") return 0
+        return m.userId === user?.id || m.online ? 1 : 2
+      }
+      const tierDiff = tier(a) - tier(b)
+      if (tierDiff !== 0) return tierDiff
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
 
   const fetchMembers = useCallback(async () => {
     if (!workspaceId) return
