@@ -804,7 +804,9 @@ export default function BoardPage() {
             boardId={board.id}
             workspaceId={workspaceId}
             canEdit={canEdit}
+            userRole={board?.role}
             listName={lists.find((l) => l.id === openCard.listId)?.name}
+            listColor={lists.find((l) => l.id === openCard.listId)?.color}
             onClose={() => { setOpenCardId(null); void refreshDepGraph() }}
             onCardUpdated={handleCardUpdated}
             onLabelUpdated={handleLabelUpdated}

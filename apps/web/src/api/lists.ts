@@ -4,6 +4,7 @@ export interface ListSummary {
   id: string
   boardId: string
   name: string
+  color: string
   position: string
   cardCount: number
   createdAt: string

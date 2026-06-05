@@ -32,6 +32,8 @@ export interface CardSummary {
   deletedAt: string | null
   commentCount: number
   attachmentCount: number
+  checklistTotal: number
+  checklistDone: number
 }
 
 export const cardsApi = {

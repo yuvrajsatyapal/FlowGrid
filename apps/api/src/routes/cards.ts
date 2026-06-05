@@ -95,6 +95,8 @@ function formatCard(
   labels?: CardLabelItem[],
   commentCount = 0,
   attachmentCount = 0,
+  checklistTotal = 0,
+  checklistDone = 0,
 ) {
   return {
     id: card.id,
@@ -115,6 +117,8 @@ function formatCard(
     deletedAt: card.deletedAt,
     commentCount,
     attachmentCount,
+    checklistTotal,
+    checklistDone,
   }
 }
 
@@ -210,6 +214,12 @@ router.get("/", validateJWT, async (req, res) => {
         assignee: { select: { id: true, name: true, avatarUrl: true } },
         labels: { include: { label: true } },
         _count: { select: { comments: true, attachments: true } },
+        checklists: {
+          select: {
+            _count: { select: { items: true } },
+            items: { where: { checked: true }, select: { id: true } },
+          },
+        },
       },
     })
 
@@ -222,7 +232,9 @@ router.get("/", validateJWT, async (req, res) => {
         name: cl.label.name,
         color: cl.label.color,
       }))
-      return formatCard(card, assignee, labels, card._count.comments, card._count.attachments)
+      const checklistTotal = card.checklists.reduce((s, c) => s + c._count.items, 0)
+      const checklistDone = card.checklists.reduce((s, c) => s + c.items.length, 0)
+      return formatCard(card, assignee, labels, card._count.comments, card._count.attachments, checklistTotal, checklistDone)
     })
 
     res.json({ cards: formatted })

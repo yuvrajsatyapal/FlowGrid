@@ -164,7 +164,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         {/* Card count badge + optional blip for non-empty columns */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
           {cards.length > 0 && (
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "oklch(var(--color-accent))", opacity: 0.7, flexShrink: 0 }} />
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: list.color, opacity: 0.85, flexShrink: 0 }} />
           )}
           <span
             style={{
