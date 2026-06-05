@@ -351,13 +351,29 @@ function ProcessSection() {
   const [activeStep, setActiveStep] = useState(0)
   const [mobileOpen, setMobileOpen] = useState<number | null>(0)
   const articleRefs = useRef<(HTMLElement | null)[]>([])
+  const progressBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const update = () => {
+      const articles = articleRefs.current
       const target = window.innerHeight * 0.4
+
+      // ── Continuous scroll-driven progress bar (no React state, no transition) ──
+      const first = articles[0]
+      const last = articles[articles.length - 1]
+      if (first && last && progressBarRef.current) {
+        const firstRect = first.getBoundingClientRect()
+        const lastRect = last.getBoundingClientRect()
+        const totalRange = lastRect.bottom - firstRect.top
+        const scrolledRange = target - firstRect.top
+        const p = Math.max(0, Math.min(1, scrolledRange / totalRange))
+        progressBarRef.current.style.transform = `scaleX(${p})`
+      }
+
+      // ── Discrete activeStep for text highlight ──
       let bestIdx = 0
       let bestDist = Infinity
-      articleRefs.current.forEach((el, idx) => {
+      articles.forEach((el, idx) => {
         if (!el) return
         const rect = el.getBoundingClientRect()
         const elCenter = (rect.top + rect.bottom) / 2
@@ -371,10 +387,8 @@ function ProcessSection() {
     return () => window.removeEventListener('scroll', update)
   }, [])
 
-  const progress = ((activeStep + 1) / PROCESS_STEPS.length) * 100
-
   return (
-    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg }}>
+    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, overflow: 'clip' }}>
       {/* ── Mobile: accordion */}
       <div className="lg:hidden">
         <p className="lp-label" style={{ marginBottom: 12 }}>From idea to shipped product</p>
@@ -421,7 +435,7 @@ function ProcessSection() {
 
       {/* ── Desktop: sticky left + scrolling right */}
       <div className="hidden lg:grid" style={{ gridTemplateColumns: '0.78fr 1.22fr', gap: 80, alignItems: 'start' }}>
-        <div style={{ position: 'sticky', top: 80 }}>
+        <div style={{ position: 'sticky', top: 120 }}>
           {/* Step counter + progress bar */}
           <div style={{ marginBottom: 32, maxWidth: '25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700 }}>
@@ -432,7 +446,7 @@ function ProcessSection() {
               ))}
             </div>
             <div style={{ marginTop: 10, height: 8, background: 'rgba(28,27,27,0.1)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: C.teal, transform: `scaleX(${progress / 100})`, transformOrigin: 'left', transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+              <div ref={progressBarRef} style={{ height: '100%', background: C.teal, transform: 'scaleX(0)', transformOrigin: 'left' }} />
             </div>
           </div>
           <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(58px,7vw,92px)', lineHeight: 0.88, color: C.coral, maxWidth: '11ch' }}>

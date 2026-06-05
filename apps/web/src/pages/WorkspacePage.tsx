@@ -67,24 +67,6 @@ const FLAG_ICON = (
 
 // ── Shared button styles ───────────────────────────────────────────────────────
 
-const primaryBtn: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "6px",
-  padding: "8px 14px",
-  borderRadius: "var(--radius-button)",
-  border: "none",
-  background: "oklch(var(--color-accent))",
-  color: "#fff",
-  fontSize: "var(--text-sm)",
-  fontWeight: 600,
-  cursor: "pointer",
-  textDecoration: "none",
-  whiteSpace: "nowrap",
-  fontFamily: "var(--font-body)",
-  transition: "background var(--dur-fast)",
-}
-
 const secondaryBtn: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -285,8 +267,8 @@ export default function WorkspacePage() {
   }, [fetchDetail, fetchBoards, fetchSideData])
 
   function handleBoardCreated(board: BoardSummary) {
-    setBoards((prev) => [...prev, board])
     setShowCreateModal(false)
+    navigate(`/${workspaceId}/${board.id}`)
   }
 
   if (loadingWorkspace) {

@@ -83,6 +83,11 @@ router.post("/", validateJWT, async (req, res) => {
         createdAt: board.createdAt,
         updatedAt: board.updatedAt,
         deletedAt: board.deletedAt,
+        listCount: 0,
+        cardCount: 0,
+        members: [],
+        memberCount: 0,
+        isOwner: true,
       },
     })
   } catch {

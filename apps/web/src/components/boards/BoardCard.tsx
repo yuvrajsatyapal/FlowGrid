@@ -62,8 +62,8 @@ interface Props {
 export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }: Props) {
   const navigate = useNavigate()
   const coverBg = board.coverColor ?? DEFAULT_COVER
-  const visibleMembers = board.members.slice(0, 2)
-  const extra = board.memberCount - 2
+  const visibleMembers = (board.members ?? []).slice(0, 2)
+  const extra = (board.memberCount ?? 0) - 2
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -158,7 +158,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
             <div style={{ flex: 1 }} />
 
             {/* Member avatars cluster */}
-            {board.members.length > 0 && (
+            {(board.members?.length ?? 0) > 0 && (
               <div style={{ display: "flex", alignItems: "center" }}>
                 {visibleMembers.map((m, i) => (
                   <div
