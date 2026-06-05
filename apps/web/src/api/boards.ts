@@ -35,6 +35,7 @@ export interface BoardSummary {
   cardCount: number
   members: BoardMemberSummary[]
   memberCount: number
+  isOwner: boolean
 }
 
 export interface BoardDetail extends BoardSummary {

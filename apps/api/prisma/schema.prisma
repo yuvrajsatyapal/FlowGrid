@@ -67,6 +67,7 @@ model User {
   orgMemberships       OrganizationMember[]
   workspaceMemberships WorkspaceMember[]
   boardMemberships     BoardMember[]
+  createdBoards        Board[]              @relation("CreatedBoards")
   assignedCards        Card[]               @relation("CardAssignee")
   comments             Comment[]
   activities           Activity[]
@@ -171,17 +172,20 @@ model Board {
   description String?
   visibility  BoardVisibility @default(WORKSPACE)
   coverColor  String?
+  createdById String?
   createdAt   DateTime        @default(now()) @db.Timestamptz()
   updatedAt   DateTime        @updatedAt @db.Timestamptz()
   deletedAt   DateTime?       @db.Timestamptz()
 
-  workspace  Workspace     @relation(fields: [workspaceId], references: [id])
-  members    BoardMember[]
-  lists      List[]
-  labels     Label[]
-  activities Activity[]
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  createdBy   User?         @relation("CreatedBoards", fields: [createdById], references: [id])
+  members     BoardMember[]
+  lists       List[]
+  labels      Label[]
+  activities  Activity[]
 
   @@index([workspaceId])
+  @@index([createdById])
 }
 
 // BoardMember is exceptions-only: for PRIVATE boards and guest access overrides.

@@ -68,6 +68,7 @@ router.post("/", validateJWT, async (req, res) => {
         name: name.trim(),
         visibility: boardVisibility,
         coverColor: coverColor?.trim() || null,
+        createdById: req.user!.id,
       },
     })
 
@@ -125,6 +126,7 @@ router.get("/", validateJWT, async (req, res) => {
           description: true,
           visibility: true,
           coverColor: true,
+          createdById: true,
           createdAt: true,
           updatedAt: true,
           deletedAt: true,
@@ -163,6 +165,7 @@ router.get("/", validateJWT, async (req, res) => {
         cardCount: b.lists.reduce((acc, l) => acc + l._count.cards, 0),
         members: wsMembers,
         memberCount,
+        isOwner: b.createdById === req.user!.id,
       })),
     })
   } catch {

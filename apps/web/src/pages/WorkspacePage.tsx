@@ -162,8 +162,27 @@ function formatActivityText(activity: ActivityResponse): React.ReactNode {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type FilterType = "all" | "recent" | "shared"
+type FilterType = "all" | "pinned"
 type ViewType = "grid" | "list"
+
+function getPinnedKey(workspaceId: string): string {
+  return `flowgrid:pinned:${workspaceId}`
+}
+
+function loadPinned(workspaceId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(getPinnedKey(workspaceId))
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function savePinned(workspaceId: string, ids: Set<string>): void {
+  try {
+    localStorage.setItem(getPinnedKey(workspaceId), JSON.stringify([...ids]))
+  } catch { /* ignore */ }
+}
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -173,6 +192,9 @@ export default function WorkspacePage() {
   const [boards, setBoards] = useState<BoardSummary[]>([])
   const [activities, setActivities] = useState<ActivityResponse[]>([])
   const [upcomingCards, setUpcomingCards] = useState<UpcomingCard[]>([])
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() =>
+    workspaceId ? loadPinned(workspaceId) : new Set()
+  )
 
   const [loadingWorkspace, setLoadingWorkspace] = useState(true)
   const [loadingBoards, setLoadingBoards] = useState(true)
@@ -187,18 +209,26 @@ export default function WorkspacePage() {
 
   const canManage = detail?.role === "OWNER" || detail?.role === "ADMIN"
 
+  function handleTogglePin(boardId: string) {
+    if (!workspaceId) return
+    setPinnedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(boardId)) {
+        next.delete(boardId)
+      } else {
+        next.add(boardId)
+      }
+      savePinned(workspaceId, next)
+      return next
+    })
+  }
+
   const filteredBoards = boards
     .filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()))
     .filter((b) => {
-      if (filter === "recent") return true
-      if (filter === "shared") return b.visibility !== "PRIVATE"
+      if (filter === "pinned") return pinnedIds.has(b.id)
       return true
     })
-    .sort((a, b) => {
-      if (filter === "recent") return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      return 0
-    })
-    .slice(0, filter === "recent" ? 8 : undefined)
 
   const handleViewChange = (v: ViewType) => {
     setView(v)
@@ -336,17 +366,6 @@ export default function WorkspacePage() {
               <Link to={`/${workspaceId}/settings`} style={secondaryBtn}>
                 Settings
               </Link>
-              {canManage && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  style={primaryBtn}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-accent-hover))" }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-accent))" }}
-                >
-                  {PLUS_ICON}
-                  New Board
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -388,7 +407,10 @@ export default function WorkspacePage() {
               flexShrink: 0,
             }}
           >
-            {(["all", "recent", "shared"] as FilterType[]).map((f) => (
+            {([
+              ["all", "All"],
+              ["pinned", "Pinned"],
+            ] as [FilterType, string][]).map(([f, label]) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -402,10 +424,9 @@ export default function WorkspacePage() {
                   cursor: "pointer",
                   fontFamily: "var(--font-body)",
                   transition: "background var(--dur-fast), color var(--dur-fast)",
-                  textTransform: "capitalize",
                 }}
               >
-                {f}
+                {label}
               </button>
             ))}
           </div>
@@ -454,7 +475,7 @@ export default function WorkspacePage() {
                 <div key={i} style={{ height: "140px", borderRadius: "var(--radius-card)", background: "oklch(var(--color-paper-2))", opacity: 0.6 }} />
               ))}
             </div>
-          ) : boards.length === 0 ? (
+          ) : filteredBoards.length === 0 ? (
             <div
               style={{
                 border: "1px dashed oklch(var(--color-border))",
@@ -467,23 +488,42 @@ export default function WorkspacePage() {
                 color: "oklch(var(--color-ink-3))",
               }}
             >
-              <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>No boards yet</p>
-              <p style={{ margin: 0, fontSize: "var(--text-xs)", textAlign: "center", maxWidth: "280px" }}>
-                {canManage ? "Create your first board to start organizing tasks." : "No boards have been created in this workspace yet."}
-              </p>
-              {canManage && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  style={{ marginTop: "4px", padding: "8px 18px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)" }}
-                >
-                  Create first board
-                </button>
+              {boards.length === 0 ? (
+                <>
+                  <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>No boards yet</p>
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", textAlign: "center", maxWidth: "280px" }}>
+                    {canManage ? "Create your first board to start organizing tasks." : "No boards have been created in this workspace yet."}
+                  </p>
+                  {canManage && (
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      style={{ marginTop: "4px", padding: "8px 18px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)" }}
+                    >
+                      Create first board
+                    </button>
+                  )}
+                </>
+              ) : filter === "pinned" ? (
+                <>
+                  <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>No pinned boards</p>
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", textAlign: "center", maxWidth: "280px" }}>
+                    Hover over any board and click the pin icon to keep it here for quick access.
+                  </p>
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))" }}>No boards match your search.</p>
               )}
             </div>
           ) : view === "grid" ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "14px" }}>
               {filteredBoards.map((board) => (
-                <BoardCard key={board.id} board={board} workspaceId={workspaceId!} />
+                <BoardCard
+                  key={board.id}
+                  board={board}
+                  workspaceId={workspaceId!}
+                  isPinned={pinnedIds.has(board.id)}
+                  onTogglePin={handleTogglePin}
+                />
               ))}
               {canManage && (
                 <button
@@ -529,44 +569,88 @@ export default function WorkspacePage() {
             /* List view */
             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
               {filteredBoards.map((board) => (
-                <button
-                  key={board.id}
-                  onClick={() => navigate(`/${workspaceId}/${board.id}`)}
-                  style={{
-                    all: "unset",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "10px 14px",
-                    borderRadius: "var(--radius-card)",
-                    border: "1px solid oklch(var(--color-border))",
-                    background: "oklch(var(--color-paper))",
-                    transition: "background var(--dur-fast)",
-                    boxSizing: "border-box",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-2))" }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper))" }}
-                >
-                  {/* Color swatch */}
-                  <div style={{ width: 10, height: 32, borderRadius: "3px", background: board.coverColor ?? "#64748b", flexShrink: 0 }} />
-                  {/* Name */}
-                  <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {board.name}
-                  </span>
-                  {/* Visibility */}
-                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0 }}>
-                    {board.visibility === "PRIVATE" ? "Private" : board.visibility === "PUBLIC" ? "Public" : "Workspace"}
-                  </span>
-                  {/* List count */}
-                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0, minWidth: 60, textAlign: "right" }}>
-                    {board.listCount} {board.listCount === 1 ? "list" : "lists"}
-                  </span>
-                  {/* Updated */}
-                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0, minWidth: 70, textAlign: "right" }}>
-                    {timeAgo(board.updatedAt)}
-                  </span>
-                </button>
+                <div key={board.id} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <button
+                    onClick={() => navigate(`/${workspaceId}/${board.id}`)}
+                    style={{
+                      all: "unset",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "10px 14px",
+                      borderRadius: "var(--radius-card)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper))",
+                      transition: "background var(--dur-fast)",
+                      boxSizing: "border-box",
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-2))"
+                      const pin = (e.currentTarget as HTMLButtonElement).nextElementSibling as HTMLElement | null
+                      if (pin) pin.style.opacity = "1"
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper))"
+                      const pin = (e.currentTarget as HTMLButtonElement).nextElementSibling as HTMLElement | null
+                      if (pin && !pinnedIds.has(board.id)) pin.style.opacity = "0"
+                    }}
+                  >
+                    {/* Color swatch */}
+                    <div style={{ width: 10, height: 32, borderRadius: "3px", background: board.coverColor ?? "#64748b", flexShrink: 0 }} />
+                    {/* Name */}
+                    <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {board.name}
+                    </span>
+                    {/* Visibility */}
+                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0 }}>
+                      {board.visibility === "PRIVATE" ? "Private" : board.visibility === "PUBLIC" ? "Public" : "Workspace"}
+                    </span>
+                    {/* List count */}
+                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0, minWidth: 60, textAlign: "right" }}>
+                      {board.listCount} {board.listCount === 1 ? "list" : "lists"}
+                    </span>
+                    {/* Updated */}
+                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0, minWidth: 70, textAlign: "right" }}>
+                      {timeAgo(board.updatedAt)}
+                    </span>
+                  </button>
+                  {/* Pin button for list row */}
+                  <button
+                    onClick={() => handleTogglePin(board.id)}
+                    aria-label={pinnedIds.has(board.id) ? "Unpin board" : "Pin board"}
+                    title={pinnedIds.has(board.id) ? "Unpin" : "Pin board"}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "var(--radius-badge)",
+                      border: "none",
+                      background: pinnedIds.has(board.id) ? "oklch(var(--color-accent))" : "oklch(var(--color-paper-3))",
+                      color: pinnedIds.has(board.id) ? "#fff" : "oklch(var(--color-ink-3))",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      opacity: pinnedIds.has(board.id) ? 1 : 0,
+                      transition: "opacity var(--dur-fast), background var(--dur-fast)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path
+                        d="M9.5 2L14 6.5L11.5 9L9 11.5L6.5 9L4 11.5L2.5 10L5 7.5L2.5 5L5 2.5L7 4.5L9.5 2Z"
+                        fill={pinnedIds.has(board.id) ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
               ))}
               {canManage && (
                 <button
