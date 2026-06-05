@@ -21,10 +21,10 @@ const GlobeIcon = () => (
 )
 
 const BoardGlyph = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <rect x="3" y="3" width="7" height="18" rx="2" fill="rgba(255,255,255,0.25)" />
-    <rect x="13" y="3" width="8" height="11" rx="2" fill="rgba(255,255,255,0.25)" />
-    <rect x="13" y="17" width="8" height="4" rx="2" fill="rgba(255,255,255,0.15)" />
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="3" width="7" height="18" rx="2" fill="rgba(255,255,255,0.28)" />
+    <rect x="13" y="3" width="8" height="11" rx="2" fill="rgba(255,255,255,0.28)" />
+    <rect x="13" y="17" width="8" height="4" rx="2" fill="rgba(255,255,255,0.16)" />
   </svg>
 )
 
@@ -37,6 +37,12 @@ const PinIcon = ({ filled }: { filled: boolean }) => (
       strokeWidth="1.2"
       strokeLinejoin="round"
     />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l1 9.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5L13 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 
@@ -57,9 +63,10 @@ interface Props {
   workspaceId: string
   isPinned: boolean
   onTogglePin: (boardId: string) => void
+  onDelete: (boardId: string) => void
 }
 
-export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }: Props) {
+export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, onDelete }: Props) {
   const navigate = useNavigate()
   const coverBg = board.coverColor ?? DEFAULT_COVER
   const visibleMembers = (board.members ?? []).slice(0, 2)
@@ -80,14 +87,18 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
           display: "flex",
           flexDirection: "column",
           borderRadius: "var(--radius-card)",
-          border: "1px solid oklch(var(--color-border))",
+          border: hovered
+            ? "1px solid oklch(var(--color-accent) / 0.4)"
+            : "1px solid oklch(var(--color-border))",
           overflow: "hidden",
           background: "oklch(var(--color-paper))",
           transition: "box-shadow var(--dur-base), border-color var(--dur-base), transform var(--dur-fast)",
           boxSizing: "border-box",
           width: "100%",
           textAlign: "left",
-          boxShadow: hovered ? "var(--shadow-card)" : "none",
+          boxShadow: hovered
+            ? "0 4px 16px oklch(var(--color-ink) / 0.08), 0 1px 4px oklch(var(--color-ink) / 0.04)"
+            : "none",
           transform: hovered ? "translateY(-2px)" : "none",
         }}
         aria-label={`Open board: ${board.name}`}
@@ -95,26 +106,36 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
         {/* Cover strip */}
         <div
           style={{
-            height: "60px",
+            height: "80px",
             background: coverBg,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            opacity: 0.95,
+            position: "relative",
+            overflow: "hidden",
           }}
         >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.14) 100%)",
+              pointerEvents: "none",
+            }}
+          />
           <BoardGlyph />
         </div>
 
         {/* Content */}
-        <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+        <div style={{ padding: "13px 14px 14px", display: "flex", flexDirection: "column", gap: "9px", flex: 1 }}>
+          {/* Board name */}
           <span
             style={{
-              fontSize: "var(--text-sm)",
+              fontSize: "14px",
               fontWeight: 600,
               color: "oklch(var(--color-ink))",
-              lineHeight: "1.3",
+              lineHeight: 1.35,
               overflow: "hidden",
               display: "-webkit-box",
               WebkitLineClamp: 2,
@@ -124,16 +145,21 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
             {board.name}
           </span>
 
-          {/* Footer row */}
+          {/* Visibility badge + member avatars */}
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "auto" }}>
             {board.visibility === "PRIVATE" && (
               <span
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: "3px",
-                  fontSize: "var(--text-xs)",
+                  fontSize: "0.625rem",
+                  fontWeight: 500,
                   color: "oklch(var(--color-ink-3))",
+                  padding: "2px 7px",
+                  borderRadius: "100px",
+                  background: "oklch(var(--color-paper-3))",
+                  lineHeight: 1.5,
                 }}
               >
                 <LockIcon />
@@ -143,11 +169,16 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
             {board.visibility === "PUBLIC" && (
               <span
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: "3px",
-                  fontSize: "var(--text-xs)",
+                  fontSize: "0.625rem",
+                  fontWeight: 500,
                   color: "oklch(var(--color-ink-3))",
+                  padding: "2px 7px",
+                  borderRadius: "100px",
+                  background: "oklch(var(--color-paper-3))",
+                  lineHeight: 1.5,
                 }}
               >
                 <GlobeIcon />
@@ -165,11 +196,11 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
                     key={m.id}
                     title={m.name ?? undefined}
                     style={{
-                      width: 18,
-                      height: 18,
+                      width: 20,
+                      height: 20,
                       borderRadius: "50%",
                       border: "1.5px solid oklch(var(--color-paper))",
-                      marginLeft: i === 0 ? 0 : -5,
+                      marginLeft: i === 0 ? 0 : -6,
                       background: m.avatarUrl ? "transparent" : getAvatarBg(m.id),
                       display: "flex",
                       alignItems: "center",
@@ -188,11 +219,11 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
                 {extra > 0 && (
                   <div
                     style={{
-                      width: 18,
-                      height: 18,
+                      width: 20,
+                      height: 20,
                       borderRadius: "50%",
                       border: "1.5px solid oklch(var(--color-paper))",
-                      marginLeft: -5,
+                      marginLeft: -6,
                       background: "oklch(var(--color-paper-3))",
                       display: "flex",
                       alignItems: "center",
@@ -210,8 +241,16 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
             )}
           </div>
 
-          {/* Meta row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Stats row */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingTop: "9px",
+              borderTop: "1px solid oklch(var(--color-border) / 0.7)",
+            }}
+          >
             <span style={{ fontSize: "0.625rem", color: "oklch(var(--color-ink-3))" }}>
               {board.listCount} {board.listCount === 1 ? "list" : "lists"}
               {board.cardCount > 0 && ` · ${board.cardCount} cards`}
@@ -223,38 +262,80 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin }:
         </div>
       </button>
 
-      {/* Pin button — shown on hover or when already pinned */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onTogglePin(board.id)
-        }}
-        aria-label={isPinned ? "Unpin board" : "Pin board"}
-        title={isPinned ? "Unpin" : "Pin board"}
+      {/* Action buttons: [pin][delete] — shown on hover */}
+      <div
         style={{
           position: "absolute",
           top: "8px",
           right: "8px",
-          width: "26px",
-          height: "26px",
-          borderRadius: "var(--radius-badge)",
-          border: "none",
-          background: isPinned
-            ? "oklch(var(--color-accent))"
-            : "oklch(var(--color-paper) / 0.9)",
-          backdropFilter: "blur(4px)",
-          color: isPinned ? "#fff" : "oklch(var(--color-ink-2))",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
+          gap: "4px",
           opacity: hovered || isPinned ? 1 : 0,
-          transition: "opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast)",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+          transition: "opacity var(--dur-fast)",
         }}
       >
-        <PinIcon filled={isPinned} />
-      </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin(board.id)
+          }}
+          aria-label={isPinned ? "Unpin board" : "Pin board"}
+          title={isPinned ? "Unpin" : "Pin board"}
+          style={{
+            width: "26px",
+            height: "26px",
+            borderRadius: "var(--radius-badge)",
+            border: "none",
+            background: isPinned
+              ? "oklch(var(--color-accent))"
+              : "oklch(var(--color-paper) / 0.92)",
+            backdropFilter: "blur(4px)",
+            color: isPinned ? "#fff" : "oklch(var(--color-ink-2))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "background var(--dur-fast), color var(--dur-fast)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
+          }}
+        >
+          <PinIcon filled={isPinned} />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(board.id)
+          }}
+          aria-label="Delete board"
+          title="Delete board"
+          style={{
+            width: "26px",
+            height: "26px",
+            borderRadius: "var(--radius-badge)",
+            border: "none",
+            background: "oklch(var(--color-paper) / 0.92)",
+            backdropFilter: "blur(4px)",
+            color: "oklch(var(--color-ink-2))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "background var(--dur-fast), color var(--dur-fast)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "oklch(var(--color-error, 0.55 0.2 25) / 0.15)"
+            e.currentTarget.style.color = "oklch(var(--color-error, 0.55 0.2 25))"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "oklch(var(--color-paper) / 0.92)"
+            e.currentTarget.style.color = "oklch(var(--color-ink-2))"
+          }}
+        >
+          <TrashIcon />
+        </button>
+      </div>
     </div>
   )
 }
