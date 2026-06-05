@@ -150,6 +150,7 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
           display: "flex",
           flexDirection: "column",
           gap: 8,
+          overflow: "hidden",
         }}
         onMouseEnter={(e) => {
           if (overlay || isDragging) return
@@ -160,156 +161,146 @@ export default function CardItem({ card, listName, isDoneList = false, blocked =
           ;(e.currentTarget as HTMLDivElement).style.borderColor = ""
         }}
       >
-        {/* Row 1: label chip (first label) */}
-        {firstLabel && (
-          <div style={{ display: "flex" }}>
-            <span
-              style={{
-                padding: "1px 6px",
-                borderRadius: "var(--radius-badge)",
-                background: `${firstLabel.color}28`,
-                border: `1px solid ${firstLabel.color}50`,
-                fontSize: "0.5625rem",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: firstLabel.color || "oklch(var(--color-ink-3))",
-                maxWidth: 120,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {firstLabel.name}
-            </span>
+        {/* Two-column body: left content + right stats/avatar */}
+        <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 0 }}>
+
+          {/* Left column: label → title → description → badges */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+            {firstLabel && (
+              <span
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "1px 6px",
+                  borderRadius: "var(--radius-badge)",
+                  background: `${firstLabel.color}28`,
+                  border: `1px solid ${firstLabel.color}50`,
+                  fontSize: "0.5625rem",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: firstLabel.color || "oklch(var(--color-ink-3))",
+                  maxWidth: 120,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {firstLabel.name}
+              </span>
+            )}
+
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+              {PRIORITY_DOT[card.priority] && (
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: PRIORITY_DOT[card.priority]!,
+                    flexShrink: 0,
+                    marginTop: 5,
+                  }}
+                />
+              )}
+              <span
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "var(--text-base)",
+                  fontWeight: 600,
+                  color: done ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink))",
+                  lineHeight: 1.45,
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  wordBreak: "break-word",
+                  textDecoration: done ? "line-through" : "none",
+                }}
+              >
+                {card.title}
+              </span>
+            </div>
+
+            {card.description && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span
+                  style={{
+                    fontSize: "0.5625rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "oklch(var(--color-ink-3))",
+                  }}
+                >
+                  Description
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.625rem",
+                    color: "oklch(var(--color-ink-3))",
+                    lineHeight: 1.5,
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {card.description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}
+                </span>
+              </div>
+            )}
+
+            {blocked && !isComplete && (
+              <span
+                style={{
+                  alignSelf: "flex-start",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  padding: "1px 6px",
+                  borderRadius: "var(--radius-badge)",
+                  background: "oklch(var(--color-error) / 0.12)",
+                  color: "oklch(var(--color-error))",
+                  fontSize: "0.5625rem",
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                🔒 Blocked
+              </span>
+            )}
+
+            {done && (
+              <span style={{ fontSize: "0.5625rem", color: "oklch(var(--color-ink-3))", letterSpacing: "0.04em" }}>
+                Completed {formatCompletedDate(card.completedAt ?? card.updatedAt)}
+              </span>
+            )}
           </div>
-        )}
 
-        {/* Row 2: priority dot + title */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-          {PRIORITY_DOT[card.priority] && (
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: PRIORITY_DOT[card.priority]!,
-                flexShrink: 0,
-                marginTop: 5,
-              }}
-            />
-          )}
-          <span
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "var(--text-base)",
-              fontWeight: 600,
-              color: done ? "oklch(var(--color-ink-3))" : "oklch(var(--color-ink))",
-              lineHeight: 1.45,
-              flex: 1,
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              wordBreak: "break-word",
-              textDecoration: done ? "line-through" : "none",
-            }}
-          >
-            {card.title}
-          </span>
-        </div>
+          {/* Right column: stats stacked at top, avatar pinned to bottom */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+            {card.dueDate && (
+              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", fontWeight: 600, color: "oklch(var(--color-error))", whiteSpace: "nowrap" }}>
+                {FLAG_ICON} {formatDueDate(card.dueDate)}
+              </span>
+            )}
+            {card.checklistTotal > 0 && (
+              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: card.checklistDone === card.checklistTotal ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))" }}>
+                ✓ {card.checklistDone}/{card.checklistTotal}
+              </span>
+            )}
+            {card.attachmentCount > 0 && (
+              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: "oklch(var(--color-ink-3))" }}>
+                {PAPERCLIP_ICON} {card.attachmentCount}
+              </span>
+            )}
+            <div style={{ flex: 1 }} />
+            {card.assignee && (
+              <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
+            )}
+          </div>
 
-        {/* Blocked badge */}
-        {blocked && !isComplete && (
-          <span
-            style={{
-              alignSelf: "flex-start",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 3,
-              padding: "1px 6px",
-              borderRadius: "var(--radius-badge)",
-              background: "oklch(var(--color-error) / 0.12)",
-              color: "oklch(var(--color-error))",
-              fontSize: "0.5625rem",
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-            }}
-          >
-            🔒 Blocked
-          </span>
-        )}
-
-        {/* Completed date */}
-        {done && (
-          <span style={{ fontSize: "0.5625rem", color: "oklch(var(--color-ink-3))", letterSpacing: "0.04em" }}>
-            Completed {formatCompletedDate(card.completedAt ?? card.updatedAt)}
-          </span>
-        )}
-
-        {/* Footer row — pinned to the bottom so taller cards stay balanced */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 2 }}>
-          {/* Assignee avatar */}
-          {card.assignee && (
-            <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
-          )}
-
-          {/* Comment count */}
-          {card.commentCount > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.625rem", color: "oklch(var(--color-ink-3))" }}>
-              {COMMENT_ICON} {card.commentCount}
-            </span>
-          )}
-
-          {/* Attachment count */}
-          {card.attachmentCount > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.625rem", color: "oklch(var(--color-ink-3))" }}>
-              {PAPERCLIP_ICON} {card.attachmentCount}
-            </span>
-          )}
-
-          {/* Due date */}
-          {card.dueDate && (
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                fontSize: "0.625rem",
-                color: dueDateColor!,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {FLAG_ICON} {formatDueDate(card.dueDate)}
-            </span>
-          )}
-
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* Status pill = list name */}
-          {listName && !done && (
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                padding: "1px 5px",
-                borderRadius: "var(--radius-badge)",
-                background: "oklch(var(--color-paper-3))",
-                fontSize: "0.5625rem",
-                fontWeight: 600,
-                color: "oklch(var(--color-ink-3))",
-                whiteSpace: "nowrap",
-                maxWidth: 80,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              <span style={{ width: 4, height: 4, borderRadius: "50%", background: "oklch(var(--color-accent))", flexShrink: 0 }} />
-              {listName}
-            </span>
-          )}
         </div>
       </motion.div>
     </div>

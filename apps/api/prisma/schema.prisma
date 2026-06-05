@@ -208,6 +208,7 @@ model List {
   id        String    @id @default(cuid())
   boardId   String
   name      String
+  color     String    @default("#6366f1")
   position  String
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime  @updatedAt @db.Timestamptz()

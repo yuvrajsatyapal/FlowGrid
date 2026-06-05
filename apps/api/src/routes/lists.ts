@@ -7,6 +7,15 @@ import { emitBoardEvent } from "../lib/socket"
 
 const router = Router()
 
+const LIST_COLORS = [
+  "#ef4444", "#f97316", "#f59e0b", "#10b981",
+  "#3b82f6", "#6366f1", "#a855f7",
+]
+
+function randomListColor() {
+  return LIST_COLORS[Math.floor(Math.random() * LIST_COLORS.length)]
+}
+
 // Shared helper: resolve workspace membership + optional PRIVATE board check.
 // Returns { workspaceMembership } or sends a 404/403 response and returns null.
 async function resolveBoardAccess(
@@ -55,14 +64,14 @@ async function fetchListWithCount(listId: string) {
   const list = await prisma.list.findUnique({
     where: { id: listId },
     select: {
-      id: true, boardId: true, name: true, position: true,
+      id: true, boardId: true, name: true, color: true, position: true,
       createdAt: true, updatedAt: true, deletedAt: true,
       _count: { select: { cards: { where: { deletedAt: null } } } },
     },
   })
   if (!list) return null
   return {
-    id: list.id, boardId: list.boardId, name: list.name, position: list.position,
+    id: list.id, boardId: list.boardId, name: list.name, color: list.color, position: list.position,
     cardCount: list._count.cards,
     createdAt: list.createdAt, updatedAt: list.updatedAt, deletedAt: list.deletedAt,
   }
@@ -74,13 +83,13 @@ async function fetchBoardLists(boardId: string) {
     where: { boardId, deletedAt: null },
     orderBy: { position: "asc" },
     select: {
-      id: true, boardId: true, name: true, position: true,
+      id: true, boardId: true, name: true, color: true, position: true,
       createdAt: true, updatedAt: true, deletedAt: true,
       _count: { select: { cards: { where: { deletedAt: null } } } },
     },
   })
   return lists.map((l) => ({
-    id: l.id, boardId: l.boardId, name: l.name, position: l.position,
+    id: l.id, boardId: l.boardId, name: l.name, color: l.color, position: l.position,
     cardCount: l._count.cards,
     createdAt: l.createdAt, updatedAt: l.updatedAt, deletedAt: l.deletedAt,
   }))
@@ -117,12 +126,12 @@ router.post("/", validateJWT, async (req, res) => {
       })
       const nextPos = last ? String(Number(last.position) + 1).padStart(8, "0") : "00000001"
       return tx.list.create({
-        data: { boardId, name: name.trim(), position: nextPos },
+        data: { boardId, name: name.trim(), color: randomListColor(), position: nextPos },
       })
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     const listPayload = {
-      id: list.id, boardId: list.boardId, name: list.name, position: list.position,
+      id: list.id, boardId: list.boardId, name: list.name, color: list.color, position: list.position,
       cardCount: 0,
       createdAt: list.createdAt, updatedAt: list.updatedAt, deletedAt: list.deletedAt,
     }
@@ -152,6 +161,7 @@ router.get("/", validateJWT, async (req, res) => {
         id: true,
         boardId: true,
         name: true,
+        color: true,
         position: true,
         createdAt: true,
         updatedAt: true,
@@ -165,6 +175,7 @@ router.get("/", validateJWT, async (req, res) => {
         id: l.id,
         boardId: l.boardId,
         name: l.name,
+        color: l.color,
         position: l.position,
         cardCount: l._count.cards,
         createdAt: l.createdAt,

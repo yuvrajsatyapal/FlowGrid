@@ -22,7 +22,9 @@ interface Props {
   boardId: string
   workspaceId: string
   canEdit: boolean
+  userRole?: string
   listName?: string
+  listColor?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
   onCardDeleted?: (id: string) => void
@@ -51,6 +53,10 @@ const LABEL_COLORS = [
   { name: "Indigo", value: "#6366f1" },
   { name: "Purple", value: "#a855f7" },
 ]
+
+function randomLabelColor() {
+  return LABEL_COLORS[Math.floor(Math.random() * LABEL_COLORS.length)].value
+}
 
 // Derive short task ID from card ID (last 4 chars uppercased)
 function taskShortId(id: string): string {
@@ -96,7 +102,7 @@ const labelIconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, listName, onClose, onCardUpdated, onCardDeleted, onLabelUpdated, onLabelDeleted }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, listName, listColor, onClose, onCardUpdated, onCardDeleted, onLabelUpdated, onLabelDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
   const [saveState, setSaveState] = useState<SaveState>("idle")
@@ -109,6 +115,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
   const [showBlockedWarning, setShowBlockedWarning] = useState(false)
   const isComplete = localCard.completedAt != null
 
+  // Members and Viewers are locked out of editing when the card is blocked
+  const isOwnerOrAdmin = userRole === "OWNER" || userRole === "ADMIN"
+  const isBlockLocked = blockedByActive && !isOwnerOrAdmin
+  const effectiveCanEdit = canEdit && !isBlockLocked
+
   // Sidebar data
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [boardLabels, setBoardLabels] = useState<LabelSummary[]>([])
@@ -116,7 +127,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
   // Label popover
   const [labelPopoverOpen, setLabelPopoverOpen] = useState(false)
   const [newLabelName, setNewLabelName] = useState("")
-  const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0].value)
+  const [newLabelColor, setNewLabelColor] = useState(randomLabelColor)
   const [creatingLabel, setCreatingLabel] = useState(false)
 
   // Edit / delete an existing board label (from inside the picker)
@@ -265,7 +276,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
       Placeholder.configure({ placeholder: "Add a description…" }),
     ],
     content: localCard.description ?? "",
-    editable: canEdit,
+    editable: effectiveCanEdit,
     onUpdate({ editor: ed }) {
       const html = ed.getHTML()
       const isEmpty = ed.isEmpty
@@ -375,7 +386,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
       const created = await labelsApi.create(boardId, newLabelName.trim(), newLabelColor)
       setBoardLabels((prev) => [...prev, created])
       setNewLabelName("")
-      setNewLabelColor(LABEL_COLORS[0].value)
+      setNewLabelColor(randomLabelColor())
       // Auto-assign the newly created label
       await cardsApi.addLabel(localCard.id, created.id)
       const newLabel: CardLabel = { id: created.id, name: created.name, color: created.color }
@@ -540,12 +551,12 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                   fontWeight: 600,
                   padding: "2px 7px",
                   borderRadius: "var(--radius-badge)",
-                  background: "oklch(var(--color-accent-muted))",
-                  color: "oklch(var(--color-accent))",
+                  background: listColor ? `${listColor}22` : "oklch(var(--color-accent-muted))",
+                  color: listColor ?? "oklch(var(--color-accent))",
                   flexShrink: 0,
                 }}
               >
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "oklch(var(--color-accent))", flexShrink: 0 }} />
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: listColor ?? "oklch(var(--color-accent))", flexShrink: 0 }} />
                 {listName}
               </span>
             )}
@@ -554,7 +565,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
             <div style={{ flex: 1 }} />
 
             {/* Completion toggle */}
-            {canEdit && (
+            {effectiveCanEdit && (
               <button
                 onClick={handleToggleComplete}
                 disabled={completing}
@@ -594,7 +605,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
             )}
 
             {/* Delete card */}
-            {canEdit && (
+            {effectiveCanEdit && (
               <button
                 onClick={handleDelete}
                 disabled={deleting}
@@ -626,7 +637,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
               id="card-modal-title"
               defaultValue={localCard.title}
               onBlur={handleTitleBlur}
-              disabled={!canEdit}
+              disabled={!effectiveCanEdit}
               style={{
                 flex: 1,
                 fontSize: "var(--text-base)",
@@ -658,6 +669,26 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
             </span>
           </div>
         </div>
+
+        {/* Block lock banner — shown to Members/Viewers when card has active blockers */}
+        {isBlockLocked && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "9px 20px",
+              background: "oklch(var(--color-error) / 0.08)",
+              borderBottom: "1px solid oklch(var(--color-error) / 0.20)",
+              fontSize: "var(--text-xs)",
+              fontWeight: 600,
+              color: "oklch(var(--color-error))",
+              flexShrink: 0,
+            }}
+          >
+            🔒 This card is blocked — resolve its dependencies before making changes
+          </div>
+        )}
 
         {/* ── Body ── */}
         <div style={{ display: "flex", gap: 0 }}>
@@ -700,12 +731,12 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
 
             {/* Checklists */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <ChecklistSection cardId={localCard.id} canEdit={canEdit} />
+              <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} />
             </div>
 
             {/* Attachments */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <AttachmentSection cardId={localCard.id} canEdit={canEdit} />
+              <AttachmentSection cardId={localCard.id} canEdit={effectiveCanEdit} />
             </div>
           </div>
 
@@ -718,7 +749,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
               <select
                 value={localCard.priority}
                 onChange={handlePriorityChange}
-                disabled={!canEdit}
+                disabled={!effectiveCanEdit}
                 style={{
                   width: "100%",
                   padding: "6px 8px",
@@ -728,7 +759,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                   color: "oklch(var(--color-ink))",
                   fontSize: "var(--text-sm)",
                   fontFamily: "var(--font-body)",
-                  cursor: canEdit ? "pointer" : "default",
+                  cursor: effectiveCanEdit ? "pointer" : "default",
                 }}
               >
                 {PRIORITY_OPTIONS.map((opt) => (
@@ -747,7 +778,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                   type="date"
                   value={localStartDate}
                   onChange={handleStartDateChange}
-                  disabled={!canEdit}
+                  disabled={!effectiveCanEdit}
                   style={{
                     flex: 1,
                     padding: "6px 8px",
@@ -757,11 +788,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                     color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
-                    cursor: canEdit ? "pointer" : "default",
+                    cursor: effectiveCanEdit ? "pointer" : "default",
                     colorScheme: "dark",
                   }}
                 />
-                {localStartDate && canEdit && (
+                {localStartDate && effectiveCanEdit && (
                   <button
                     onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
                     aria-label="Clear start date"
@@ -790,7 +821,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                   type="date"
                   value={localDueDate}
                   onChange={handleDueDateChange}
-                  disabled={!canEdit}
+                  disabled={!effectiveCanEdit}
                   style={{
                     flex: 1,
                     padding: "6px 8px",
@@ -800,11 +831,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                     color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
-                    cursor: canEdit ? "pointer" : "default",
+                    cursor: effectiveCanEdit ? "pointer" : "default",
                     colorScheme: "dark",
                   }}
                 />
-                {localDueDate && canEdit && (
+                {localDueDate && effectiveCanEdit && (
                   <button
                     onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
                     aria-label="Clear due date"
@@ -831,7 +862,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
               <select
                 value={localCard.assigneeId ?? ""}
                 onChange={handleAssigneeChange}
-                disabled={!canEdit}
+                disabled={!effectiveCanEdit}
                 style={{
                   width: "100%",
                   padding: "6px 8px",
@@ -841,7 +872,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                   color: "oklch(var(--color-ink))",
                   fontSize: "var(--text-sm)",
                   fontFamily: "var(--font-body)",
-                  cursor: canEdit ? "pointer" : "default",
+                  cursor: effectiveCanEdit ? "pointer" : "default",
                 }}
               >
                 <option value="">Unassigned</option>
@@ -905,7 +936,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
                     >
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
                       {label.name}
-                      {canEdit && (
+                      {effectiveCanEdit && (
                         <button
                           onClick={() => handleLabelToggle({ id: label.id, name: label.name, color: label.color })}
                           aria-label={`Remove label ${label.name}`}
@@ -925,7 +956,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
 
               {/* Add label button + popover (popover opens upward as an overlay so it
                   doesn't push the rest of the modal down) */}
-              {canEdit && (
+              {effectiveCanEdit && (
                 <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setLabelPopoverOpen((v) => !v)}
@@ -1188,7 +1219,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, l
 
             {/* Dependencies */}
             <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={canEdit} onChanged={() => void refreshBlocked()} />
+              <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={effectiveCanEdit} onChanged={() => void refreshBlocked()} />
             </div>
 
           </div>
