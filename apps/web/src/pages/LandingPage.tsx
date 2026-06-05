@@ -273,21 +273,27 @@ function HeroSection({ time }: { time: string }) {
 
       {/* ── Hero cards with mouse parallax — flex row, NEXTEC card sizing */}
       <div className="lp-hero-cards-anim lp-hero-d1"
-           style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginTop: 40 }}
+           style={{ display: 'flex', gap: 28, justifyContent: 'center', flexWrap: 'wrap', marginTop: 40 }}
            role="list">
         {HERO_CARDS.map((card, i) => {
           const tc = card.textDark ? 'rgba(28,27,27,0.72)' : 'rgba(255,255,255,0.9)'
+          const FLOAT_DUR   = ['3.2s', '3.9s', '3.5s', '4.2s']
+          const FLOAT_DELAY = ['0s', '0.6s', '1.2s', '1.8s']
           return (
             /* outer: parallax depth wrapper — holds its own width */
             <div key={card.label}
                  ref={el => { cardParallaxRefs.current[i] = el }}
                  className="lp-parallax-card"
                  role="listitem">
+              {/* float wrapper: CSS animation lives here, isolated from JS transforms */}
+              <div className="lp-float-card"
+                   style={{ '--float-dur': FLOAT_DUR[i], '--float-delay': FLOAT_DELAY[i] } as React.CSSProperties}>
               {/* inner: the actual card */}
               <div className="lp-hard-card"
                    style={{ backgroundColor: card.bg, position: 'relative', overflow: 'hidden', cursor: 'pointer',
                      width: 'clamp(130px, 18vw, 178px)', aspectRatio: '89/128',
-                     flexShrink: 0, transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', willChange: 'transform' }}
+                     flexShrink: 0, transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', willChange: 'transform',
+                     border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
                    onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px) scale(1.02)')}
                    onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0) scale(1)')}>
                 {/* ghost numeral */}
@@ -313,6 +319,7 @@ function HeroSection({ time }: { time: string }) {
                   <span>CE</span>
                 </div>
               </div>
+              </div>{/* /lp-float-card */}
             </div>
           )
         })}
@@ -529,7 +536,8 @@ function FeaturesSection() {
           const mutedTc = feat.textLight ? 'rgba(255,255,255,0.86)' : 'rgba(28,27,27,0.72)'
           return (
             <div key={feat.num} className={`lp-flip-card lp-reveal lp-d${i + 1}`}
-                 style={{ position: 'relative', aspectRatio: '89/128', maxHeight: 480, cursor: 'pointer' }}
+                 style={{ position: 'relative', aspectRatio: '89/128', maxHeight: 480, cursor: 'pointer',
+                   border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
                  role="listitem">
               <div className="lp-flip-inner">
                 {/* Front */}

@@ -45,12 +45,17 @@
   text-transform: uppercase;
   padding: 14px 28px;
   cursor: pointer;
-  border: none;
-  transition: background 0.2s;
+  border: 2px solid #1c1b1b;
+  box-shadow: 4px 4px 0px #1c1b1b;
+  transition: background 0.2s, box-shadow 0.15s, transform 0.15s;
   white-space: nowrap;
   text-decoration: none;
 }
-.lp-btn:hover { background: #c94d30; }
+.lp-btn:hover {
+  background: #c94d30;
+  box-shadow: 2px 2px 0px #1c1b1b;
+  transform: translate(2px, 2px);
+}
 .lp-btn-outline {
   background: transparent;
   border: 2px solid #E05A3A;
@@ -111,6 +116,17 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   /* No CSS transition — rAF lerp handles smoothing */
+}
+
+/* ─── Hero card float animation ───────────────────────────────────────────── */
+@keyframes lp-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+.lp-float-card {
+  animation: lp-float var(--float-dur, 3.5s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  will-change: transform;
 }
 
 /* ─── Section label ───────────────────────────────────────────────────────── */
