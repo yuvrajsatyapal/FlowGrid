@@ -28,12 +28,6 @@ const PRIORITY_DOT: Record<Priority, string | null> = {
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-const COMMENT_ICON = (
-  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-    <path d="M1 1.5h8v5.5H5.5L3 9V7H1V1.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-  </svg>
-)
-
 const PAPERCLIP_ICON = (
   <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
     <path d="M8.5 4.5L4.5 8.5a2.5 2.5 0 01-3.5-3.5l4-4a1.5 1.5 0 012 2L3 7a.5.5 0 01-.7-.7L6 2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
@@ -57,15 +51,6 @@ function formatDueDate(iso: string): string {
     day: "numeric",
     ...(sameYear ? {} : { year: "numeric" }),
   }).format(date)
-}
-
-function getDueDateColor(iso: string): string {
-  const now = new Date()
-  const due = new Date(iso)
-  const hoursUntilDue = (due.getTime() - now.getTime()) / 36e5
-  if (due < now) return "oklch(var(--color-error))"
-  if (hoursUntilDue <= 48) return "oklch(var(--color-warning, 0.75 0.15 80))"
-  return "oklch(var(--color-ink-3))"
 }
 
 function formatCompletedDate(iso: string): string {
@@ -100,11 +85,10 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, listName, isDoneList = false, blocked = false, minHeight, overlay = false, onCardClick }: Props) {
+export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
-  const dueDateColor = card.dueDate ? getDueDateColor(card.dueDate) : null
   const prioritySuffix = card.priority !== "NONE" ? ` — ${card.priority.toLowerCase()} priority` : ""
   const isComplete = card.completedAt != null
   const done = isComplete || isDoneList
