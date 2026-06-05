@@ -623,6 +623,9 @@ router.post("/delete", validateJWT, async (req, res) => {
       await prisma.attachment.deleteMany({ where: { cardId } })
     }
 
+    // Remove all dependency links involving this card so they don't appear as stale entries
+    await prisma.cardDependency.deleteMany({ where: { OR: [{ blockerId: cardId }, { blockedId: cardId }] } })
+
     await prisma.card.update({ where: { id: cardId }, data: { deletedAt: new Date() } })
     void logActivity({ cardId: cardId, userId: req.user!.id, action: "card_archived", metadata: {}, boardId: access.board.id })
     emitBoardEvent(access.board.id, "card:deleted", { id: cardId })

@@ -54,11 +54,11 @@ router.get("/", validateJWT, async (req, res) => {
 
     const [blocking, blockedBy] = await Promise.all([
       prisma.cardDependency.findMany({
-        where: { blockerId: cardId },
+        where: { blockerId: cardId, blocked: { deletedAt: null } },
         select: { id: true, blocked: { select: { id: true, title: true, completedAt: true } } },
       }),
       prisma.cardDependency.findMany({
-        where: { blockedId: cardId },
+        where: { blockedId: cardId, blocker: { deletedAt: null } },
         select: { id: true, blocker: { select: { id: true, title: true, completedAt: true } } },
       }),
     ])
@@ -157,7 +157,9 @@ router.post("/remove", validateJWT, async (req, res) => {
       res.status(404).json({ error: { message: "Dependency not found", status: 404 } })
       return
     }
+    // blocker card may have been soft-deleted; fall back to the blocked card for access check
     const access = await resolveBoardForCard(dep.blockerId, req.user!.id)
+      ?? await resolveBoardForCard(dep.blockedId, req.user!.id)
     if (!access) {
       res.status(404).json({ error: { message: "Card not found", status: 404 } })
       return

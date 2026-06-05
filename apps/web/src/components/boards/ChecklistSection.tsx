@@ -4,6 +4,7 @@ import { checklistsApi, type Checklist, type ChecklistItem } from "../../api/che
 interface Props {
   cardId: string
   canEdit: boolean
+  canToggle?: boolean
 }
 
 const CHECK_ICON = (
@@ -14,7 +15,7 @@ const CHECK_ICON = (
 
 const DEFAULT_CHECKLIST_TITLE = "Checklist"
 
-export default function ChecklistSection({ cardId, canEdit }: Props) {
+export default function ChecklistSection({ cardId, canEdit, canToggle = canEdit }: Props) {
   const [checklists, setChecklists] = useState<Checklist[]>([])
   const [newItem, setNewItem] = useState("")
   const [adding, setAdding] = useState(false)
@@ -125,8 +126,8 @@ export default function ChecklistSection({ cardId, canEdit }: Props) {
                 role="checkbox"
                 aria-checked={item.checked}
                 aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
-                disabled={!canEdit}
-                onClick={() => canEdit && void handleToggle(item)}
+                disabled={!canToggle}
+                onClick={() => canToggle && void handleToggle(item)}
                 style={{
                   width: 18,
                   height: 18,
@@ -137,7 +138,7 @@ export default function ChecklistSection({ cardId, canEdit }: Props) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  cursor: canEdit ? "pointer" : "default",
+                  cursor: canToggle ? "pointer" : "default",
                   padding: 0,
                   transition: "background 0.15s, border-color 0.15s",
                 }}
