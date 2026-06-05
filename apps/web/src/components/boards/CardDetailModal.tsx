@@ -111,7 +111,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   // Completion + dependency-blocked state
   const [completing, setCompleting] = useState(false)
-  const [blockedByActive, setBlockedByActive] = useState(false) // ≥1 blocker not completed
+  const [blockedByActive, setBlockedByActive] = useState(true) // pessimistic until first refreshBlocked resolves
   const [showBlockedWarning, setShowBlockedWarning] = useState(false)
   const isComplete = localCard.completedAt != null
 
@@ -119,6 +119,10 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   const isOwnerOrAdmin = userRole === "OWNER" || userRole === "ADMIN"
   const isBlockLocked = blockedByActive && !isOwnerOrAdmin
   const effectiveCanEdit = canEdit && !isBlockLocked
+  // Assignees who are admins or members can check/uncheck items even without full edit rights
+  const canToggleChecklist =
+    effectiveCanEdit ||
+    (!isBlockLocked && (userRole === "ADMIN" || userRole === "MEMBER") && !!user?.id && user.id === localCard.assigneeId)
 
   // Sidebar data
   const [members, setMembers] = useState<WorkspaceMember[]>([])
@@ -731,7 +735,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
             {/* Checklists */}
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} />
+              <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} canToggle={canToggleChecklist} />
             </div>
 
             {/* Attachments */}

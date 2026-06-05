@@ -139,6 +139,7 @@ export default function BoardPage() {
   ])
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
+  const isViewer = board?.role === "VIEWER"
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -708,11 +709,12 @@ export default function BoardPage() {
                     key={item.list.id}
                     list={item.list}
                     canEdit={canEdit}
+                    isViewer={isViewer}
                     cards={boardCards[item.list.id] ?? []}
                     onRenamed={handleRenamed}
                     onDeleted={handleDeleted}
                     onCardCreated={handleCardCreated}
-                    onCardClick={(id) => setOpenCardId(id)}
+                    onCardClick={isViewer ? undefined : (id) => setOpenCardId(id)}
                     width={colWidth}
                     cardSlotHeight={cardSlotHeight}
                     blockedCardIds={blockedCardIds}

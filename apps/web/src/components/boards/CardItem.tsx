@@ -15,6 +15,8 @@ interface Props {
   minHeight?: number
   /** When true, renders as the DragOverlay clone — no transform/ref needed */
   overlay?: boolean
+  /** When true, card is read-only: no click, no metadata — only label, title, description */
+  isViewer?: boolean
   onCardClick?: (cardId: string) => void
 }
 
@@ -85,7 +87,7 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, onCardClick }: Props) {
+export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
@@ -100,7 +102,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
         transform: overlay ? undefined : CSS.Transform.toString(transform),
         transition: overlay ? undefined : transition,
         opacity: isDragging && !overlay ? 0.35 : 1,
-        cursor: overlay ? "grabbing" : "grab",
+        cursor: overlay ? "grabbing" : isViewer ? "default" : "grab",
         touchAction: "none",
         // Fill the slot in a full list (parent stretches to the column height); a no-op in a
         // content-sized partial list, where cards just take their minHeight.
@@ -116,12 +118,12 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
         aria-label={`${card.title}${prioritySuffix}`}
         title={card.title}
         onClick={(e) => {
-          if (overlay || isDragging) return
+          if (overlay || isDragging || isViewer) return
           e.stopPropagation()
           onCardClick?.(card.id)
         }}
-        whileHover={(!overlay && !isDragging) ? { y: -2 } : undefined}
-        whileTap={(!overlay && !isDragging) ? { scale: 0.98 } : undefined}
+        whileHover={(!overlay && !isDragging && !isViewer) ? { y: -2 } : undefined}
+        whileTap={(!overlay && !isDragging && !isViewer) ? { scale: 0.98 } : undefined}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
         style={{
           background: "oklch(var(--color-paper))",
@@ -137,11 +139,11 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
           overflow: "hidden",
         }}
         onMouseEnter={(e) => {
-          if (overlay || isDragging) return
+          if (overlay || isDragging || isViewer) return
           ;(e.currentTarget as HTMLDivElement).style.borderColor = "oklch(var(--color-accent-muted))"
         }}
         onMouseLeave={(e) => {
-          if (overlay || isDragging) return
+          if (overlay || isDragging || isViewer) return
           ;(e.currentTarget as HTMLDivElement).style.borderColor = ""
         }}
       >
@@ -225,7 +227,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
                     lineHeight: 1.5,
                     overflow: "hidden",
                     display: "-webkit-box",
-                    WebkitLineClamp: 3,
+                    WebkitLineClamp: !isViewer && blocked && !isComplete ? 2 : 3,
                     WebkitBoxOrient: "vertical",
                     wordBreak: "break-word",
                   }}
@@ -235,7 +237,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
               </div>
             )}
 
-            {blocked && !isComplete && (
+            {!isViewer && blocked && !isComplete && (
               <span
                 style={{
                   alignSelf: "flex-start",
@@ -255,35 +257,37 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
               </span>
             )}
 
-            {done && (
+            {!isViewer && done && (
               <span style={{ fontSize: "0.5625rem", color: "oklch(var(--color-ink-3))", letterSpacing: "0.04em" }}>
                 Completed {formatCompletedDate(card.completedAt ?? card.updatedAt)}
               </span>
             )}
           </div>
 
-          {/* Right column: stats stacked at top, avatar pinned to bottom */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
-            {card.dueDate && (
-              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", fontWeight: 600, color: "oklch(var(--color-error))", whiteSpace: "nowrap" }}>
-                {FLAG_ICON} {formatDueDate(card.dueDate)}
-              </span>
-            )}
-            {card.checklistTotal > 0 && (
-              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: card.checklistDone === card.checklistTotal ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))" }}>
-                ✓ {card.checklistDone}/{card.checklistTotal}
-              </span>
-            )}
-            {card.attachmentCount > 0 && (
-              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: "oklch(var(--color-ink-3))" }}>
-                {PAPERCLIP_ICON} {card.attachmentCount}
-              </span>
-            )}
-            <div style={{ flex: 1 }} />
-            {card.assignee && (
-              <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
-            )}
-          </div>
+          {/* Right column: stats stacked at top, avatar pinned to bottom — hidden for viewers */}
+          {!isViewer && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+              {card.dueDate && (
+                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", fontWeight: 600, color: "oklch(var(--color-error))", whiteSpace: "nowrap" }}>
+                  {FLAG_ICON} {formatDueDate(card.dueDate)}
+                </span>
+              )}
+              {card.checklistTotal > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: card.checklistDone === card.checklistTotal ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))" }}>
+                  ✓ {card.checklistDone}/{card.checklistTotal}
+                </span>
+              )}
+              {card.attachmentCount > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: "oklch(var(--color-ink-3))" }}>
+                  {PAPERCLIP_ICON} {card.attachmentCount}
+                </span>
+              )}
+              <div style={{ flex: 1 }} />
+              {card.assignee && (
+                <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
+              )}
+            </div>
+          )}
 
         </div>
       </motion.div>

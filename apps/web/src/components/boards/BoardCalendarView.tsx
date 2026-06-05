@@ -128,7 +128,7 @@ export default function BoardCalendarView({ boardId, onCardClick }: Props) {
         localizer={localizer}
         events={events}
         defaultView="month"
-        views={["month", "week", "agenda"]}
+        views={["month", "week"]}
         style={{ height: "calc(100vh - 160px)", minHeight: 500 }}
         eventPropGetter={(event) => ({
           style: {
