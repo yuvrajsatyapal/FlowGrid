@@ -107,7 +107,7 @@ router.get("/", validateJWT, async (req, res) => {
       return
     }
 
-    const [boards, wsMembersRaw] = await Promise.all([
+    const [boards, wsMembersRaw, memberCount] = await Promise.all([
       prisma.board.findMany({
         where: {
           workspaceId,
@@ -128,7 +128,6 @@ router.get("/", validateJWT, async (req, res) => {
           createdAt: true,
           updatedAt: true,
           deletedAt: true,
-          _count: { select: { lists: true } },
           lists: {
             where: { deletedAt: null },
             select: {
@@ -137,12 +136,14 @@ router.get("/", validateJWT, async (req, res) => {
           },
         },
       }),
+      // Fetch only the 2 oldest members for display (oldest first)
       prisma.workspaceMember.findMany({
         where: { workspaceId },
-        take: 5,
+        take: 2,
         orderBy: { createdAt: "asc" },
         include: { user: { select: { id: true, name: true, avatarUrl: true } } },
       }),
+      prisma.workspaceMember.count({ where: { workspaceId } }),
     ])
 
     const wsMembers = wsMembersRaw.map((m) => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl }))
@@ -158,10 +159,10 @@ router.get("/", validateJWT, async (req, res) => {
         createdAt: b.createdAt,
         updatedAt: b.updatedAt,
         deletedAt: b.deletedAt,
-        listCount: b._count.lists,
+        listCount: b.lists.length,
         cardCount: b.lists.reduce((acc, l) => acc + l._count.cards, 0),
-        members: wsMembers.slice(0, 3),
-        memberCount: wsMembersRaw.length,
+        members: wsMembers,
+        memberCount,
       })),
     })
   } catch {

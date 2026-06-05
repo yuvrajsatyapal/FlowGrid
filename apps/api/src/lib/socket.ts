@@ -75,7 +75,12 @@ export function initSocket(httpServer: http.Server): Server {
         select: { id: true, name: true, avatarUrl: true },
       })
       if (user) {
-        const users = await addPresence(boardId, { userId: user.id, name: user.name, avatarUrl: user.avatarUrl })
+        const users = await addPresence(boardId, board.workspaceId, {
+          userId: user.id,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          memberSince: member.createdAt.toISOString(),
+        })
         io.to(boardId).emit("board:presence", { boardId, users })
       }
     })
@@ -152,16 +157,14 @@ export async function getOnlineUserIds(userIds: string[]): Promise<string[]> {
 
 const PRESENCE_TTL_SECONDS = 86_400 // 24 h — cleaned up on disconnect; TTL is a safety net for crashes
 
-async function addPresence(boardId: string, user: PresenceUser): Promise<PresenceUser[]> {
+async function addPresence(boardId: string, workspaceId: string, user: PresenceUser): Promise<PresenceUser[]> {
   const usersKey = redisKeys.boardPresenceUsers(boardId)
   const countsKey = redisKeys.boardPresenceCounts(boardId)
   await redis.hincrby(countsKey, user.userId, 1)
-  // Upstash auto-serializes objects to JSON — don't double-stringify
   await redis.hset(usersKey, { [user.userId]: user })
-  // Refresh TTL so stale keys (from unclean server shutdown) expire automatically
   await redis.expire(usersKey, PRESENCE_TTL_SECONDS)
   await redis.expire(countsKey, PRESENCE_TTL_SECONDS)
-  return getPresence(boardId)
+  return getPresence(boardId, workspaceId)
 }
 
 async function removePresence(boardId: string, userId: string): Promise<PresenceUser[]> {
@@ -175,10 +178,33 @@ async function removePresence(boardId: string, userId: string): Promise<Presence
   return getPresence(boardId)
 }
 
-async function getPresence(boardId: string): Promise<PresenceUser[]> {
+async function getPresence(boardId: string, workspaceId?: string): Promise<PresenceUser[]> {
   const usersKey = redisKeys.boardPresenceUsers(boardId)
   const raw = await redis.hgetall<Record<string, PresenceUser>>(usersKey)
   if (!raw) return []
-  // Upstash already deserializes JSON values — no JSON.parse needed
-  return Object.values(raw)
+
+  const users = Object.values(raw)
+
+  // Backfill memberSince for stale entries that were stored before this field existed
+  const missing = users.filter((u) => !u.memberSince)
+  if (missing.length > 0 && workspaceId) {
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { workspaceId, userId: { in: missing.map((u) => u.userId) } },
+      select: { userId: true, createdAt: true },
+    })
+    const dateByUser = new Map(memberships.map((m) => [m.userId, m.createdAt.toISOString()]))
+    const updates: Record<string, PresenceUser> = {}
+    for (const u of missing) {
+      const since = dateByUser.get(u.userId)
+      if (since) {
+        u.memberSince = since
+        updates[u.userId] = u
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      await redis.hset(usersKey, updates)
+    }
+  }
+
+  return users
 }

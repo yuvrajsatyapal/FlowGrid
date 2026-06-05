@@ -5,12 +5,18 @@ interface BoardPresenceProps {
   users: PresenceUser[]
 }
 
-const MAX_VISIBLE = 5
+const MAX_VISIBLE = 2
 
 export default function BoardPresence({ users }: BoardPresenceProps) {
   if (users.length === 0) return null
 
-  const visible = users.slice(0, MAX_VISIBLE)
+  const sorted = [...users].sort((a, b) => {
+    if (!a.memberSince && !b.memberSince) return 0
+    if (!a.memberSince) return 1
+    if (!b.memberSince) return -1
+    return new Date(a.memberSince).getTime() - new Date(b.memberSince).getTime()
+  })
+  const visible = sorted.slice(0, MAX_VISIBLE)
   const overflow = users.length - MAX_VISIBLE
 
   return (

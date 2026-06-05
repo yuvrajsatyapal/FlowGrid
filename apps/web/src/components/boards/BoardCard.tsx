@@ -47,7 +47,8 @@ interface Props {
 export default function BoardCard({ board, workspaceId }: Props) {
   const navigate = useNavigate()
   const coverBg = board.coverColor ?? DEFAULT_COVER
-  const extra = board.memberCount - board.members.length
+  const visibleMembers = board.members.slice(0, 2)
+  const extra = board.memberCount - 2
 
   return (
     <button
@@ -146,7 +147,7 @@ export default function BoardCard({ board, workspaceId }: Props) {
           {/* Member avatars cluster */}
           {board.members.length > 0 && (
             <div style={{ display: "flex", alignItems: "center" }}>
-              {board.members.map((m, i) => (
+              {visibleMembers.map((m, i) => (
                 <div
                   key={m.id}
                   title={m.name ?? undefined}

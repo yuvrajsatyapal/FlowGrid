@@ -328,6 +328,7 @@ export interface PresenceUser {
   userId: string
   name: string | null
   avatarUrl: string | null
+  memberSince?: string // ISO date — workspace member createdAt, used for sort order
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
