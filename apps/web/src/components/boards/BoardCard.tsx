@@ -5,20 +5,6 @@ import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 const DEFAULT_COVER = "#64748b"
 
-const LockIcon = () => (
-  <svg width="10" height="10" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-    <rect x="1.5" y="4.5" width="8" height="6" rx="1.25" stroke="currentColor" strokeWidth="1.1" />
-    <path d="M3 4.5V3.25a2.5 2.5 0 0 1 5 0V4.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-  </svg>
-)
-
-const GlobeIcon = () => (
-  <svg width="10" height="10" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-    <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.1" />
-    <ellipse cx="5.5" cy="5.5" rx="1.8" ry="4" stroke="currentColor" strokeWidth="1.1" />
-    <line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeWidth="1.1" />
-  </svg>
-)
 
 const BoardGlyph = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -64,7 +50,7 @@ interface Props {
   workspaceId: string
   isPinned: boolean
   onTogglePin: (boardId: string) => void
-  onEdit: (board: BoardSummary) => void
+  onEdit?: (board: BoardSummary) => void
 }
 
 export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, onEdit }: Props) {
@@ -163,8 +149,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
                   lineHeight: 1.5,
                 }}
               >
-                <LockIcon />
-                Private
+                🔒 Private
               </span>
             ) : (
               <span
@@ -181,8 +166,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
                   lineHeight: 1.5,
                 }}
               >
-                <GlobeIcon />
-                Workspace
+                🌐 Workspace
               </span>
             )}
 
@@ -302,7 +286,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
           <PinIcon filled={isPinned} />
         </button>
 
-        <button
+        {onEdit && <button
           onClick={(e) => {
             e.stopPropagation()
             onEdit(board)
@@ -334,7 +318,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
           }}
         >
           <EditIcon />
-        </button>
+        </button>}
       </div>
     </div>
   )

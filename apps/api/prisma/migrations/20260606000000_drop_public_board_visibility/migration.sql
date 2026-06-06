@@ -4,11 +4,12 @@ UPDATE "Board" SET visibility = 'WORKSPACE' WHERE visibility = 'PUBLIC';
 
 -- Step 2: Recreate the enum without PUBLIC
 -- PostgreSQL does not support ALTER TYPE ... DROP VALUE directly, so we:
---   a) change the column to text
+--   a) change the column to text and DROP the default (the default references the enum type)
 --   b) drop and recreate the enum
---   c) restore the column type
+--   c) restore the column type and default
 ALTER TABLE "Board" ALTER COLUMN visibility TYPE TEXT;
-DROP TYPE "BoardVisibility";
+ALTER TABLE "Board" ALTER COLUMN visibility DROP DEFAULT;
+DROP TYPE IF EXISTS "BoardVisibility";
 CREATE TYPE "BoardVisibility" AS ENUM ('WORKSPACE', 'PRIVATE');
 ALTER TABLE "Board"
   ALTER COLUMN visibility TYPE "BoardVisibility" USING visibility::"BoardVisibility",

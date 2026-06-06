@@ -735,190 +735,205 @@ export default function BoardPage() {
             ))}
           </div>
 
-          {/* Board Access button — only for PRIVATE boards where user can manage members */}
+          {/* Board Access button + floating dropdown */}
           {canManageAccess && (
-            <button
-              onClick={() => setAccessPanelOpen((v) => !v)}
-              aria-pressed={accessPanelOpen}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "4px 10px",
-                borderRadius: "var(--radius-badge)",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "var(--text-xs)",
-                fontWeight: 500,
-                background: accessPanelOpen ? "oklch(100% 0 0 / 0.22)" : "oklch(0% 0 0 / 0.20)",
-                color: "#fff",
-                transition: "background 0.15s",
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <circle cx="6" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.1" />
-                <path d="M1 10.5c0-2.21 2.24-4 5-4s5 1.79 5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-              </svg>
-              Access
-            </button>
+            <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setAccessPanelOpen((v) => !v)}
+                  aria-pressed={accessPanelOpen}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "4px 10px",
+                    borderRadius: "var(--radius-badge)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "var(--text-xs)",
+                    fontWeight: 500,
+                    background: accessPanelOpen ? "oklch(100% 0 0 / 0.22)" : "oklch(0% 0 0 / 0.20)",
+                    color: "#fff",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <circle cx="6" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.1" />
+                    <path d="M1 10.5c0-2.21 2.24-4 5-4s5 1.79 5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+                  </svg>
+                  Access
+                </button>
+
+                {accessPanelOpen && board.visibility === "PRIVATE" && (
+                  <>
+                    {/* Click-outside backdrop */}
+                    <div
+                      onClick={() => setAccessPanelOpen(false)}
+                      style={{ position: "fixed", inset: 0, zIndex: 49 }}
+                    />
+                    {/* Dropdown panel */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        right: 0,
+                        zIndex: 50,
+                        width: 480,
+                        maxWidth: "calc(100vw - 32px)",
+                        background: "oklch(var(--color-paper))",
+                        border: "1px solid oklch(var(--color-border))",
+                        borderRadius: "var(--radius-card)",
+                        boxShadow: "0 8px 32px oklch(0% 0 0 / 0.16)",
+                        padding: "16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <h3 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600, color: "oklch(var(--color-ink))" }}>
+                          Board Access
+                        </h3>
+                        <button
+                          onClick={() => setAccessPanelOpen(false)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 18, lineHeight: 1, padding: "2px 4px" }}
+                          aria-label="Close board access panel"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {accessError && (
+                        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{accessError}</p>
+                      )}
+
+                      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                        {/* Current members */}
+                        <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 8 }}>
+                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Current members
+                          </span>
+                          {loadingBoardMembers ? (
+                            <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Loading…</span>
+                          ) : boardMembers.length === 0 ? (
+                            <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>No members yet</span>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {boardMembers.map((m) => (
+                                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <div
+                                    style={{
+                                      width: 26, height: 26, borderRadius: "50%",
+                                      background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      overflow: "hidden", flexShrink: 0,
+                                    }}
+                                  >
+                                    {m.avatarUrl
+                                      ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      : <span style={{ fontSize: 9, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                                    }
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {m.name ?? m.email}
+                                    </div>
+                                    <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>{m.role.toLowerCase()}</div>
+                                  </div>
+                                  {m.userId !== board.createdById && (
+                                    <button
+                                      onClick={() => void handleRemoveMember(m.userId)}
+                                      disabled={removingMember === m.userId}
+                                      aria-label={`Remove ${m.name ?? m.email}`}
+                                      style={{
+                                        background: "none", border: "none", cursor: removingMember === m.userId ? "not-allowed" : "pointer",
+                                        color: "oklch(var(--color-error))", fontSize: "var(--text-xs)", padding: "2px 6px",
+                                        borderRadius: "var(--radius-badge)", opacity: removingMember === m.userId ? 0.5 : 1,
+                                      }}
+                                    >
+                                      {removingMember === m.userId ? "…" : "Remove"}
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Add members */}
+                        <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 8 }}>
+                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Add members
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="Search workspace members…"
+                            value={addMemberSearch}
+                            onChange={(e) => setAddMemberSearch(e.target.value)}
+                            style={{
+                              padding: "6px 10px", borderRadius: "var(--radius-input)",
+                              border: "1px solid oklch(var(--color-border))",
+                              background: "oklch(var(--color-paper-2))",
+                              color: "oklch(var(--color-ink))", fontSize: "var(--text-sm)",
+                              fontFamily: "var(--font-body)", outline: "none",
+                            }}
+                          />
+                          <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                            {filteredAddCandidates.length === 0 ? (
+                              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                                {addMemberSearch ? "No members match" : "All workspace members already have access"}
+                              </span>
+                            ) : (
+                              filteredAddCandidates.map((m) => (
+                                <div key={m.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <div
+                                    style={{
+                                      width: 24, height: 24, borderRadius: "50%",
+                                      background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      overflow: "hidden", flexShrink: 0,
+                                    }}
+                                  >
+                                    {m.avatarUrl
+                                      ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      : <span style={{ fontSize: 8, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                                    }
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {m.name ?? m.email}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => void handleAddMember(m.userId)}
+                                    disabled={addingMember === m.userId}
+                                    aria-label={`Add ${m.name ?? m.email}`}
+                                    style={{
+                                      padding: "3px 10px", borderRadius: "var(--radius-badge)",
+                                      border: "1px solid oklch(var(--color-accent))",
+                                      background: "transparent", color: "oklch(var(--color-accent))",
+                                      fontSize: "var(--text-xs)", fontWeight: 500,
+                                      cursor: addingMember === m.userId ? "not-allowed" : "pointer",
+                                      opacity: addingMember === m.userId ? 0.5 : 1,
+                                      fontFamily: "var(--font-body)",
+                                    }}
+                                  >
+                                    {addingMember === m.userId ? "…" : "Add"}
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+            </div>
           )}
 
           <BoardPresence users={onlineUsers} />
         </div>
       </div>
-
-      {/* Board Access panel — slide in below header for PRIVATE boards */}
-      {accessPanelOpen && board.visibility === "PRIVATE" && canManageAccess && (
-        <div
-          style={{
-            background: "oklch(var(--color-paper))",
-            borderBottom: "1px solid oklch(var(--color-border))",
-            padding: "16px 28px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h3 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600, color: "oklch(var(--color-ink))" }}>
-              Board Access
-            </h3>
-            <button
-              onClick={() => setAccessPanelOpen(false)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 18, lineHeight: 1, padding: "2px 4px" }}
-              aria-label="Close board access panel"
-            >
-              ×
-            </button>
-          </div>
-
-          {accessError && (
-            <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{accessError}</p>
-          )}
-
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-            {/* Current members */}
-            <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 8 }}>
-              <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Current members
-              </span>
-              {loadingBoardMembers ? (
-                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Loading…</span>
-              ) : boardMembers.length === 0 ? (
-                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>No members yet</span>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {boardMembers.map((m) => (
-                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div
-                        style={{
-                          width: 26, height: 26, borderRadius: "50%",
-                          background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          overflow: "hidden", flexShrink: 0,
-                        }}
-                      >
-                        {m.avatarUrl
-                          ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <span style={{ fontSize: 9, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
-                        }
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {m.name ?? m.email}
-                        </div>
-                        <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>{m.role.toLowerCase()}</div>
-                      </div>
-                      {/* Don't show remove for the board creator */}
-                      {m.userId !== board.createdById && (
-                        <button
-                          onClick={() => void handleRemoveMember(m.userId)}
-                          disabled={removingMember === m.userId}
-                          aria-label={`Remove ${m.name ?? m.email}`}
-                          style={{
-                            background: "none", border: "none", cursor: removingMember === m.userId ? "not-allowed" : "pointer",
-                            color: "oklch(var(--color-error))", fontSize: "var(--text-xs)", padding: "2px 6px",
-                            borderRadius: "var(--radius-badge)", opacity: removingMember === m.userId ? 0.5 : 1,
-                          }}
-                        >
-                          {removingMember === m.userId ? "…" : "Remove"}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Add members */}
-            <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 8 }}>
-              <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Add members
-              </span>
-              <input
-                type="text"
-                placeholder="Search workspace members…"
-                value={addMemberSearch}
-                onChange={(e) => setAddMemberSearch(e.target.value)}
-                style={{
-                  padding: "6px 10px", borderRadius: "var(--radius-input)",
-                  border: "1px solid oklch(var(--color-border))",
-                  background: "oklch(var(--color-paper-2))",
-                  color: "oklch(var(--color-ink))", fontSize: "var(--text-sm)",
-                  fontFamily: "var(--font-body)", outline: "none",
-                }}
-              />
-              <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                {filteredAddCandidates.length === 0 ? (
-                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                    {addMemberSearch ? "No members match" : "All workspace members already have access"}
-                  </span>
-                ) : (
-                  filteredAddCandidates.map((m) => (
-                    <div key={m.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div
-                        style={{
-                          width: 24, height: 24, borderRadius: "50%",
-                          background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          overflow: "hidden", flexShrink: 0,
-                        }}
-                      >
-                        {m.avatarUrl
-                          ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          : <span style={{ fontSize: 8, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
-                        }
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {m.name ?? m.email}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => void handleAddMember(m.userId)}
-                        disabled={addingMember === m.userId}
-                        aria-label={`Add ${m.name ?? m.email}`}
-                        style={{
-                          padding: "3px 10px", borderRadius: "var(--radius-badge)",
-                          border: "1px solid oklch(var(--color-accent))",
-                          background: "transparent", color: "oklch(var(--color-accent))",
-                          fontSize: "var(--text-xs)", fontWeight: 500,
-                          cursor: addingMember === m.userId ? "not-allowed" : "pointer",
-                          opacity: addingMember === m.userId ? 0.5 : 1,
-                          fontFamily: "var(--font-body)",
-                        }}
-                      >
-                        {addingMember === m.userId ? "…" : "Add"}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* View-specific content */}
       {boardView === "calendar" && boardId ? (

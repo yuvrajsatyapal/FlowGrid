@@ -1,7 +1,7 @@
 import { Router } from "express"
 import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
-import { canWrite } from "../lib/roles"
+import { canWrite, isOwnerOrAdmin } from "../lib/roles"
 import { createNotification } from "../lib/notifications"
 
 const router = Router()
@@ -264,9 +264,18 @@ router.get("/", validateJWT, async (req, res) => {
               _count: { select: { cards: { where: { deletedAt: null } } } },
             },
           },
+          // Board-level members for PRIVATE boards (avatar cluster + count)
+          members: {
+            take: 2,
+            orderBy: { createdAt: "asc" as const },
+            select: {
+              user: { select: { id: true, name: true, avatarUrl: true } },
+            },
+          },
+          _count: { select: { members: true } },
         },
       }),
-      // Oldest 2 workspace members for avatar cluster display
+      // Oldest 2 workspace members for avatar cluster on WORKSPACE boards
       prisma.workspaceMember.findMany({
         where: { workspaceId },
         take: 2,
@@ -279,22 +288,29 @@ router.get("/", validateJWT, async (req, res) => {
     const wsMembers = wsMembersRaw.map((m) => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl }))
 
     res.json({
-      boards: boards.map((b) => ({
-        id: b.id,
-        workspaceId: b.workspaceId,
-        name: b.name,
-        description: b.description,
-        visibility: b.visibility,
-        coverColor: b.coverColor,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-        deletedAt: b.deletedAt,
-        listCount: b.lists.length,
-        cardCount: b.lists.reduce((acc, l) => acc + l._count.cards, 0),
-        members: wsMembers,
-        memberCount,
-        isOwner: b.createdById === req.user!.id,
-      })),
+      boards: boards.map((b) => {
+        const isPrivate = b.visibility === "PRIVATE"
+        const displayMembers = isPrivate
+          ? b.members.map((m) => ({ id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl }))
+          : wsMembers
+        const displayMemberCount = isPrivate ? b._count.members : memberCount
+        return {
+          id: b.id,
+          workspaceId: b.workspaceId,
+          name: b.name,
+          description: b.description,
+          visibility: b.visibility,
+          coverColor: b.coverColor,
+          createdAt: b.createdAt,
+          updatedAt: b.updatedAt,
+          deletedAt: b.deletedAt,
+          listCount: b.lists.length,
+          cardCount: b.lists.reduce((acc, l) => acc + l._count.cards, 0),
+          members: displayMembers,
+          memberCount: displayMemberCount,
+          isOwner: b.createdById === req.user!.id,
+        }
+      }),
     })
   } catch {
     res.status(500).json({ error: { message: "Failed to fetch boards", status: 500 } })
@@ -394,6 +410,11 @@ router.post("/update", validateJWT, async (req, res) => {
     const membership = await checkBoardAccess(res, board, req.user!.id, { write: true })
     if (!membership) return
 
+    if (!isOwnerOrAdmin(membership.role)) {
+      res.status(403).json({ error: { message: "Only admins and owners can edit board settings", status: 403 } })
+      return
+    }
+
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) updateData.name = name.trim()
     if (visibility !== undefined) updateData.visibility = visibility
@@ -420,19 +441,26 @@ router.post("/update", validateJWT, async (req, res) => {
       return
     }
 
-    // When a board transitions WORKSPACE → PRIVATE, the creator must keep access.
-    // PRIVATE boards gate on BoardMember rows (except workspace OWNER/ADMIN), so without
-    // this the creator could lock themselves out of their own board.
+    // When a board transitions WORKSPACE → PRIVATE, both the original creator and the
+    // user making the change must keep access (either might differ, and createdById can be null).
     const becomingPrivate = visibility === "PRIVATE" && board.visibility !== "PRIVATE"
+    const privilegedIds = new Set<string>()
+    if (becomingPrivate) {
+      if (board.createdById) privilegedIds.add(board.createdById)
+      privilegedIds.add(req.user!.id)
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.board.update({ where: { id: boardId }, data: updateData })
-      if (becomingPrivate && board.createdById) {
-        await tx.boardMember.upsert({
-          where: { boardId_userId: { boardId, userId: board.createdById } },
-          update: {},
-          create: { boardId, userId: board.createdById, role: "OWNER" },
-        })
+      if (becomingPrivate) {
+        for (const userId of privilegedIds) {
+          const role = userId === board.createdById ? "OWNER" : membership.role
+          await tx.boardMember.upsert({
+            where: { boardId_userId: { boardId, userId } },
+            update: {},
+            create: { boardId, userId, role },
+          })
+        }
       }
       return result
     })

@@ -31,25 +31,38 @@ interface Props {
   board: BoardSummary
   workspaceId: string
   currentUserId: string
-  /** Whether the current user can delete the board (workspace OWNER) */
   canDelete: boolean
   onUpdated: (board: BoardSummary) => void
   onDeleted: (boardId: string) => void
   onClose: () => void
 }
 
-export default function EditBoardModal({ board, workspaceId, currentUserId, canDelete, onUpdated, onDeleted, onClose }: Props) {
+const LABEL_STYLE: React.CSSProperties = {
+  fontSize: "var(--text-xs)",
+  fontWeight: 600,
+  color: "oklch(var(--color-ink-3))",
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+}
+
+export default function EditBoardModal({
+  board,
+  workspaceId,
+  currentUserId,
+  canDelete,
+  onUpdated,
+  onDeleted,
+  onClose,
+}: Props) {
   const [name, setName] = useState(board.name)
   const [visibility, setVisibility] = useState<BoardVisibility>(board.visibility)
   const [coverColor, setCoverColor] = useState<string | null>(board.coverColor)
   const [error, setError] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
 
-  // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // Member picker — invite members who don't already have access (auto-applies)
   const [allMembers, setAllMembers] = useState<WorkspaceMemberOption[]>([])
   const [existingMemberIds, setExistingMemberIds] = useState<Set<string>>(new Set())
   const [loadingMembers, setLoadingMembers] = useState(false)
@@ -58,7 +71,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
 
   const overlayRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
-  // Last values successfully persisted — used to skip no-op saves
   const savedRef = useRef({ name: board.name, visibility: board.visibility, coverColor: board.coverColor })
 
   useEffect(() => {
@@ -74,7 +86,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [onClose])
 
-  // Persist a partial change to the board and reflect it in the parent list.
   const persist = useCallback(
     async (fields: { name?: string; visibility?: BoardVisibility; coverColor?: string | null }) => {
       setSaveStatus("saving")
@@ -98,7 +109,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     [board, onUpdated],
   )
 
-  // Auto-save the name after the user stops typing (debounced); skip empty/unchanged.
   useEffect(() => {
     const trimmed = name.trim()
     if (!trimmed || trimmed === savedRef.current.name) return
@@ -106,7 +116,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     return () => clearTimeout(t)
   }, [name, persist])
 
-  // Cover color + visibility save immediately on change
   function handleCoverChange(next: string | null) {
     setCoverColor(next)
     if (next !== savedRef.current.coverColor) void persist({ coverColor: next })
@@ -117,7 +126,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     if (next !== savedRef.current.visibility) void persist({ visibility: next })
   }
 
-  // Load workspace members + existing board members for the invite picker
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true)
     try {
@@ -134,7 +142,7 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
           .map((m) => ({ userId: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl })),
       )
     } catch {
-      // Non-critical — picker stays empty
+      // Non-critical
     } finally {
       setLoadingMembers(false)
     }
@@ -148,7 +156,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     }
   }, [visibility, loadMembers])
 
-  // Candidates = workspace members not already on the board
   const candidates = allMembers.filter((m) => !existingMemberIds.has(m.userId))
   const filteredMembers = candidates.filter((m) => {
     const q = memberSearch.toLowerCase()
@@ -160,7 +167,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
     setError("")
     try {
       await boardsApi.addMember(board.id, userId)
-      // Move to existing so they drop out of the candidates list
       setExistingMemberIds((prev) => new Set(prev).add(userId))
     } catch (err: unknown) {
       setError((err as Error).message || "Failed to invite member")
@@ -217,20 +223,20 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
           borderRadius: "var(--radius-modal)",
           border: "1px solid oklch(var(--color-border))",
           width: "100%",
-          maxWidth: "460px",
+          maxWidth: "420px",
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "0 20px 60px oklch(0% 0 0 / 0.20)",
         }}
       >
-        {/* Header row: title (left) · autosave status + close (right) */}
+        {/* ── Header ───────────────────────────────────────────────────────── */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: "12px",
-            padding: "16px 20px",
+            padding: "14px 16px",
             borderBottom: "1px solid oklch(var(--color-border))",
           }}
         >
@@ -238,7 +244,7 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
             id="edit-board-title"
             style={{
               margin: 0,
-              fontSize: "var(--text-base)",
+              fontSize: "var(--text-sm)",
               fontWeight: 600,
               color: "oklch(var(--color-ink))",
               fontFamily: "var(--font-display)",
@@ -247,30 +253,32 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
             Edit board
           </h2>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {/* Auto-save status */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* Auto-save indicator */}
             <span
               aria-live="polite"
               style={{
                 fontSize: "var(--text-xs)",
                 fontWeight: 500,
                 whiteSpace: "nowrap",
-                color: saveStatus === "saving" ? "oklch(var(--color-ink-3))" : "oklch(var(--color-success, 0.6 0.13 150))",
+                color: saveStatus === "saving"
+                  ? "oklch(var(--color-ink-3))"
+                  : "oklch(0.55 0.13 152)",
                 opacity: saveStatus === "idle" ? 0 : 1,
-                transition: "opacity var(--dur-fast)",
+                transition: "opacity 200ms ease",
               }}
             >
-              {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved" : ""}
+              {saveStatus === "saving" ? "Saving…" : "✓ Saved"}
             </span>
 
-            {/* Close (X) */}
+            {/* Close */}
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
               style={{
-                width: "28px",
-                height: "28px",
+                width: "26px",
+                height: "26px",
                 borderRadius: "var(--radius-badge)",
                 border: "none",
                 background: "transparent",
@@ -279,10 +287,10 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                fontSize: "18px",
+                fontSize: "17px",
                 lineHeight: 1,
                 flexShrink: 0,
-                transition: "background var(--dur-fast), color var(--dur-fast)",
+                transition: "background 150ms ease, color 150ms ease",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "oklch(var(--color-paper-3))"
@@ -298,25 +306,24 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px" }}>
+        {/* ── Body ─────────────────────────────────────────────────────────── */}
+        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
           {/* Cover preview */}
           <div
             style={{
-              height: "72px",
+              height: "80px",
               borderRadius: "var(--radius-card)",
               background: coverColor ?? "#64748b",
+              transition: "background 200ms ease",
+              flexShrink: 0,
             }}
           />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Name */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <label
-              htmlFor="edit-board-name"
-              style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", letterSpacing: "0.04em", textTransform: "uppercase" }}
-            >
-              Board name *
+          {/* Board name */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            <label htmlFor="edit-board-name" style={LABEL_STYLE}>
+              Board name
             </label>
             <input
               id="edit-board-name"
@@ -328,7 +335,7 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
               maxLength={100}
               disabled={deleting}
               style={{
-                padding: "8px 12px",
+                padding: "7px 10px",
                 borderRadius: "var(--radius-input)",
                 border: error ? "1px solid oklch(var(--color-error))" : "1px solid oklch(var(--color-border))",
                 background: "oklch(var(--color-paper-2))",
@@ -338,121 +345,88 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                 outline: "none",
                 width: "100%",
                 boxSizing: "border-box",
+                transition: "border-color 150ms ease, box-shadow 150ms ease",
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "oklch(var(--color-focus))"
                 e.currentTarget.style.boxShadow = "0 0 0 3px oklch(var(--color-accent-muted))"
               }}
               onBlur={(e) => {
-                e.currentTarget.style.borderColor = error ? "oklch(var(--color-error))" : "oklch(var(--color-border))"
+                e.currentTarget.style.borderColor = error
+                  ? "oklch(var(--color-error))"
+                  : "oklch(var(--color-border))"
                 e.currentTarget.style.boxShadow = "none"
               }}
             />
             {error && (
-              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{error}</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>
+                {error}
+              </span>
             )}
           </div>
 
           {/* Cover color */}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-              Cover color
-            </span>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <span style={LABEL_STYLE}>Cover color</span>
+            <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", alignItems: "center" }}>
               {COVER_COLORS.map((c) => (
                 <button
                   key={c.hex}
                   type="button"
                   title={c.label}
-                  aria-label={`Cover color: ${c.label}${coverColor === c.hex ? " (selected)" : ""}`}
+                  aria-label={`${c.label}${coverColor === c.hex ? " (selected)" : ""}`}
                   onClick={() => handleCoverChange(c.hex)}
                   disabled={deleting}
                   style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "var(--radius-badge)",
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "50%",
                     background: c.hex,
-                    border: coverColor === c.hex ? "2px solid oklch(var(--color-ink))" : "2px solid transparent",
+                    border: coverColor === c.hex
+                      ? "2.5px solid oklch(var(--color-ink))"
+                      : "2.5px solid transparent",
                     cursor: "pointer",
                     outline: "none",
                     padding: 0,
                     flexShrink: 0,
-                    transition: "transform var(--dur-fast)",
-                    transform: coverColor === c.hex ? "scale(1.15)" : "scale(1)",
+                    transition: "transform 150ms ease, border-color 150ms ease",
+                    transform: coverColor === c.hex ? "scale(1.18)" : "scale(1)",
                   }}
                 />
               ))}
+              {/* No-color option */}
               <button
                 type="button"
                 title="No color"
-                aria-label={`No cover color${coverColor === null ? " (selected)" : ""}`}
+                aria-label={`No color${coverColor === null ? " (selected)" : ""}`}
                 onClick={() => handleCoverChange(null)}
                 disabled={deleting}
                 style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "var(--radius-badge)",
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
                   background: "oklch(var(--color-paper-3))",
-                  border: coverColor === null ? "2px solid oklch(var(--color-ink))" : "2px solid oklch(var(--color-border))",
+                  border: coverColor === null
+                    ? "2.5px solid oklch(var(--color-ink))"
+                    : "2.5px solid oklch(var(--color-border))",
                   cursor: "pointer",
                   outline: "none",
                   padding: 0,
                   flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "oklch(var(--color-ink-3))",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  lineHeight: 1,
+                  transition: "transform 150ms ease",
+                  transform: coverColor === null ? "scale(1.18)" : "scale(1)",
                 }}
-              >
-                ×
-              </button>
+              />
             </div>
           </div>
 
-          {/* Visibility */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <label
-              htmlFor="edit-board-visibility"
-              style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", letterSpacing: "0.04em", textTransform: "uppercase" }}
-            >
-              Visibility
-            </label>
-            <select
-              id="edit-board-visibility"
-              value={visibility}
-              onChange={(e) => handleVisibilityChange(e.target.value as BoardVisibility)}
-              disabled={deleting}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "var(--radius-input)",
-                border: "1px solid oklch(var(--color-border))",
-                background: "oklch(var(--color-paper-2))",
-                color: "oklch(var(--color-ink))",
-                fontSize: "var(--text-sm)",
-                fontFamily: "var(--font-body)",
-                cursor: "pointer",
-                outline: "none",
-              }}
-            >
-              <option value="WORKSPACE">Workspace (all members)</option>
-              <option value="PRIVATE">Private (invite only)</option>
-            </select>
-          </div>
-
-          {/* Member picker — shown when PRIVATE; inviting applies immediately */}
+          {/* Member picker — PRIVATE boards only */}
           {visibility === "PRIVATE" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                Invite members
-              </span>
-
-              <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+              <span style={LABEL_STYLE}>Invite members</span>
+              <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", lineHeight: 1.5 }}>
                 Inviting adds the member instantly. Manage existing members from the board's Access panel.
               </p>
-
               <input
                 type="text"
                 placeholder="Search members…"
@@ -472,12 +446,11 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                   boxSizing: "border-box",
                 }}
               />
-
               <div
                 style={{
                   border: "1px solid oklch(var(--color-border))",
                   borderRadius: "var(--radius-card)",
-                  maxHeight: "160px",
+                  maxHeight: "156px",
                   overflowY: "auto",
                   background: "oklch(var(--color-paper-2))",
                 }}
@@ -498,10 +471,11 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                         display: "flex",
                         alignItems: "center",
                         gap: "10px",
-                        width: "100%",
                         padding: "8px 12px",
                         boxSizing: "border-box",
-                        borderBottom: i < filteredMembers.length - 1 ? "1px solid oklch(var(--color-border) / 0.5)" : "none",
+                        borderBottom: i < filteredMembers.length - 1
+                          ? "1px solid oklch(var(--color-border) / 0.5)"
+                          : "none",
                       }}
                     >
                       <div
@@ -520,10 +494,11 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                         {m.avatarUrl ? (
                           <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
-                          <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff" }}>
+                            {getInitials(m.name ?? m.email)}
+                          </span>
                         )}
                       </div>
-
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {m.name ?? m.email}
@@ -534,7 +509,6 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                           </div>
                         )}
                       </div>
-
                       <button
                         type="button"
                         onClick={() => void handleInvite(m.userId)}
@@ -562,53 +536,123 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
               </div>
             </div>
           )}
-          </div>
-        </div>
 
-        {/* Danger Zone — delete board, separated by a divider */}
-        {canDelete && (
-          <div
-            style={{
-              padding: "16px 20px 20px",
-              borderTop: "1px solid oklch(var(--color-border))",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "var(--text-xs)",
-                fontWeight: 600,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                color: "oklch(var(--color-error))",
-              }}
-            >
-              Danger Zone
-            </span>
-            {confirmDelete ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", fontWeight: 500 }}>
-                  Delete "{board.name}"? This can't be undone.
+          {/* ── Visibility + Delete row ───────────────────────────────────── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            <span style={LABEL_STYLE}>Visibility</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* Visibility select */}
+              <select
+                id="edit-board-visibility"
+                value={visibility}
+                onChange={(e) => handleVisibilityChange(e.target.value as BoardVisibility)}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  padding: "7px 10px",
+                  borderRadius: "var(--radius-input)",
+                  border: "1px solid oklch(var(--color-border))",
+                  background: "oklch(var(--color-paper-2))",
+                  color: "oklch(var(--color-ink))",
+                  fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-body)",
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                <option value="WORKSPACE">Workspace (all)</option>
+                <option value="PRIVATE">Private (Invite Only)</option>
+              </select>
+
+              {/* Delete button — compact ghost/destructive */}
+              {canDelete && !confirmDelete && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={deleting}
+                  title="Delete board"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "7px 12px",
+                    borderRadius: "var(--radius-input)",
+                    border: "1px solid oklch(var(--color-accent))",
+                    background: "transparent",
+                    color: "oklch(var(--color-accent))",
+                    fontSize: "var(--text-sm)",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    fontFamily: "var(--font-body)",
+                    flexShrink: 0,
+                    transition: "background 160ms ease",
+                    whiteSpace: "nowrap",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "oklch(var(--color-accent-muted))"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent"
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.style.background = "oklch(var(--color-accent) / 0.15)"
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.background = "oklch(var(--color-accent-muted))"
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l1 9.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5L13 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Delete
+                </button>
+              )}
+            </div>
+
+            {/* Inline delete confirmation */}
+            {canDelete && confirmDelete && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  padding: "12px 14px",
+                  borderRadius: "var(--radius-card)",
+                  border: "1px solid oklch(0.55 0.18 25 / 0.2)",
+                  background: "oklch(0.55 0.18 25 / 0.05)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "var(--text-xs)",
+                    color: "oklch(var(--color-ink-2))",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Delete <strong style={{ color: "oklch(var(--color-ink))" }}>"{board.name}"</strong>? This can't be undone.
                 </p>
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ display: "flex", gap: "8px" }}>
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(false)}
                     disabled={deleting}
                     style={{
                       flex: 1,
-                      padding: "8px 16px",
+                      padding: "6px 12px",
                       borderRadius: "var(--radius-button)",
                       border: "1px solid oklch(var(--color-border))",
                       background: "transparent",
                       color: "oklch(var(--color-ink-2))",
-                      fontSize: "var(--text-sm)",
+                      fontSize: "var(--text-xs)",
                       fontWeight: 500,
                       cursor: deleting ? "not-allowed" : "pointer",
                       fontFamily: "var(--font-body)",
+                      transition: "background 150ms ease",
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))" }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
                   >
                     Cancel
                   </button>
@@ -618,50 +662,26 @@ export default function EditBoardModal({ board, workspaceId, currentUserId, canD
                     disabled={deleting}
                     style={{
                       flex: 1,
-                      padding: "8px 16px",
+                      padding: "6px 12px",
                       borderRadius: "var(--radius-button)",
                       border: "none",
-                      background: "oklch(var(--color-error))",
+                      background: "oklch(0.50 0.20 25)",
                       color: "#fff",
-                      fontSize: "var(--text-sm)",
+                      fontSize: "var(--text-xs)",
                       fontWeight: 600,
                       cursor: deleting ? "not-allowed" : "pointer",
                       fontFamily: "var(--font-body)",
-                      opacity: deleting ? 0.7 : 1,
+                      opacity: deleting ? 0.65 : 1,
+                      transition: "opacity 150ms ease",
                     }}
                   >
                     {deleting ? "Deleting…" : "Delete board"}
                   </button>
                 </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleting}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "7px 12px",
-                  borderRadius: "var(--radius-button)",
-                  border: "1px solid oklch(var(--color-error) / 0.4)",
-                  background: "transparent",
-                  color: "oklch(var(--color-error))",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l1 9.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5L13 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Delete board
-              </button>
             )}
           </div>
-        )}
+        </div>
       </motion.div>
     </motion.div>
   )

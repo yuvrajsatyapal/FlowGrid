@@ -294,9 +294,12 @@ export default function WorkspacePage() {
   }
 
   function handleBoardUpdated(updated: BoardSummary) {
-    // Auto-save keeps the modal open — just sync the board in state
-    setBoards((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
-    setEditingBoard((prev) => (prev && prev.id === updated.id ? updated : prev))
+    const prev = boards.find((b) => b.id === updated.id)
+    const visibilityChanged = prev && prev.visibility !== updated.visibility
+    setBoards((bs) => bs.map((b) => (b.id === updated.id ? updated : b)))
+    setEditingBoard((eb) => (eb && eb.id === updated.id ? updated : eb))
+    // Visibility change means member data is stale — refetch to get accurate counts/avatars
+    if (visibilityChanged) void fetchBoards()
   }
 
   function handleBoardDeletedFromModal(boardId: string) {
@@ -713,7 +716,7 @@ export default function WorkspacePage() {
                   workspaceId={workspaceId!}
                   isPinned={pinnedIds.has(board.id)}
                   onTogglePin={handleTogglePin}
-                  onEdit={setEditingBoard}
+                  onEdit={canManage ? setEditingBoard : undefined}
                 />
               ))}
               {canManage && (!showPagination || isLastPage) && (
@@ -867,6 +870,7 @@ export default function WorkspacePage() {
                         />
                       </svg>
                     </button>
+                    {canManage && (
                     <button
                       onClick={() => setEditingBoard(board)}
                       aria-label="Edit board"
@@ -899,6 +903,7 @@ export default function WorkspacePage() {
                         <path d="M10.5 3.5l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
+                    )}
                   </div>
                 </div>
               ))}
