@@ -416,7 +416,7 @@ export default function WorkspaceMembersPage() {
   useEffect(() => { void fetchMembers() }, [fetchMembers])
   useEffect(() => { void fetchInvites() }, [fetchInvites])
 
-  // Keep online/offline status fresh without flashing the loading state.
+  // Keep online/offline status and invite list fresh without flashing the loading state.
   const silentRefreshMembers = useCallback(async () => {
     if (!workspaceId) return
     try {
@@ -427,15 +427,25 @@ export default function WorkspaceMembersPage() {
     }
   }, [workspaceId])
 
+  const silentRefreshInvites = useCallback(async () => {
+    if (!workspaceId || !canManage) return
+    try {
+      const data = await invitesApi.list(workspaceId)
+      setInvites(data)
+    } catch {
+      // Non-critical
+    }
+  }, [workspaceId, canManage])
+
   useEffect(() => {
-    const interval = setInterval(() => { void silentRefreshMembers() }, 30_000)
-    const onFocus = () => { void silentRefreshMembers() }
-    window.addEventListener("focus", onFocus)
+    const refresh = () => { void silentRefreshMembers(); void silentRefreshInvites() }
+    const interval = setInterval(refresh, 30_000)
+    window.addEventListener("focus", refresh)
     return () => {
       clearInterval(interval)
-      window.removeEventListener("focus", onFocus)
+      window.removeEventListener("focus", refresh)
     }
-  }, [silentRefreshMembers])
+  }, [silentRefreshMembers, silentRefreshInvites])
 
   const handleRoleChange = async (memberId: string, newRole: Role) => {
     try {
@@ -447,7 +457,6 @@ export default function WorkspaceMembersPage() {
   }
 
   const handleRemove = async (memberId: string) => {
-    if (!confirm("Remove this member from the workspace?")) return
     try {
       await workspacesApi.removeMember(memberId)
       setMembers((prev) => prev.filter((m) => m.id !== memberId))
@@ -458,6 +467,7 @@ export default function WorkspaceMembersPage() {
 
   // Debounce user search as the admin types
   useEffect(() => {
+    if (selectedUser) return
     if (!workspaceId || inviteSearch.length < 2) {
       setInviteSearchResults([])
       setShowDropdown(false)
@@ -476,7 +486,7 @@ export default function WorkspaceMembersPage() {
       }
     }, 300)
     return () => clearTimeout(t)
-  }, [inviteSearch, workspaceId])
+  }, [inviteSearch, workspaceId, selectedUser])
 
   const handleSelectUser = (u: UserSearchResult) => {
     setSelectedUser(u)
@@ -516,7 +526,6 @@ export default function WorkspaceMembersPage() {
   }
 
   const handleRevoke = async (inviteId: string) => {
-    if (!confirm("Revoke this invite?")) return
     try {
       await invitesApi.revoke(inviteId)
       setInvites((prev) => prev.filter((i) => i.id !== inviteId))
@@ -577,8 +586,8 @@ export default function WorkspaceMembersPage() {
 
       {/* Invite form */}
       {canManage && (
-        <div style={{ ...sectionCard, marginBottom: "24px" }}>
-          <div style={sectionHeader}>
+        <div style={{ ...sectionCard, marginBottom: "24px", overflow: "visible" }}>
+          <div style={{ ...sectionHeader, borderRadius: "var(--radius-card) var(--radius-card) 0 0" }}>
             <h2 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600 }}>Invite New Member</h2>
           </div>
           <div style={{ padding: "16px 20px" }}>

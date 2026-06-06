@@ -56,20 +56,9 @@ const VIEW_ICONS = {
   ),
 }
 
-const LOCK_ICON = (
-  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-    <rect x="2" y="5.5" width="9" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.1" />
-    <path d="M3.5 5.5V4A3 3 0 0 1 9.5 4v1.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-  </svg>
-)
+const LOCK_ICON = <span aria-hidden="true" style={{ fontSize: "12px", lineHeight: 1 }}>🔒</span>
 
-const GLOBE_ICON = (
-  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-    <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.1" />
-    <ellipse cx="6.5" cy="6.5" rx="2" ry="4.5" stroke="currentColor" strokeWidth="1.1" />
-    <line x1="2" y1="6.5" x2="11" y2="6.5" stroke="currentColor" strokeWidth="1.1" />
-  </svg>
-)
+const GLOBE_ICON = <span aria-hidden="true" style={{ fontSize: "12px", lineHeight: 1 }}>🌐</span>
 
 const DEFAULT_COVER = "#64748b"
 

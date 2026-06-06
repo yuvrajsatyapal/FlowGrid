@@ -469,7 +469,7 @@ export default function EditBoardModal({
                 style={{
                   border: "1px solid oklch(var(--color-border))",
                   borderRadius: "var(--radius-card)",
-                  maxHeight: "156px",
+                  maxHeight: "90px",
                   overflowY: "auto",
                   background: "oklch(var(--color-paper-2))",
                 }}

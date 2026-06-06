@@ -35,7 +35,7 @@ export function SearchModal({ isOpen, onClose, workspaceId }: Props) {
   const handleSelect = useCallback(
     (card: CardSearchResult) => {
       onClose()
-      navigate(`/workspaces/${workspaceId}/boards/${card.boardId}`)
+      navigate(`/${workspaceId}/${card.boardId}?card=${card.id}`)
     },
     [onClose, navigate, workspaceId],
   )
