@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import { workspacesApi, type WorkspaceMember } from "../api/workspaces"
-import { invitesApi } from "../api/invites"
+import { invitesApi, type WorkspaceInviteRecord } from "../api/invites"
+import { usersApi, type UserSearchResult } from "../api/users"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
-import type { Role, WorkspaceInvite } from "@flowgrid/types"
+import type { Role } from "@flowgrid/types"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
 
@@ -345,20 +346,23 @@ export default function WorkspaceMembersPage() {
   const { user } = useAuth()
 
   const [members, setMembers] = useState<WorkspaceMember[]>([])
-  const [invites, setInvites] = useState<WorkspaceInvite[]>([])
+  const [invites, setInvites] = useState<WorkspaceInviteRecord[]>([])
   const [loadingMembers, setLoadingMembers] = useState(true)
   const [loadingInvites, setLoadingInvites] = useState(true)
   const [membersError, setMembersError] = useState("")
   const [invitesError, setInvitesError] = useState("")
   const [memberSearch, setMemberSearch] = useState("")
 
-  // Invite form
-  const [inviteEmail, setInviteEmail] = useState("")
+  // Invite form — user search based (invitee must have an account)
+  const [inviteSearch, setInviteSearch] = useState("")
+  const [inviteSearchResults, setInviteSearchResults] = useState<UserSearchResult[]>([])
+  const [inviteSearchLoading, setInviteSearchLoading] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
+  const [showDropdown, setShowDropdown] = useState(false)
   const [inviteRole, setInviteRole] = useState<Role>("MEMBER")
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState("")
-  const [inviteUrl, setInviteUrl] = useState("")
   const [resendSuccess, setResendSuccess] = useState<Record<string, boolean>>({})
 
   const currentUserMember = members.find((m) => m.userId === user?.id)
@@ -452,18 +456,46 @@ export default function WorkspaceMembersPage() {
     }
   }
 
+  // Debounce user search as the admin types
+  useEffect(() => {
+    if (!workspaceId || inviteSearch.length < 2) {
+      setInviteSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+    const t = setTimeout(async () => {
+      setInviteSearchLoading(true)
+      try {
+        const results = await usersApi.search(inviteSearch, workspaceId)
+        setInviteSearchResults(results)
+        setShowDropdown(true)
+      } catch {
+        setInviteSearchResults([])
+      } finally {
+        setInviteSearchLoading(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [inviteSearch, workspaceId])
+
+  const handleSelectUser = (u: UserSearchResult) => {
+    setSelectedUser(u)
+    setInviteSearch(u.name ?? u.email)
+    setShowDropdown(false)
+    setInviteError("")
+  }
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!workspaceId || !inviteEmail.trim()) return
+    if (!workspaceId || !selectedUser) return
     setInviting(true)
     setInviteError("")
     setInviteSuccess("")
-    setInviteUrl("")
     try {
-      const result = await invitesApi.create(workspaceId, inviteEmail.trim(), inviteRole)
-      setInviteSuccess(`Invite sent to ${inviteEmail.trim()}`)
-      setInviteUrl(result.inviteUrl)
-      setInviteEmail("")
+      await invitesApi.create(workspaceId, selectedUser.id, inviteRole)
+      setInviteSuccess(`Invite sent to ${selectedUser.name ?? selectedUser.email}`)
+      setSelectedUser(null)
+      setInviteSearch("")
       void fetchInvites()
     } catch (err: unknown) {
       setInviteError((err as Error).message || "Failed to send invite")
@@ -476,7 +508,7 @@ export default function WorkspaceMembersPage() {
     try {
       const result = await invitesApi.resend(inviteId)
       setResendSuccess((prev) => ({ ...prev, [inviteId]: true }))
-      setInvites((prev) => prev.map((i) => i.id === inviteId ? { ...i, ...result.invite, inviteUrl: result.inviteUrl } : i))
+      setInvites((prev) => prev.map((i) => i.id === inviteId ? { ...i, ...result.invite } : i))
       setTimeout(() => setResendSuccess((prev) => ({ ...prev, [inviteId]: false })), 3000)
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to resend invite")
@@ -551,32 +583,100 @@ export default function WorkspaceMembersPage() {
           </div>
           <div style={{ padding: "16px 20px" }}>
             <form onSubmit={handleInvite} style={{ display: "flex", gap: "8px", flexWrap: "wrap" as const }}>
-              <input
-                type="email"
-                placeholder="colleague@example.com"
-                value={inviteEmail}
-                onChange={(e) => { setInviteEmail(e.target.value); setInviteError(""); setInviteSuccess("") }}
-                required
-                disabled={inviting}
-                style={{ ...inputStyle, flex: "1 1 200px", minWidth: "180px" }}
-              />
+              {/* User search input */}
+              <div style={{ flex: "1 1 200px", minWidth: "180px", position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="Search by name or email…"
+                  value={inviteSearch}
+                  onChange={(e) => {
+                    setInviteSearch(e.target.value)
+                    setSelectedUser(null)
+                    setInviteError("")
+                    setInviteSuccess("")
+                  }}
+                  onFocus={() => { if (inviteSearchResults.length > 0) setShowDropdown(true) }}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                  disabled={inviting}
+                  autoComplete="off"
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" as const }}
+                />
+                {/* Search results dropdown */}
+                {showDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    background: "oklch(var(--color-paper))",
+                    border: "1px solid oklch(var(--color-border))",
+                    borderRadius: "var(--radius-card)",
+                    boxShadow: "0 4px 16px oklch(0% 0 0 / 0.12)",
+                    overflow: "hidden",
+                  }}>
+                    {inviteSearchLoading ? (
+                      <div style={{ padding: "10px 12px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                        Searching…
+                      </div>
+                    ) : inviteSearchResults.length === 0 ? (
+                      <div style={{ padding: "10px 12px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                        No users found
+                      </div>
+                    ) : (
+                      inviteSearchResults.map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onMouseDown={() => handleSelectUser(u)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            width: "100%",
+                            padding: "8px 12px",
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "var(--font-body)",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "oklch(var(--color-paper-3))" }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent" }}
+                        >
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%",
+                            background: u.avatarUrl ? "transparent" : getAvatarBg(u.id),
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            overflow: "hidden", flexShrink: 0,
+                          }}>
+                            {u.avatarUrl
+                              ? <img src={u.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <span style={{ fontSize: "9px", fontWeight: 700, color: "#fff" }}>{getInitials(u.name ?? u.email)}</span>
+                            }
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {u.name ?? u.email}
+                            </div>
+                            {u.name && <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
               <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} disabled={inviting} style={selectStyle}>
                 {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
-              <button type="submit" disabled={inviting || !inviteEmail.trim()} style={{ ...primaryBtn, opacity: inviting ? 0.6 : 1 }}>
+              <button type="submit" disabled={inviting || !selectedUser} style={{ ...primaryBtn, opacity: (inviting || !selectedUser) ? 0.6 : 1 }}>
                 {inviting ? "Sending…" : "Send invite"}
               </button>
             </form>
             {inviteError && <p style={{ margin: "8px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{inviteError}</p>}
             {inviteSuccess && (
-              <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
-                <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>{inviteSuccess}</p>
-                {inviteUrl && (
-                  <button type="button" onClick={() => { void navigator.clipboard.writeText(inviteUrl) }} style={{ ...ghostBtn, fontSize: "var(--text-xs)" }}>
-                    Copy invite link
-                  </button>
-                )}
-              </div>
+              <p style={{ margin: "8px 0 0", fontSize: "var(--text-xs)", color: "oklch(0.55 0.13 152)" }}>{inviteSuccess}</p>
             )}
           </div>
         </div>
@@ -745,23 +845,32 @@ export default function WorkspaceMembersPage() {
                 const expiresDate = new Date(invite.expiresAt)
                 const isExpired = expiresDate < new Date()
                 const didResend = resendSuccess[invite.id] ?? false
+                const displayName = invite.invitee.name ?? invite.invitee.email
                 return (
                   <div
                     key={invite.id}
                     style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: "1px solid oklch(var(--color-border))", opacity: isExpired ? 0.7 : 1 }}
                   >
+                    {/* Invitee avatar */}
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                      overflow: "hidden", background: invite.invitee.avatarUrl ? "transparent" : getAvatarBg(invite.invitee.id),
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {invite.invitee.avatarUrl
+                        ? <img src={invite.invitee.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <span style={{ fontSize: "11px", fontWeight: 600, color: "#fff" }}>{getInitials(displayName)}</span>
+                      }
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: "var(--text-sm)" }}>{invite.email}</p>
+                      <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500 }}>{displayName}</p>
                       <p style={{ margin: "2px 0 0", fontSize: "var(--text-xs)", color: isExpired ? "oklch(var(--color-error))" : "oklch(var(--color-ink-3))" }}>
-                        {isExpired ? "Expired" : `Expires ${expiresDate.toLocaleDateString()}`}
+                        {invite.invitee.email} · {isExpired ? "Expired" : `Expires ${expiresDate.toLocaleDateString()}`}
                       </p>
                     </div>
                     <RoleBadge role={invite.role} />
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                       {didResend && <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Sent!</span>}
-                      {invite.inviteUrl && (
-                        <button onClick={() => { void navigator.clipboard.writeText(invite.inviteUrl!) }} style={ghostBtn} title="Copy invite link">Copy link</button>
-                      )}
                       <button onClick={() => { void handleResend(invite.id) }} style={ghostBtn}>Resend</button>
                       <button onClick={() => { void handleRevoke(invite.id) }} style={dangerGhostBtn}>Revoke</button>
                     </div>

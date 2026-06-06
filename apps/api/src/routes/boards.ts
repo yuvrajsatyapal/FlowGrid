@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { canWrite, isOwnerOrAdmin } from "../lib/roles"
 import { createNotification } from "../lib/notifications"
+import { newInviteToken, inviteExpiresAt, autoExpireBoardInvites, canManageBoardInvites } from "../lib/invites"
 
 const router = Router()
 
@@ -774,6 +775,282 @@ router.post("/members/remove", validateJWT, async (req, res) => {
     res.json({ success: true })
   } catch {
     res.status(500).json({ error: { message: "Failed to remove board member", status: 500 } })
+  }
+})
+
+// ─── POST /api/boards/invites — send a board invite (notification-first) ──────
+// Creates a pending BoardInvite and fires a notification. Does NOT add the
+// user as a BoardMember immediately — that happens only when they accept.
+router.post("/invites", validateJWT, async (req, res) => {
+  const { boardId, userId: inviteeUserId } = req.body as { boardId?: string; userId?: string }
+  if (!boardId || !inviteeUserId) {
+    res.status(400).json({ error: { message: "boardId and userId are required", status: 400 } })
+    return
+  }
+
+  try {
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+      select: { id: true, workspaceId: true, visibility: true, deletedAt: true, createdById: true, name: true },
+    })
+    if (!board || board.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+    if (board.visibility !== "PRIVATE") {
+      res.status(400).json({ error: { message: "Board invites are only for private boards", status: 400 } })
+      return
+    }
+
+    const actorMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: board.workspaceId, userId: req.user!.id } },
+      include: { user: { select: { name: true, email: true } } },
+    })
+    if (!actorMembership) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+    if (!canManageBoardInvites(actorMembership.role, board.createdById, req.user!.id)) {
+      res.status(403).json({ error: { message: "Only the board creator or workspace admins can send board invites", status: 403 } })
+      return
+    }
+
+    // Invitee must be a workspace member
+    const inviteeMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: board.workspaceId, userId: inviteeUserId } },
+    })
+    if (!inviteeMembership) {
+      res.status(404).json({ error: { message: "User is not a workspace member", status: 404 } })
+      return
+    }
+
+    // Cannot invite someone already on the board
+    const existingBoardMember = await prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId: inviteeUserId } },
+    })
+    if (existingBoardMember) {
+      res.status(409).json({ error: { code: "ALREADY_MEMBER", message: "This user is already a board member.", status: 409 } })
+      return
+    }
+
+    // Auto-expire stale PENDING invites before the duplicate check
+    await autoExpireBoardInvites(boardId, inviteeUserId)
+
+    // Block if a fresh PENDING invite exists
+    const existingPending = await prisma.boardInvite.findFirst({
+      where: { boardId, inviteeId: inviteeUserId, status: "PENDING" },
+    })
+    if (existingPending) {
+      res.status(409).json({ error: { code: "INVITE_PENDING", message: "A pending invite already exists for this user.", status: 409 } })
+      return
+    }
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: board.workspaceId },
+      select: { name: true },
+    })
+    const inviterName = actorMembership.user.name ?? actorMembership.user.email
+
+    const invite = await prisma.boardInvite.create({
+      data: {
+        boardId,
+        inviteeId: inviteeUserId,
+        invitedById: req.user!.id,
+        status: "PENDING",
+        token: newInviteToken(), // internal only
+        expiresAt: inviteExpiresAt(),
+      },
+      select: { id: true, status: true, expiresAt: true, createdAt: true },
+    })
+
+    void createNotification({
+      userId: inviteeUserId,
+      type: "BOARD_INVITE",
+      source: "SYSTEM",
+      title: `${inviterName} invited you to "${board.name}"`,
+      body: `You've been invited to a private board in ${workspace?.name ?? "the workspace"}`,
+      data: {
+        boardInviteId: invite.id,
+        boardId: board.id,
+        boardName: board.name,
+        workspaceId: board.workspaceId,
+        workspaceName: workspace?.name ?? "",
+        inviterName,
+      },
+    })
+
+    res.status(201).json({ invite })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to send board invite", status: 500 } })
+  }
+})
+
+// ─── GET /api/boards/invites?boardId= — list pending board invites ────────────
+// Returns all PENDING invites for a board; used by EditBoardModal to show
+// "Invited" state for workspace members who have been invited but not yet joined.
+router.get("/invites", validateJWT, async (req, res) => {
+  const boardId = req.query.boardId as string | undefined
+  if (!boardId) {
+    res.status(400).json({ error: { message: "boardId is required", status: 400 } })
+    return
+  }
+
+  try {
+    const board = await prisma.board.findUnique({
+      where: { id: boardId },
+      select: { id: true, workspaceId: true, deletedAt: true, createdById: true },
+    })
+    if (!board || board.deletedAt !== null) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+
+    const actorMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: board.workspaceId, userId: req.user!.id } },
+    })
+    if (!actorMembership) {
+      res.status(404).json({ error: { message: "Board not found", status: 404 } })
+      return
+    }
+    if (!canManageBoardInvites(actorMembership.role, board.createdById, req.user!.id)) {
+      res.status(403).json({ error: { message: "Only the board creator or workspace admins can view board invites", status: 403 } })
+      return
+    }
+
+    const invites = await prisma.boardInvite.findMany({
+      where: { boardId, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        inviteeId: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+        invitee: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      },
+    })
+
+    res.json({ invites })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to fetch board invites", status: 500 } })
+  }
+})
+
+// ─── POST /api/boards/invites/accept?id= — accept a board invite ─────────────
+router.post("/invites/accept", validateJWT, async (req, res) => {
+  const inviteId = req.query.id as string | undefined
+  if (!inviteId) {
+    res.status(400).json({ error: { message: "id is required", status: 400 } })
+    return
+  }
+
+  try {
+    const invite = await prisma.boardInvite.findUnique({
+      where: { id: inviteId },
+      include: { board: { select: { id: true, workspaceId: true, name: true, deletedAt: true } } },
+    })
+
+    if (!invite || invite.board.deletedAt !== null) {
+      res.status(410).json({ error: { code: "INVITE_INVALID", message: "This invite is no longer valid.", status: 410 } })
+      return
+    }
+
+    // Only the invitee can accept
+    if (invite.inviteeId !== req.user!.id) {
+      res.status(403).json({ error: { code: "FORBIDDEN", message: "This invite was not sent to you.", status: 403 } })
+      return
+    }
+
+    // Auto-expire if past expiry
+    if (invite.status === "PENDING" && invite.expiresAt < new Date()) {
+      await prisma.boardInvite.update({ where: { id: invite.id }, data: { status: "EXPIRED" } })
+      res.status(410).json({ error: { code: "INVITE_EXPIRED", message: "This invite has expired.", status: 410 } })
+      return
+    }
+
+    if (invite.status !== "PENDING") {
+      res.status(410).json({ error: { code: "INVITE_INVALID", message: "This invite is no longer valid.", status: 410 } })
+      return
+    }
+
+    // Verify invitee is still a workspace member
+    const workspaceMember = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: invite.board.workspaceId, userId: req.user!.id } },
+    })
+    if (!workspaceMember) {
+      res.status(403).json({ error: { code: "NOT_WORKSPACE_MEMBER", message: "You are no longer a member of this workspace.", status: 403 } })
+      return
+    }
+
+    // Idempotent: already a board member — mark accepted and return success
+    const existingBoardMember = await prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId: invite.boardId, userId: req.user!.id } },
+    })
+    if (existingBoardMember) {
+      await prisma.boardInvite.update({ where: { id: invite.id }, data: { status: "ACCEPTED" } })
+      res.json({ boardId: invite.boardId, boardName: invite.board.name, workspaceId: invite.board.workspaceId })
+      return
+    }
+
+    await prisma.$transaction([
+      prisma.boardMember.create({
+        data: { boardId: invite.boardId, userId: req.user!.id, role: "MEMBER" },
+      }),
+      prisma.boardInvite.update({ where: { id: invite.id }, data: { status: "ACCEPTED" } }),
+    ])
+
+    // Notify the inviter
+    const invitee = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { name: true, email: true } })
+    const inviteeName = invitee?.name ?? invitee?.email ?? "Someone"
+    void createNotification({
+      userId: invite.invitedById,
+      type: "BOARD_INVITE_ACCEPTED",
+      source: "SYSTEM",
+      title: `${inviteeName} accepted your invite to "${invite.board.name}"`,
+      data: {
+        boardId: invite.boardId,
+        boardName: invite.board.name,
+        workspaceId: invite.board.workspaceId,
+        inviteeName,
+      },
+    })
+
+    res.json({ boardId: invite.boardId, boardName: invite.board.name, workspaceId: invite.board.workspaceId })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to accept board invite", status: 500 } })
+  }
+})
+
+// ─── POST /api/boards/invites/decline?id= — decline a board invite ───────────
+router.post("/invites/decline", validateJWT, async (req, res) => {
+  const inviteId = req.query.id as string | undefined
+  if (!inviteId) {
+    res.status(400).json({ error: { message: "id is required", status: 400 } })
+    return
+  }
+
+  try {
+    const invite = await prisma.boardInvite.findUnique({
+      where: { id: inviteId },
+      select: { id: true, inviteeId: true, status: true },
+    })
+    if (!invite) {
+      res.status(404).json({ error: { message: "Invite not found", status: 404 } })
+      return
+    }
+    if (invite.inviteeId !== req.user!.id) {
+      res.status(403).json({ error: { code: "FORBIDDEN", message: "This invite was not sent to you.", status: 403 } })
+      return
+    }
+    if (invite.status !== "PENDING") {
+      res.status(409).json({ error: { code: "INVITE_NOT_PENDING", message: `This invite has already been ${invite.status.toLowerCase()}.`, status: 409 } })
+      return
+    }
+
+    await prisma.boardInvite.update({ where: { id: inviteId }, data: { status: "DECLINED" } })
+    res.json({ success: true })
+  } catch {
+    res.status(500).json({ error: { message: "Failed to decline board invite", status: 500 } })
   }
 })
 

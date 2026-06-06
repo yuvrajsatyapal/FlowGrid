@@ -65,6 +65,8 @@ export default function EditBoardModal({
 
   const [allMembers, setAllMembers] = useState<WorkspaceMemberOption[]>([])
   const [existingMemberIds, setExistingMemberIds] = useState<Set<string>>(new Set())
+  // Map of userId → inviteId for members with a pending board invite
+  const [pendingInviteMap, setPendingInviteMap] = useState<Map<string, string>>(new Map())
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [memberSearch, setMemberSearch] = useState("")
   const [addingMember, setAddingMember] = useState<string | null>(null)
@@ -129,13 +131,14 @@ export default function EditBoardModal({
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true)
     try {
-      const [members, boardMembers] = await Promise.all([
+      const isPrivate = board.visibility === "PRIVATE" || visibility === "PRIVATE"
+      const [members, boardMembers, pendingInvites] = await Promise.all([
         workspacesApi.listMembers(workspaceId),
-        board.visibility === "PRIVATE" || visibility === "PRIVATE"
-          ? boardsApi.listMembers(board.id)
-          : Promise.resolve([]),
+        isPrivate ? boardsApi.listMembers(board.id) : Promise.resolve([]),
+        isPrivate ? boardsApi.listBoardInvites(board.id) : Promise.resolve([]),
       ])
       setExistingMemberIds(new Set(boardMembers.map((m) => m.userId)))
+      setPendingInviteMap(new Map(pendingInvites.map((inv) => [inv.inviteeId, inv.id])))
       setAllMembers(
         members
           .filter((m) => m.userId !== currentUserId)
@@ -156,6 +159,7 @@ export default function EditBoardModal({
     }
   }, [visibility, loadMembers])
 
+  // Exclude existing board members. Pending-invite users are shown with "Invited" state.
   const candidates = allMembers.filter((m) => !existingMemberIds.has(m.userId))
   const filteredMembers = candidates.filter((m) => {
     const q = memberSearch.toLowerCase()
@@ -165,11 +169,26 @@ export default function EditBoardModal({
   async function handleInvite(userId: string) {
     setAddingMember(userId)
     setError("")
+    // Optimistically mark as invited immediately for snappy UX.
+    // We use a placeholder invite ID until the real one comes back.
+    setPendingInviteMap((prev) => new Map(prev).set(userId, "pending"))
     try {
-      await boardsApi.addMember(board.id, userId)
-      setExistingMemberIds((prev) => new Set(prev).add(userId))
+      const invite = await boardsApi.inviteMember(board.id, userId)
+      // Replace placeholder with the real invite ID
+      setPendingInviteMap((prev) => new Map(prev).set(userId, invite.id))
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to invite member")
+      const errMsg = (err as Error).message || ""
+      if (errMsg.includes("ALREADY_MEMBER")) {
+        // Already a member from another path — move to existing set
+        setExistingMemberIds((prev) => new Set(prev).add(userId))
+        setPendingInviteMap((prev) => { const m = new Map(prev); m.delete(userId); return m })
+      } else if (errMsg.includes("INVITE_PENDING")) {
+        // Still pending — keep the optimistic state
+      } else {
+        // Real error — revert optimistic update
+        setPendingInviteMap((prev) => { const m = new Map(prev); m.delete(userId); return m })
+        setError(errMsg || "Failed to invite member")
+      }
     } finally {
       setAddingMember(null)
     }
@@ -425,7 +444,7 @@ export default function EditBoardModal({
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <span style={LABEL_STYLE}>Invite members</span>
               <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", lineHeight: 1.5 }}>
-                Inviting adds the member instantly. Manage existing members from the board's Access panel.
+                Members receive a notification and must accept to join. Manage existing members from the board's Access panel.
               </p>
               <input
                 type="text"
@@ -509,27 +528,45 @@ export default function EditBoardModal({
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleInvite(m.userId)}
-                        disabled={addingMember === m.userId || deleting}
-                        aria-label={`Invite ${m.name ?? m.email}`}
-                        style={{
-                          padding: "3px 12px",
-                          borderRadius: "var(--radius-badge)",
-                          border: "1px solid oklch(var(--color-accent))",
-                          background: "transparent",
-                          color: "oklch(var(--color-accent))",
-                          fontSize: "var(--text-xs)",
-                          fontWeight: 500,
-                          cursor: addingMember === m.userId ? "not-allowed" : "pointer",
-                          opacity: addingMember === m.userId ? 0.5 : 1,
-                          fontFamily: "var(--font-body)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {addingMember === m.userId ? "…" : "Invite"}
-                      </button>
+                      {pendingInviteMap.has(m.userId) ? (
+                        <span
+                          style={{
+                            padding: "3px 12px",
+                            borderRadius: "var(--radius-badge)",
+                            border: "1px solid oklch(var(--color-border))",
+                            background: "transparent",
+                            color: "oklch(var(--color-ink-3))",
+                            fontSize: "var(--text-xs)",
+                            fontWeight: 500,
+                            fontFamily: "var(--font-body)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Invited
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleInvite(m.userId)}
+                          disabled={addingMember === m.userId || deleting}
+                          aria-label={`Invite ${m.name ?? m.email}`}
+                          style={{
+                            padding: "3px 12px",
+                            borderRadius: "var(--radius-badge)",
+                            border: "1px solid oklch(var(--color-accent))",
+                            background: "transparent",
+                            color: "oklch(var(--color-accent))",
+                            fontSize: "var(--text-xs)",
+                            fontWeight: 500,
+                            cursor: addingMember === m.userId ? "not-allowed" : "pointer",
+                            opacity: addingMember === m.userId ? 0.5 : 1,
+                            fontFamily: "var(--font-body)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {addingMember === m.userId ? "…" : "Invite"}
+                        </button>
+                      )}
                     </div>
                   ))
                 )}

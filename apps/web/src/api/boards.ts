@@ -111,4 +111,30 @@ export const boardsApi = {
   async removeMember(boardId: string, userId: string): Promise<void> {
     await api.post("/boards/members/remove", { boardId, userId })
   },
+
+  // ── Board invite API (notification-first) ──────────────────────────────────
+
+  // Creates a pending invite and sends an in-app notification. Does NOT add
+  // the user as a board member immediately.
+  async inviteMember(boardId: string, userId: string): Promise<{ id: string; status: string; expiresAt: string; createdAt: string }> {
+    const res = await api.post<{ invite: { id: string; status: string; expiresAt: string; createdAt: string } }>("/boards/invites", { boardId, userId })
+    return res.data.invite
+  },
+
+  // Returns all PENDING board invites. Used by EditBoardModal to show "Invited" state.
+  async listBoardInvites(boardId: string): Promise<Array<{ id: string; inviteeId: string; status: string }>> {
+    const res = await api.get<{ invites: Array<{ id: string; inviteeId: string; status: string }> }>("/boards/invites", { params: { boardId } })
+    return res.data.invites
+  },
+
+  // Accept a board invite by invite ID (authenticated — invitee only).
+  async acceptBoardInvite(inviteId: string): Promise<{ boardId: string; boardName: string; workspaceId: string }> {
+    const res = await api.post<{ boardId: string; boardName: string; workspaceId: string }>("/boards/invites/accept", {}, { params: { id: inviteId } })
+    return res.data
+  },
+
+  // Decline a board invite by invite ID (authenticated — invitee only).
+  async declineBoardInvite(inviteId: string): Promise<void> {
+    await api.post("/boards/invites/decline", {}, { params: { id: inviteId } })
+  },
 }

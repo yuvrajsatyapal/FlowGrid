@@ -48,6 +48,7 @@ enum InviteStatus {
   ACCEPTED
   REVOKED
   EXPIRED
+  DECLINED
 }
 
 // ─── User tier ────────────────────────────────────────────────────────────────
@@ -61,18 +62,21 @@ model User {
   createdAt           DateTime @default(now()) @db.Timestamptz()
   updatedAt           DateTime @updatedAt @db.Timestamptz()
 
-  accounts             OAuthAccount[]
-  ownedOrganizations   Organization[]       @relation("OrgOwner")
-  orgMemberships       OrganizationMember[]
-  workspaceMemberships WorkspaceMember[]
-  boardMemberships     BoardMember[]
-  createdBoards        Board[]              @relation("CreatedBoards")
-  assignedCards        Card[]               @relation("CardAssignee")
-  comments             Comment[]
-  activities           Activity[]
-  sentInvites          WorkspaceInvite[] @relation("SentInvites")
-  watchedCards         CardWatcher[]
-  createdTemplates     CardTemplate[]    @relation("CreatedTemplates")
+  accounts                  OAuthAccount[]
+  ownedOrganizations        Organization[]       @relation("OrgOwner")
+  orgMemberships            OrganizationMember[]
+  workspaceMemberships      WorkspaceMember[]
+  boardMemberships          BoardMember[]
+  createdBoards             Board[]              @relation("CreatedBoards")
+  assignedCards             Card[]               @relation("CardAssignee")
+  comments                  Comment[]
+  activities                Activity[]
+  sentInvites               WorkspaceInvite[]    @relation("SentInvites")
+  receivedWorkspaceInvites  WorkspaceInvite[]    @relation("WorkspaceInvitesReceived")
+  sentBoardInvites          BoardInvite[]        @relation("BoardInvitesSent")
+  receivedBoardInvites      BoardInvite[]        @relation("BoardInvitesReceived")
+  watchedCards              CardWatcher[]
+  createdTemplates          CardTemplate[]       @relation("CreatedTemplates")
 }
 
 model OAuthAccount {
@@ -179,6 +183,7 @@ model Board {
   workspace   Workspace     @relation(fields: [workspaceId], references: [id])
   createdBy   User?         @relation("CreatedBoards", fields: [createdById], references: [id])
   members     BoardMember[]
+  invites     BoardInvite[]
   lists       List[]
   labels      Label[]
   activities  Activity[]
@@ -442,23 +447,57 @@ model Activity {
 }
 
 // ─── Workspace Invites ────────────────────────────────────────────────────────
+// Notification-first: invitee must be an existing user.
+// token is kept as an internal field for future email/deep-link flows; it is
+// never returned to the frontend or used in current API endpoints.
+// A partial unique index (workspace_invite_pending_unique) enforces at most one
+// PENDING invite per (workspaceId, inviteeId). Historical rows are preserved.
 
 model WorkspaceInvite {
   id          String       @id @default(cuid())
   workspaceId String
-  email       String
-  role        Role
-  token       String       @unique
+  inviteeId   String
   invitedById String
+  role        Role
+  token       String       @unique   // internal only — never exposed to clients
   status      InviteStatus @default(PENDING)
   expiresAt   DateTime     @db.Timestamptz()
   createdAt   DateTime     @default(now()) @db.Timestamptz()
   updatedAt   DateTime     @updatedAt @db.Timestamptz()
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitee   User      @relation("WorkspaceInvitesReceived", fields: [inviteeId], references: [id])
   invitedBy User      @relation("SentInvites", fields: [invitedById], references: [id])
 
-  @@unique([workspaceId, email])
-  @@index([token])
+  // No @@unique([workspaceId, inviteeId]) — history is preserved.
+  // One PENDING per pair is enforced via partial index in migration SQL.
+  @@index([inviteeId])
   @@index([workspaceId])
+}
+
+// ─── Board Invites ────────────────────────────────────────────────────────────
+// Targets existing workspace members only. Notification-first; no email.
+// token is internal only — never exposed to clients.
+// Partial unique index (board_invite_pending_unique) enforces at most one
+// PENDING invite per (boardId, inviteeId). Historical rows are preserved.
+
+model BoardInvite {
+  id          String       @id @default(cuid())
+  boardId     String
+  inviteeId   String
+  invitedById String
+  status      InviteStatus @default(PENDING)
+  token       String       @unique   // internal only — never exposed to clients
+  expiresAt   DateTime     @db.Timestamptz()
+  createdAt   DateTime     @default(now()) @db.Timestamptz()
+  updatedAt   DateTime     @updatedAt @db.Timestamptz()
+
+  board     Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  invitee   User  @relation("BoardInvitesReceived", fields: [inviteeId], references: [id])
+  invitedBy User  @relation("BoardInvitesSent",     fields: [invitedById], references: [id])
+
+  // No @@unique([boardId, inviteeId]) — history is preserved.
+  // One PENDING per pair is enforced via partial index in migration SQL.
+  @@index([inviteeId])
+  @@index([boardId])
 }

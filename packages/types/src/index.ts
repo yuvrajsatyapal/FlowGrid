@@ -99,16 +99,19 @@ export interface WorkspaceMemberResponse {
   }
 }
 
-// API response shape for workspace invites
+// API response shape for workspace invites (notification-first, inviteeId-based)
 export interface WorkspaceInvite {
   id: string
-  workspaceId: string
-  email: string
   role: Role
   status: InviteStatus
   expiresAt: string
   createdAt: string
-  inviteUrl?: string
+  invitee: {
+    id: string
+    name: string | null
+    email: string
+    avatarUrl: string | null
+  }
 }
 
 
@@ -251,14 +254,15 @@ export type NotificationSource =
 
 export type NotificationType =
   | 'CARD_ASSIGNED'
-  | 'CARD_UPDATED'       // field changes on a card
+  | 'CARD_UPDATED'           // field changes on a card
   | 'COMMENT_ADDED'
   | 'INVITE_ACCEPTED'
-  | 'WORKSPACE_INVITE'
-  | 'CARD_DUE_SOON'      // Feature #14 — due date reminders
-  | 'BOARD_INVITE'       // invited to a private board on creation
-  | 'BOARD_MEMBER_ADDED' // added to a private board via settings
-  | 'SYSTEM'             // catch-all for admin/announcement notifications
+  | 'WORKSPACE_INVITE'       // workspace invite — notification-first, requires accept
+  | 'CARD_DUE_SOON'          // Feature #14 — due date reminders
+  | 'BOARD_INVITE'           // board invite — notification-first, requires accept
+  | 'BOARD_INVITE_ACCEPTED'  // sent to inviter when someone accepts
+  | 'BOARD_MEMBER_ADDED'     // legacy: direct admin add without consent
+  | 'SYSTEM'                 // catch-all for admin/announcement notifications
 
 export interface AppNotification {
   id: string
@@ -270,6 +274,14 @@ export interface AppNotification {
   data: Record<string, unknown> | null
   read: boolean
   createdAt: string
+  /**
+   * Only present on BOARD_INVITE and WORKSPACE_INVITE notifications.
+   * Derived server-side from the invite record on every fetch — never stored
+   * in the notification row, so it is always current regardless of which
+   * surface the user accepted/declined from.
+   * Values: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED' | 'INVALID'
+   */
+  inviteStatus?: string
 }
 
 // ─── Activity (append-only) ───────────────────────────────────────────────────

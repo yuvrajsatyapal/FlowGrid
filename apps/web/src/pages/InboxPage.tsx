@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { notificationsApi } from "../api/notifications"
+import { boardsApi } from "../api/boards"
+import { invitesApi } from "../api/invites"
 import { NOTIFICATIONS_KEY } from "../hooks/useNotifications"
 import type { AppNotification, NotificationType } from "@flowgrid/types"
 
@@ -62,15 +64,128 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-// Build an in-app deep link (or external invite URL) for a notification.
+// Build an in-app deep link for a notification.
+// Invite notifications are handled inline (Accept/Decline buttons), not via row click.
 function notificationLink(n: AppNotification): string | null {
+  if (n.type === "WORKSPACE_INVITE" || n.type === "BOARD_INVITE") return null
   const data = (n.data ?? {}) as Record<string, string | undefined>
-  if (n.type === "WORKSPACE_INVITE") return data.inviteUrl ?? null
   if (data.boardId && data.workspaceId) {
     return `/${data.workspaceId}/${data.boardId}${data.cardId ? `?card=${data.cardId}` : ""}`
   }
   if (data.workspaceId) return `/${data.workspaceId}`
   return null
+}
+
+// ── Invite action component ───────────────────────────────────────────────────
+
+type InviteActionState = "idle" | "loading" | "accepted" | "declined" | "invalid"
+
+function InviteActions({ n, onSettled }: { n: AppNotification; onSettled: () => void }) {
+  const data = (n.data ?? {}) as Record<string, string | undefined>
+  const isBoardInvite = n.type === "BOARD_INVITE"
+
+  // Derive initial state from server-enriched inviteStatus
+  const initial: InviteActionState =
+    n.inviteStatus === "PENDING" ? "idle"
+    : n.inviteStatus === "ACCEPTED" ? "accepted"
+    : n.inviteStatus === "DECLINED" ? "declined"
+    : "invalid"
+
+  const [actionState, setActionState] = useState<InviteActionState>(initial)
+
+  // Keep in sync if the notification is refreshed from the server
+  useEffect(() => {
+    setActionState(initial)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n.inviteStatus])
+
+  async function handleAccept() {
+    setActionState("loading")
+    try {
+      if (isBoardInvite && data.boardInviteId) {
+        await boardsApi.acceptBoardInvite(data.boardInviteId)
+      } else if (!isBoardInvite && data.workspaceInviteId) {
+        await invitesApi.accept(data.workspaceInviteId)
+      }
+      setActionState("accepted")
+      onSettled()
+    } catch {
+      setActionState("invalid")
+    }
+  }
+
+  async function handleDecline() {
+    setActionState("loading")
+    try {
+      if (isBoardInvite && data.boardInviteId) {
+        await boardsApi.declineBoardInvite(data.boardInviteId)
+      } else if (!isBoardInvite && data.workspaceInviteId) {
+        await invitesApi.decline(data.workspaceInviteId)
+      }
+      setActionState("declined")
+      onSettled()
+    } catch {
+      setActionState("invalid")
+    }
+  }
+
+  const btnBase: React.CSSProperties = {
+    padding: "4px 12px",
+    borderRadius: "var(--radius-button)",
+    fontSize: "var(--text-xs)",
+    fontWeight: 500,
+    fontFamily: "var(--font-body)",
+    cursor: "pointer",
+    border: "none",
+  }
+
+  if (actionState === "loading") {
+    return <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>…</span>
+  }
+
+  if (actionState === "accepted") {
+    const dest = isBoardInvite && data.boardId && data.workspaceId
+      ? { href: `/${data.workspaceId}/${data.boardId}`, label: "Open Board →" }
+      : data.workspaceId
+      ? { href: `/${data.workspaceId}`, label: "Open Workspace →" }
+      : null
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "var(--text-xs)", color: "oklch(0.55 0.13 152)", fontWeight: 500 }}>Accepted ✓</span>
+        {dest && (
+          <a href={dest.href} style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))", textDecoration: "none", fontWeight: 500 }}>
+            {dest.label}
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  if (actionState === "declined") {
+    return <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Declined</span>
+  }
+
+  if (actionState === "invalid") {
+    return <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Invite no longer valid</span>
+  }
+
+  // idle — show Accept / Decline
+  return (
+    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); void handleAccept() }}
+        style={{ ...btnBase, background: "oklch(var(--color-accent))", color: "#fff" }}
+      >
+        Accept
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); void handleDecline() }}
+        style={{ ...btnBase, background: "oklch(var(--color-paper-3))", color: "oklch(var(--color-ink-2))", border: "1px solid oklch(var(--color-border))" }}
+      >
+        Decline
+      </button>
+    </div>
+  )
 }
 
 type FilterType = "all" | "unread"
@@ -310,6 +425,19 @@ export default function InboxPage() {
                     <p style={{ margin: "5px 0 0", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
                       {relativeTime(n.createdAt)}
                     </p>
+                    {/* Inline Accept/Decline for invite notifications */}
+                    {(n.type === "BOARD_INVITE" || n.type === "WORKSPACE_INVITE") && (
+                      <div style={{ marginTop: "8px" }}>
+                        <InviteActions
+                          n={n}
+                          onSettled={() => {
+                            // Mark read + refresh to get updated inviteStatus from server
+                            if (!n.read) void handleMarkRead(n.id)
+                            syncSidebar()
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Mark-read */}

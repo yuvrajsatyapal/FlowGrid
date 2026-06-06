@@ -170,4 +170,62 @@ router.post("/avatar/remove", validateJWT, async (req, res) => {
   }
 })
 
+// ─── GET /api/users/search?q=&workspaceId= ────────────────────────────────────
+// Searches for existing users who are NOT already members of the workspace.
+// Used by WorkspaceMembersPage to find people to invite.
+// Requires the actor to be a workspace member. Returns at most 10 results.
+router.get("/search", validateJWT, async (req, res) => {
+  const q = (req.query.q as string | undefined)?.trim() ?? ""
+  const workspaceId = req.query.workspaceId as string | undefined
+
+  if (!workspaceId) {
+    res.status(400).json({ error: { message: "workspaceId is required", status: 400 } })
+    return
+  }
+  if (q.length < 2) {
+    res.status(400).json({ error: { message: "q must be at least 2 characters", status: 400 } })
+    return
+  }
+
+  try {
+    // Actor must be a workspace member
+    const actorMembership = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: req.user!.id } },
+    })
+    if (!actorMembership) {
+      res.status(403).json({ error: { message: "Access denied", status: 403 } })
+      return
+    }
+
+    // Find existing workspace member IDs to exclude
+    const existingMembers = await prisma.workspaceMember.findMany({
+      where: { workspaceId },
+      select: { userId: true },
+    })
+    const excludedIds = new Set(existingMembers.map((m) => m.userId))
+    excludedIds.add(req.user!.id) // exclude self
+
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { notIn: [...excludedIds] } },
+          {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          },
+        ],
+      },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+      take: 10,
+      orderBy: { name: "asc" },
+    })
+
+    res.json({ users })
+  } catch {
+    res.status(500).json({ error: { message: "Search failed", status: 500 } })
+  }
+})
+
 export { router as usersRouter }
