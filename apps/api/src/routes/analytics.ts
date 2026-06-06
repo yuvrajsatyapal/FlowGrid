@@ -25,14 +25,10 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
 
   try {
     // RBAC — must be a workspace member
-    const [membership, boards, totalMembers] = await Promise.all([
+    const [membership, totalMembers] = await Promise.all([
       prisma.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId, userId } },
         select: { role: true },
-      }),
-      prisma.board.findMany({
-        where: { workspaceId, deletedAt: null },
-        select: { id: true, name: true },
       }),
       prisma.workspaceMember.count({ where: { workspaceId } }),
     ])
@@ -41,6 +37,24 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
       res.status(403).json({ error: { message: "Forbidden", status: 403 } })
       return
     }
+
+    // Private boards: OWNER/ADMIN see all; others only see boards they're a member of
+    const isPrivileged = membership.role === "OWNER" || membership.role === "ADMIN"
+    const boards = await prisma.board.findMany({
+      where: {
+        workspaceId,
+        deletedAt: null,
+        ...(isPrivileged
+          ? {}
+          : {
+              OR: [
+                { visibility: { not: "PRIVATE" as const } },
+                { visibility: "PRIVATE" as const, members: { some: { userId } } },
+              ],
+            }),
+      },
+      select: { id: true, name: true },
+    })
 
     const boardIds = boards.map((b) => b.id)
 

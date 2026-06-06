@@ -152,13 +152,31 @@ router.get("/one", validateJWT, async (req, res) => {
       return
     }
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      include: {
-        _count: { select: { members: true, boards: true } },
-        organization: { select: { id: true, name: true, slug: true, ownerId: true } },
-      },
-    })
+    const isPrivileged = membership.role === "OWNER" || membership.role === "ADMIN"
+
+    const [workspace, boardCount] = await Promise.all([
+      prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        include: {
+          _count: { select: { members: true } },
+          organization: { select: { id: true, name: true, slug: true, ownerId: true } },
+        },
+      }),
+      // Count only boards the requesting user can actually see so the header
+      // matches what the board list returns — OWNERs/ADMINs see all boards.
+      prisma.board.count({
+        where: {
+          workspaceId,
+          deletedAt: null,
+          OR: isPrivileged
+            ? undefined
+            : [
+                { visibility: { not: "PRIVATE" } },
+                { visibility: "PRIVATE", members: { some: { userId: req.user!.id } } },
+              ],
+        },
+      }),
+    ])
     if (!workspace || workspace.deletedAt !== null) {
       res.status(404).json({ error: { message: "Workspace not found", status: 404 } })
       return
@@ -175,7 +193,7 @@ router.get("/one", validateJWT, async (req, res) => {
         color: workspace.color,
         organization: workspace.organization,
         memberCount: workspace._count.members,
-        boardCount: workspace._count.boards,
+        boardCount,
         role: membership.role,
         createdAt: workspace.createdAt,
       },

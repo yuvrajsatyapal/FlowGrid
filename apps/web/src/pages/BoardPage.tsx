@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import { arrayMove } from "@dnd-kit/sortable"
-import { boardsApi, type BoardDetail } from "../api/boards"
+import { boardsApi, type BoardDetail, type BoardAccessMember } from "../api/boards"
 import { listsApi, type ListSummary } from "../api/lists"
 import { cardsApi, type CardSummary } from "../api/cards"
 import ListColumn from "../components/boards/ListColumn"
@@ -28,6 +28,9 @@ import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
 import { cardDependenciesApi } from "../api/cardDependencies"
 import { computeBlockedCardIds } from "../utils/dependencies"
 import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
+import { workspacesApi } from "../api/workspaces"
+import { useAuth } from "../contexts/AuthContext"
+import { getInitials, getAvatarBg } from "../utils/avatar"
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -90,6 +93,7 @@ function pagerBtnStyle(disabled: boolean): React.CSSProperties {
 export default function BoardPage() {
   const { workspaceId, boardId } = useParams<{ workspaceId: string; boardId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
 
   const [board, setBoard] = useState<BoardDetail | null>(null)
   const [lists, setLists] = useState<ListSummary[]>([])
@@ -102,6 +106,16 @@ export default function BoardPage() {
   const [listsError, setListsError] = useState("")
   const [boardView, setBoardView] = useState<BoardView>("kanban")
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  // Board Access panel (PRIVATE boards only)
+  const [accessPanelOpen, setAccessPanelOpen] = useState(false)
+  const [boardMembers, setBoardMembers] = useState<BoardAccessMember[]>([])
+  const [loadingBoardMembers, setLoadingBoardMembers] = useState(false)
+  const [allWsMembers, setAllWsMembers] = useState<{ userId: string; name: string | null; email: string; avatarUrl: string | null }[]>([])
+  const [addMemberSearch, setAddMemberSearch] = useState("")
+  const [addingMember, setAddingMember] = useState<string | null>(null)
+  const [removingMember, setRemovingMember] = useState<string | null>(null)
+  const [accessError, setAccessError] = useState("")
 
   // Transient banner shown when a card-cap rule blocks an action (e.g. drag into a full list)
   const [capNotice, setCapNotice] = useState("")
@@ -140,6 +154,68 @@ export default function BoardPage() {
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
   const isViewer = board?.role === "VIEWER"
+
+  // Whether the current user can manage board access (creator or workspace OWNER/ADMIN)
+  const canManageAccess =
+    board?.visibility === "PRIVATE" &&
+    (board.createdById === user?.id || board.role === "OWNER" || board.role === "ADMIN")
+
+  const loadBoardAccess = useCallback(async () => {
+    if (!boardId) return
+    setLoadingBoardMembers(true)
+    setAccessError("")
+    try {
+      const [members, wsMembers] = await Promise.all([
+        boardsApi.listMembers(boardId),
+        workspaceId ? workspacesApi.listMembers(workspaceId) : Promise.resolve([]),
+      ])
+      setBoardMembers(members)
+      setAllWsMembers(wsMembers.map((m) => ({ userId: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl })))
+    } catch (err) {
+      setAccessError((err as Error).message || "Failed to load board members")
+    } finally {
+      setLoadingBoardMembers(false)
+    }
+  }, [boardId, workspaceId])
+
+  useEffect(() => {
+    if (accessPanelOpen) void loadBoardAccess()
+  }, [accessPanelOpen, loadBoardAccess])
+
+  async function handleAddMember(userId: string) {
+    if (!boardId) return
+    setAddingMember(userId)
+    setAccessError("")
+    try {
+      const added = await boardsApi.addMember(boardId, userId)
+      setBoardMembers((prev) => [...prev, added])
+    } catch (err) {
+      setAccessError((err as Error).message || "Failed to add member")
+    } finally {
+      setAddingMember(null)
+    }
+  }
+
+  async function handleRemoveMember(userId: string) {
+    if (!boardId) return
+    setRemovingMember(userId)
+    setAccessError("")
+    try {
+      await boardsApi.removeMember(boardId, userId)
+      setBoardMembers((prev) => prev.filter((m) => m.userId !== userId))
+    } catch (err) {
+      setAccessError((err as Error).message || "Failed to remove member")
+    } finally {
+      setRemovingMember(null)
+    }
+  }
+
+  const boardMemberIds = new Set(boardMembers.map((m) => m.userId))
+  const filteredAddCandidates = allWsMembers.filter((m) => {
+    if (boardMemberIds.has(m.userId)) return false
+    const q = addMemberSearch.toLowerCase()
+    return (m.name ?? "").toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+  })
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -522,12 +598,25 @@ export default function BoardPage() {
   }
 
   if (error || !board) {
+    const isAccessDenied = error.includes("don't have access") || error.includes("403")
     return (
       <div style={centerStyle}>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)", marginBottom: "12px" }}>
-            {error || "Board not found"}
-          </p>
+        <div style={{ textAlign: "center", maxWidth: 320 }}>
+          {isAccessDenied ? (
+            <>
+              <div style={{ fontSize: "2rem", marginBottom: "12px" }}>🔒</div>
+              <p style={{ color: "oklch(var(--color-ink))", fontSize: "var(--text-base)", fontWeight: 600, margin: "0 0 6px" }}>
+                Private board
+              </p>
+              <p style={{ color: "oklch(var(--color-ink-3))", fontSize: "var(--text-sm)", margin: "0 0 20px" }}>
+                You don't have access to this board. Ask the board owner to invite you.
+              </p>
+            </>
+          ) : (
+            <p style={{ color: "oklch(var(--color-error))", fontSize: "var(--text-sm)", marginBottom: "12px" }}>
+              {error || "Board not found"}
+            </p>
+          )}
           {workspaceId && (
             <Link
               to={`/${workspaceId}`}
@@ -588,7 +677,7 @@ export default function BoardPage() {
             Private
           </span>
         )}
-        {board.visibility === "PUBLIC" && (
+        {board.visibility === "WORKSPACE" && (
           <span
             style={{
               display: "flex",
@@ -603,7 +692,7 @@ export default function BoardPage() {
             }}
           >
             {GLOBE_ICON}
-            Public
+            Workspace
           </span>
         )}
 
@@ -646,9 +735,190 @@ export default function BoardPage() {
             ))}
           </div>
 
+          {/* Board Access button — only for PRIVATE boards where user can manage members */}
+          {canManageAccess && (
+            <button
+              onClick={() => setAccessPanelOpen((v) => !v)}
+              aria-pressed={accessPanelOpen}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "4px 10px",
+                borderRadius: "var(--radius-badge)",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "var(--text-xs)",
+                fontWeight: 500,
+                background: accessPanelOpen ? "oklch(100% 0 0 / 0.22)" : "oklch(0% 0 0 / 0.20)",
+                color: "#fff",
+                transition: "background 0.15s",
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <circle cx="6" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.1" />
+                <path d="M1 10.5c0-2.21 2.24-4 5-4s5 1.79 5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+              </svg>
+              Access
+            </button>
+          )}
+
           <BoardPresence users={onlineUsers} />
         </div>
       </div>
+
+      {/* Board Access panel — slide in below header for PRIVATE boards */}
+      {accessPanelOpen && board.visibility === "PRIVATE" && canManageAccess && (
+        <div
+          style={{
+            background: "oklch(var(--color-paper))",
+            borderBottom: "1px solid oklch(var(--color-border))",
+            padding: "16px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600, color: "oklch(var(--color-ink))" }}>
+              Board Access
+            </h3>
+            <button
+              onClick={() => setAccessPanelOpen(false)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 18, lineHeight: 1, padding: "2px 4px" }}
+              aria-label="Close board access panel"
+            >
+              ×
+            </button>
+          </div>
+
+          {accessError && (
+            <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{accessError}</p>
+          )}
+
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+            {/* Current members */}
+            <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Current members
+              </span>
+              {loadingBoardMembers ? (
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Loading…</span>
+              ) : boardMembers.length === 0 ? (
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>No members yet</span>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {boardMembers.map((m) => (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          width: 26, height: 26, borderRadius: "50%",
+                          background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          overflow: "hidden", flexShrink: 0,
+                        }}
+                      >
+                        {m.avatarUrl
+                          ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <span style={{ fontSize: 9, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.name ?? m.email}
+                        </div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>{m.role.toLowerCase()}</div>
+                      </div>
+                      {/* Don't show remove for the board creator */}
+                      {m.userId !== board.createdById && (
+                        <button
+                          onClick={() => void handleRemoveMember(m.userId)}
+                          disabled={removingMember === m.userId}
+                          aria-label={`Remove ${m.name ?? m.email}`}
+                          style={{
+                            background: "none", border: "none", cursor: removingMember === m.userId ? "not-allowed" : "pointer",
+                            color: "oklch(var(--color-error))", fontSize: "var(--text-xs)", padding: "2px 6px",
+                            borderRadius: "var(--radius-badge)", opacity: removingMember === m.userId ? 0.5 : 1,
+                          }}
+                        >
+                          {removingMember === m.userId ? "…" : "Remove"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add members */}
+            <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Add members
+              </span>
+              <input
+                type="text"
+                placeholder="Search workspace members…"
+                value={addMemberSearch}
+                onChange={(e) => setAddMemberSearch(e.target.value)}
+                style={{
+                  padding: "6px 10px", borderRadius: "var(--radius-input)",
+                  border: "1px solid oklch(var(--color-border))",
+                  background: "oklch(var(--color-paper-2))",
+                  color: "oklch(var(--color-ink))", fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-body)", outline: "none",
+                }}
+              />
+              <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                {filteredAddCandidates.length === 0 ? (
+                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                    {addMemberSearch ? "No members match" : "All workspace members already have access"}
+                  </span>
+                ) : (
+                  filteredAddCandidates.map((m) => (
+                    <div key={m.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          overflow: "hidden", flexShrink: 0,
+                        }}
+                      >
+                        {m.avatarUrl
+                          ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <span style={{ fontSize: 8, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m.name ?? m.email}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => void handleAddMember(m.userId)}
+                        disabled={addingMember === m.userId}
+                        aria-label={`Add ${m.name ?? m.email}`}
+                        style={{
+                          padding: "3px 10px", borderRadius: "var(--radius-badge)",
+                          border: "1px solid oklch(var(--color-accent))",
+                          background: "transparent", color: "oklch(var(--color-accent))",
+                          fontSize: "var(--text-xs)", fontWeight: 500,
+                          cursor: addingMember === m.userId ? "not-allowed" : "pointer",
+                          opacity: addingMember === m.userId ? 0.5 : 1,
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {addingMember === m.userId ? "…" : "Add"}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View-specific content */}
       {boardView === "calendar" && boardId ? (

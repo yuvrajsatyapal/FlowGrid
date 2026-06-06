@@ -7,8 +7,10 @@ import { activitiesApi } from "../api/activities"
 import { cardsApi, type UpcomingCard } from "../api/cards"
 import BoardCard from "../components/boards/BoardCard"
 import CreateBoardModal from "../components/boards/CreateBoardModal"
+import EditBoardModal from "../components/boards/EditBoardModal"
 import type { ActivityResponse } from "@flowgrid/types"
 import { getInitials, getAvatarBg } from "../utils/avatar"
+import { useAuth } from "../contexts/AuthContext"
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -227,6 +229,7 @@ function savePinned(workspaceId: string, ids: Set<string>): void {
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
   const [boards, setBoards] = useState<BoardSummary[]>([])
@@ -240,6 +243,7 @@ export default function WorkspacePage() {
   const [loadingBoards, setLoadingBoards] = useState(true)
   const [error, setError] = useState("")
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingBoard, setEditingBoard] = useState<BoardSummary | null>(null)
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<FilterType>("all")
   const [view, setView] = useState<ViewType>(() => {
@@ -289,19 +293,21 @@ export default function WorkspacePage() {
     })
   }
 
-  async function handleDeleteBoard(boardId: string) {
-    try {
-      await boardsApi.deleteBoard(boardId)
-      setBoards((prev) => prev.filter((b) => b.id !== boardId))
-      setPinnedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(boardId)
-        if (workspaceId) savePinned(workspaceId, next)
-        return next
-      })
-    } catch {
-      // silently ignore
-    }
+  function handleBoardUpdated(updated: BoardSummary) {
+    // Auto-save keeps the modal open — just sync the board in state
+    setBoards((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+    setEditingBoard((prev) => (prev && prev.id === updated.id ? updated : prev))
+  }
+
+  function handleBoardDeletedFromModal(boardId: string) {
+    setBoards((prev) => prev.filter((b) => b.id !== boardId))
+    setPinnedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(boardId)
+      if (workspaceId) savePinned(workspaceId, next)
+      return next
+    })
+    setEditingBoard(null)
   }
 
   const handleViewChange = (v: ViewType) => {
@@ -707,7 +713,7 @@ export default function WorkspacePage() {
                   workspaceId={workspaceId!}
                   isPinned={pinnedIds.has(board.id)}
                   onTogglePin={handleTogglePin}
-                  onDelete={handleDeleteBoard}
+                  onEdit={setEditingBoard}
                 />
               ))}
               {canManage && (!showPagination || isLastPage) && (
@@ -862,9 +868,9 @@ export default function WorkspacePage() {
                       </svg>
                     </button>
                     <button
-                      onClick={() => handleDeleteBoard(board.id)}
-                      aria-label="Delete board"
-                      title="Delete board"
+                      onClick={() => setEditingBoard(board)}
+                      aria-label="Edit board"
+                      title="Edit board"
                       style={{
                         width: "30px",
                         height: "30px",
@@ -880,8 +886,8 @@ export default function WorkspacePage() {
                         flexShrink: 0,
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "oklch(var(--color-error, 0.55 0.2 25) / 0.15)"
-                        e.currentTarget.style.color = "oklch(var(--color-error, 0.55 0.2 25))"
+                        e.currentTarget.style.background = "oklch(var(--color-accent) / 0.15)"
+                        e.currentTarget.style.color = "oklch(var(--color-accent))"
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "oklch(var(--color-paper-3))"
@@ -889,13 +895,8 @@ export default function WorkspacePage() {
                       }}
                     >
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path
-                          d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l1 9.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5L13 4"
-                          stroke="currentColor"
-                          strokeWidth="1.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <path d="M11.5 2.5l2 2L6 12l-2.5.5L4 10l7.5-7.5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M10.5 3.5l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
                   </div>
@@ -1244,8 +1245,21 @@ export default function WorkspacePage() {
           <CreateBoardModal
             key="create-board"
             workspaceId={workspaceId}
+            currentUserId={user?.id ?? ""}
             onCreated={handleBoardCreated}
             onClose={() => setShowCreateModal(false)}
+          />
+        )}
+        {editingBoard && workspaceId && (
+          <EditBoardModal
+            key="edit-board"
+            board={editingBoard}
+            workspaceId={workspaceId}
+            currentUserId={user?.id ?? ""}
+            canDelete={detail?.role === "OWNER"}
+            onUpdated={handleBoardUpdated}
+            onDeleted={handleBoardDeletedFromModal}
+            onClose={() => setEditingBoard(null)}
           />
         )}
       </AnimatePresence>

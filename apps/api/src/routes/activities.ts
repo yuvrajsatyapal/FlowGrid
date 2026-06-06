@@ -106,11 +106,24 @@ router.get("/workspace", validateJWT, async (req, res) => {
       ? { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
       : undefined
 
+    // Private boards: only visible to workspace OWNER/ADMIN or users with a BoardMember row.
+    const isPrivileged = membership.role === "OWNER" || membership.role === "ADMIN"
+    const boardVisibilityFilter = isPrivileged
+      ? { workspaceId, deletedAt: null }
+      : {
+          workspaceId,
+          deletedAt: null,
+          OR: [
+            { visibility: { not: "PRIVATE" as const } },
+            { visibility: "PRIVATE" as const, members: { some: { userId: req.user!.id } } },
+          ],
+        }
+
     const where = {
       ...(dateFilter ? { createdAt: dateFilter } : {}),
       card: {
         deletedAt: null,
-        list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
+        list: { deletedAt: null, board: boardVisibilityFilter },
       },
     }
 

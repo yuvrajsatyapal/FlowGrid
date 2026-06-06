@@ -41,7 +41,6 @@ enum Role {
 enum BoardVisibility {
   WORKSPACE
   PRIVATE
-  PUBLIC
 }
 
 enum InviteStatus {

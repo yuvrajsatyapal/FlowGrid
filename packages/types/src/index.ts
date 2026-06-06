@@ -14,7 +14,7 @@ export type Priority = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
 export type Role = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
 
-export type BoardVisibility = 'WORKSPACE' | 'PRIVATE' | 'PUBLIC'
+export type BoardVisibility = 'WORKSPACE' | 'PRIVATE'
 
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
 
@@ -256,6 +256,8 @@ export type NotificationType =
   | 'INVITE_ACCEPTED'
   | 'WORKSPACE_INVITE'
   | 'CARD_DUE_SOON'      // Feature #14 — due date reminders
+  | 'BOARD_INVITE'       // invited to a private board on creation
+  | 'BOARD_MEMBER_ADDED' // added to a private board via settings
   | 'SYSTEM'             // catch-all for admin/announcement notifications
 
 export interface AppNotification {

@@ -40,9 +40,10 @@ const PinIcon = ({ filled }: { filled: boolean }) => (
   </svg>
 )
 
-const TrashIcon = () => (
+const EditIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l1 9.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5L13 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11.5 2.5l2 2L6 12l-2.5.5L4 10l7.5-7.5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10.5 3.5l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 
@@ -63,10 +64,10 @@ interface Props {
   workspaceId: string
   isPinned: boolean
   onTogglePin: (boardId: string) => void
-  onDelete: (boardId: string) => void
+  onEdit: (board: BoardSummary) => void
 }
 
-export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, onDelete }: Props) {
+export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, onEdit }: Props) {
   const navigate = useNavigate()
   const coverBg = board.coverColor ?? DEFAULT_COVER
   const visibleMembers = (board.members ?? []).slice(0, 2)
@@ -147,7 +148,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
 
           {/* Visibility badge + member avatars */}
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "auto" }}>
-            {board.visibility === "PRIVATE" && (
+            {board.visibility === "PRIVATE" ? (
               <span
                 style={{
                   display: "inline-flex",
@@ -165,8 +166,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
                 <LockIcon />
                 Private
               </span>
-            )}
-            {board.visibility === "PUBLIC" && (
+            ) : (
               <span
                 style={{
                   display: "inline-flex",
@@ -182,7 +182,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
                 }}
               >
                 <GlobeIcon />
-                Public
+                Workspace
               </span>
             )}
 
@@ -262,7 +262,7 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
         </div>
       </button>
 
-      {/* Action buttons: [pin][delete] — shown on hover */}
+      {/* Action buttons: [pin][edit] — shown on hover */}
       <div
         style={{
           position: "absolute",
@@ -305,10 +305,10 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
         <button
           onClick={(e) => {
             e.stopPropagation()
-            onDelete(board.id)
+            onEdit(board)
           }}
-          aria-label="Delete board"
-          title="Delete board"
+          aria-label="Edit board"
+          title="Edit board"
           style={{
             width: "26px",
             height: "26px",
@@ -325,15 +325,15 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
             boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "oklch(var(--color-error, 0.55 0.2 25) / 0.15)"
-            e.currentTarget.style.color = "oklch(var(--color-error, 0.55 0.2 25))"
+            e.currentTarget.style.background = "oklch(var(--color-accent) / 0.15)"
+            e.currentTarget.style.color = "oklch(var(--color-accent))"
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "oklch(var(--color-paper) / 0.92)"
             e.currentTarget.style.color = "oklch(var(--color-ink-2))"
           }}
         >
-          <TrashIcon />
+          <EditIcon />
         </button>
       </div>
     </div>

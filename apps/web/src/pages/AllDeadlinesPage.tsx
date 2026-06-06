@@ -66,7 +66,7 @@ function groupDeadlines(cards: UpcomingCard[]): { label: string; color: string; 
   if (today.length > 0) groups.push({ label: "Due Today", color: "oklch(var(--color-error))", items: today })
   if (tomorrow.length > 0) groups.push({ label: "Due Tomorrow", color: "oklch(0.72 0.15 80)", items: tomorrow })
   if (thisWeek.length > 0) groups.push({ label: "This Week", color: "oklch(var(--color-accent))", items: thisWeek })
-  if (later.length > 0) groups.push({ label: "Later", color: "oklch(var(--color-ink-3))", items: later })
+  if (later.length > 0) groups.push({ label: "Upcoming Deadlines", color: "oklch(var(--color-ink-3))", items: later })
   return groups
 }
 

@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import type { BoardVisibility } from "@flowgrid/types"
 import { boardsApi, type BoardSummary } from "../../api/boards"
+import { workspacesApi } from "../../api/workspaces"
+import { getInitials, getAvatarBg } from "../../utils/avatar"
 
 const COVER_COLORS = [
   { hex: "#3b82f6", label: "Blue" },
@@ -14,18 +16,32 @@ const COVER_COLORS = [
   { hex: "#0ea5e9", label: "Sky" },
 ]
 
+interface WorkspaceMemberOption {
+  userId: string
+  name: string | null
+  email: string
+  avatarUrl: string | null
+}
+
 interface Props {
   workspaceId: string
+  currentUserId: string
   onCreated: (board: BoardSummary) => void
   onClose: () => void
 }
 
-export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Props) {
+export default function CreateBoardModal({ workspaceId, currentUserId, onCreated, onClose }: Props) {
   const [name, setName] = useState("")
   const [visibility, setVisibility] = useState<BoardVisibility>("WORKSPACE")
   const [coverColor, setCoverColor] = useState<string | null>(COVER_COLORS[0].hex)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
+
+  // Member picker state (only relevant when visibility === "PRIVATE")
+  const [allMembers, setAllMembers] = useState<WorkspaceMemberOption[]>([])
+  const [loadingMembers, setLoadingMembers] = useState(false)
+  const [memberSearch, setMemberSearch] = useState("")
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
 
   const overlayRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -42,6 +58,47 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [onClose])
 
+  // Load workspace members when PRIVATE is selected
+  const loadMembers = useCallback(async () => {
+    setLoadingMembers(true)
+    try {
+      const members = await workspacesApi.listMembers(workspaceId)
+      // Exclude the current user — they're auto-added as creator
+      setAllMembers(
+        members
+          .filter((m) => m.userId !== currentUserId)
+          .map((m) => ({ userId: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl })),
+      )
+    } catch {
+      // Non-critical — member picker just stays empty
+    } finally {
+      setLoadingMembers(false)
+    }
+  }, [workspaceId, currentUserId])
+
+  useEffect(() => {
+    if (visibility === "PRIVATE") {
+      void loadMembers()
+    } else {
+      setAllMembers([])
+      setSelectedUserIds(new Set())
+      setMemberSearch("")
+    }
+  }, [visibility, loadMembers])
+
+  const filteredMembers = allMembers.filter((m) => {
+    const q = memberSearch.toLowerCase()
+    return (m.name ?? "").toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+  })
+
+  function toggleMember(userId: string) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) { next.delete(userId) } else { next.add(userId) }
+      return next
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = name.trim()
@@ -52,7 +109,13 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
     setError("")
     setSubmitting(true)
     try {
-      const board = await boardsApi.create({ workspaceId, name: trimmed, visibility, coverColor })
+      const board = await boardsApi.create({
+        workspaceId,
+        name: trimmed,
+        visibility,
+        coverColor,
+        invitedMemberIds: visibility === "PRIVATE" ? [...selectedUserIds] : undefined,
+      })
       onCreated(board)
     } catch (err: unknown) {
       setError((err as Error).message || "Failed to create board")
@@ -97,7 +160,9 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
           borderRadius: "var(--radius-modal)",
           border: "1px solid oklch(var(--color-border))",
           width: "100%",
-          maxWidth: "420px",
+          maxWidth: "460px",
+          maxHeight: "90vh",
+          overflowY: "auto",
           padding: "24px",
           boxShadow: "0 20px 60px oklch(0% 0 0 / 0.20)",
         }}
@@ -255,9 +320,151 @@ export default function CreateBoardModal({ workspaceId, onCreated, onClose }: Pr
             >
               <option value="WORKSPACE">Workspace (all members)</option>
               <option value="PRIVATE">Private (invite only)</option>
-              <option value="PUBLIC">Public (anyone with link)</option>
             </select>
           </div>
+
+          {/* Member picker — shown only when PRIVATE is selected */}
+          {visibility === "PRIVATE" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  Invite members
+                </span>
+                {selectedUserIds.size > 0 && (
+                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))", fontWeight: 500 }}>
+                    {selectedUserIds.size} selected
+                  </span>
+                )}
+              </div>
+
+              {/* Creator auto-included notice */}
+              <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                You are automatically added as the board owner.
+              </p>
+
+              {/* Search */}
+              <input
+                type="text"
+                placeholder="Search members…"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                disabled={submitting || loadingMembers}
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: "var(--radius-input)",
+                  border: "1px solid oklch(var(--color-border))",
+                  background: "oklch(var(--color-paper-2))",
+                  color: "oklch(var(--color-ink))",
+                  fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-body)",
+                  outline: "none",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              {/* Member list */}
+              <div
+                style={{
+                  border: "1px solid oklch(var(--color-border))",
+                  borderRadius: "var(--radius-card)",
+                  maxHeight: "160px",
+                  overflowY: "auto",
+                  background: "oklch(var(--color-paper-2))",
+                }}
+              >
+                {loadingMembers ? (
+                  <div style={{ padding: "12px", textAlign: "center", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                    Loading members…
+                  </div>
+                ) : filteredMembers.length === 0 ? (
+                  <div style={{ padding: "12px", textAlign: "center", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                    {memberSearch ? "No members match your search" : "No other workspace members"}
+                  </div>
+                ) : (
+                  filteredMembers.map((m, i) => {
+                    const checked = selectedUserIds.has(m.userId)
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        onClick={() => toggleMember(m.userId)}
+                        disabled={submitting}
+                        style={{
+                          all: "unset",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          width: "100%",
+                          padding: "8px 12px",
+                          boxSizing: "border-box",
+                          cursor: "pointer",
+                          borderBottom: i < filteredMembers.length - 1 ? "1px solid oklch(var(--color-border) / 0.5)" : "none",
+                          background: checked ? "oklch(var(--color-accent) / 0.08)" : "transparent",
+                          transition: "background var(--dur-fast)",
+                        }}
+                      >
+                        {/* Avatar */}
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {m.avatarUrl ? (
+                            <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
+                          )}
+                        </div>
+
+                        {/* Name + email */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {m.name ?? m.email}
+                          </div>
+                          {m.name && (
+                            <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {m.email}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Checkmark */}
+                        <div
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: "4px",
+                            border: checked ? "none" : "1.5px solid oklch(var(--color-border))",
+                            background: checked ? "oklch(var(--color-accent))" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                            transition: "background var(--dur-fast), border var(--dur-fast)",
+                          }}
+                        >
+                          {checked && (
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "4px" }}>

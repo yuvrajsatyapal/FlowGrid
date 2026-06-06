@@ -40,6 +40,17 @@ export interface BoardSummary {
 
 export interface BoardDetail extends BoardSummary {
   role: Role
+  createdById: string | null
+}
+
+export interface BoardAccessMember {
+  id: string       // BoardMember.id
+  userId: string
+  name: string | null
+  email: string
+  avatarUrl: string | null
+  role: Role
+  createdAt: string
 }
 
 interface CreateBoardRequest {
@@ -47,6 +58,7 @@ interface CreateBoardRequest {
   name: string
   visibility?: BoardVisibility
   coverColor?: string | null
+  invitedMemberIds?: string[]
 }
 
 interface UpdateBoardRequest {
@@ -83,5 +95,20 @@ export const boardsApi = {
   async getCalendarCards(boardId: string): Promise<CalendarCard[]> {
     const res = await api.get<{ cards: CalendarCard[] }>("/boards/calendar", { params: { boardId } })
     return res.data.cards
+  },
+
+  // Board access management (PRIVATE boards only)
+  async listMembers(boardId: string): Promise<BoardAccessMember[]> {
+    const res = await api.get<{ members: BoardAccessMember[] }>("/boards/members", { params: { boardId } })
+    return res.data.members
+  },
+
+  async addMember(boardId: string, userId: string): Promise<BoardAccessMember> {
+    const res = await api.post<{ member: BoardAccessMember }>("/boards/members/add", { boardId, userId })
+    return res.data.member
+  },
+
+  async removeMember(boardId: string, userId: string): Promise<void> {
+    await api.post("/boards/members/remove", { boardId, userId })
   },
 }
