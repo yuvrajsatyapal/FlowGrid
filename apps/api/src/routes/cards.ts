@@ -723,7 +723,7 @@ router.get("/upcoming", validateJWT, async (req, res) => {
     return
   }
 
-  const days = Math.min(90, Math.max(1, parseInt((req.query.days as string) ?? "14", 10) || 14))
+  const days = Math.min(365, Math.max(1, parseInt((req.query.days as string) ?? "14", 10) || 14))
   const now = new Date()
   const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
 
@@ -743,13 +743,13 @@ router.get("/upcoming", validateJWT, async (req, res) => {
         list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
       },
       orderBy: { dueDate: "asc" },
-      take: 20,
+      take: 200,
       select: {
         id: true,
         title: true,
         dueDate: true,
         listId: true,
-        list: { select: { boardId: true } },
+        list: { select: { boardId: true, board: { select: { name: true } } } },
       },
     })
 
@@ -760,6 +760,7 @@ router.get("/upcoming", validateJWT, async (req, res) => {
         dueDate: c.dueDate,
         listId: c.listId,
         boardId: c.list.boardId,
+        boardName: c.list.board.name,
       })),
     })
   } catch {

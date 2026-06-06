@@ -16,6 +16,8 @@ import AnalyticsPage from "./pages/AnalyticsPage"
 import InboxPage from "./pages/InboxPage"
 import ProfilePage from "./pages/ProfilePage"
 import LandingPage from "./pages/LandingPage"
+import AllActivityPage from "./pages/AllActivityPage"
+import AllDeadlinesPage from "./pages/AllDeadlinesPage"
 
 export default function App() {
   return (
@@ -45,6 +47,8 @@ export default function App() {
               <Route path="/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
               <Route path="/:workspaceId/members" element={<WorkspaceMembersPage />} />
               <Route path="/:workspaceId/analytics" element={<AnalyticsPage />} />
+              <Route path="/:workspaceId/activity" element={<AllActivityPage />} />
+              <Route path="/:workspaceId/deadlines" element={<AllDeadlinesPage />} />
               <Route path="/:workspaceId/inbox" element={<InboxPage />} />
               <Route path="/:workspaceId/profile" element={<ProfilePage />} />
               <Route path="/:workspaceId/:boardId" element={<BoardPage />} />

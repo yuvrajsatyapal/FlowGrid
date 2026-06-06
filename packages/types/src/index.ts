@@ -292,6 +292,7 @@ export interface ActivityUser {
 export interface ActivityResponse {
   id: string
   cardId: string | null
+  cardTitle: string | null
   user: ActivityUser | null // null if user deleted
   action: string
   metadata: Record<string, unknown>

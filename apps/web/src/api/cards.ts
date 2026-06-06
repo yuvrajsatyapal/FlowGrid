@@ -96,4 +96,5 @@ export interface UpcomingCard {
   dueDate: string
   listId: string
   boardId: string
+  boardName: string | null
 }

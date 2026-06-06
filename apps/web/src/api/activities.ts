@@ -15,7 +15,12 @@ export const activitiesApi = {
   },
 
   async listWorkspace(workspaceId: string, limit = 10): Promise<ActivityResponse[]> {
-    const res = await api.get<{ items: ActivityResponse[] }>("/activities/workspace", { params: { workspaceId, limit } })
+    const res = await api.get<ActivityPage>("/activities/workspace", { params: { workspaceId, limit } })
     return res.data.items
+  },
+
+  async listWorkspaceAll(workspaceId: string, days = 7, offset = 0, limit = 100): Promise<ActivityPage> {
+    const res = await api.get<ActivityPage>("/activities/workspace", { params: { workspaceId, days, offset, limit } })
+    return res.data
   },
 }

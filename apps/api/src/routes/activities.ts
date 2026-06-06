@@ -13,10 +13,12 @@ function formatActivity(activity: {
   metadata: unknown
   createdAt: Date
   user: ActivityUser | null
+  card?: { title: string } | null
 }) {
   return {
     id: activity.id,
     cardId: activity.cardId,
+    cardTitle: activity.card?.title ?? null,
     user: activity.user,
     action: activity.action,
     metadata: activity.metadata as Record<string, unknown>,
@@ -79,7 +81,7 @@ async function resolveCardAccess(
   return { card, board, membership }
 }
 
-// GET /api/activities/workspace?workspaceId=&limit= — recent activities across a workspace
+// GET /api/activities/workspace?workspaceId=&limit=&days=&offset= — recent activities across a workspace
 router.get("/workspace", validateJWT, async (req, res) => {
   const workspaceId = req.query.workspaceId as string | undefined
   if (!workspaceId) {
@@ -87,7 +89,9 @@ router.get("/workspace", validateJWT, async (req, res) => {
     return
   }
 
-  const limit = Math.min(50, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10))
+  const limit = Math.min(200, Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10))
+  const offset = Math.max(0, parseInt((req.query.offset as string) ?? "0", 10) || 0)
+  const days = req.query.days ? Math.min(30, Math.max(1, parseInt(req.query.days as string, 10) || 7)) : null
 
   try {
     const membership = await prisma.workspaceMember.findUnique({
@@ -98,19 +102,33 @@ router.get("/workspace", validateJWT, async (req, res) => {
       return
     }
 
-    const items = await prisma.activity.findMany({
-      where: {
-        card: {
-          deletedAt: null,
-          list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
-    })
+    const dateFilter = days
+      ? { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
+      : undefined
 
-    res.json({ items: items.map(formatActivity) })
+    const where = {
+      ...(dateFilter ? { createdAt: dateFilter } : {}),
+      card: {
+        deletedAt: null,
+        list: { deletedAt: null, board: { workspaceId, deletedAt: null } },
+      },
+    }
+
+    const [items, total] = await prisma.$transaction([
+      prisma.activity.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: offset,
+        take: limit,
+        include: {
+          user: { select: { id: true, name: true, avatarUrl: true } },
+          card: { select: { title: true } },
+        },
+      }),
+      prisma.activity.count({ where }),
+    ])
+
+    res.json({ items: items.map(formatActivity), total, offset, limit })
   } catch {
     res.status(500).json({ error: { message: "Failed to fetch activities", status: 500 } })
   }
@@ -137,7 +155,10 @@ router.get("/", validateJWT, async (req, res) => {
         orderBy: { createdAt: "desc" },
         skip: offset,
         take: limit,
-        include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        include: {
+          user: { select: { id: true, name: true, avatarUrl: true } },
+          card: { select: { title: true } },
+        },
       }),
       prisma.activity.count({ where: { cardId } }),
     ])

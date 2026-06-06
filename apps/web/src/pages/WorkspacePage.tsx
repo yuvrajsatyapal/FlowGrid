@@ -185,12 +185,17 @@ function formatActivityText(activity: ActivityResponse): React.ReactNode {
     attachment_added: "added an attachment to",
     assignee_changed: "changed assignee in",
     due_date_set: "set a due date on",
+    due_date_changed: "changed due date on",
+    title_changed: "renamed",
+    priority_changed: "changed priority of",
+    card_completed: "completed",
+    card_reopened: "reopened",
   }
   const verb = actionMap[activity.action] ?? activity.action.replace(/_/g, " ")
-  const target = meta.cardTitle ?? meta.title ?? ""
+  const cardName = activity.cardTitle ?? meta.cardTitle ?? meta.title ?? ""
   return (
     <>
-      <strong>{name}</strong> {verb}{target ? ` "${target}"` : ""}
+      <strong>{name}</strong> {verb}{cardName ? <> <strong style={{ fontWeight: 600 }}>{cardName}</strong></> : ""}
     </>
   )
 }
@@ -1078,7 +1083,7 @@ export default function WorkspacePage() {
                 {/* View all link */}
                 <div style={{ padding: "11px 18px", borderTop: "1px solid oklch(var(--color-border) / 0.5)" }}>
                   <Link
-                    to={`/${workspaceId}/analytics`}
+                    to={`/${workspaceId}/activity`}
                     style={{
                       fontSize: "var(--text-xs)",
                       fontWeight: 500,
@@ -1213,18 +1218,20 @@ export default function WorkspacePage() {
 
                 {/* View all link */}
                 <div style={{ padding: "11px 18px", borderTop: "1px solid oklch(var(--color-border) / 0.5)" }}>
-                  <span
+                  <Link
+                    to={`/${workspaceId}/deadlines`}
                     style={{
                       fontSize: "var(--text-xs)",
                       fontWeight: 500,
-                      color: "oklch(var(--color-ink-3))",
+                      color: "oklch(var(--color-accent))",
+                      textDecoration: "none",
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "4px",
                     }}
                   >
                     View all deadlines →
-                  </span>
+                  </Link>
                 </div>
               </>
             )}
