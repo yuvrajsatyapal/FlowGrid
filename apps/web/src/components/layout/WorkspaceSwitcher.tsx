@@ -34,7 +34,7 @@ function WorkspaceBadge({ name, logoUrl, color }: { name: string; logoUrl?: stri
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("")
 
-  const background = COLOR_GRADIENTS[color ?? "blue"] ?? COLOR_GRADIENTS.blue
+  const background = COLOR_GRADIENTS[color ?? "blue"] ?? color ?? COLOR_GRADIENTS.blue
 
   return (
     <div

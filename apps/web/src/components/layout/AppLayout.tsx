@@ -35,13 +35,14 @@ const BoardsIcon = () => (
 )
 
 const SettingsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.25" />
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     <path
-      d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
+      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
       stroke="currentColor"
-      strokeWidth="1.25"
+      strokeWidth="1.75"
       strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </svg>
 )
@@ -72,6 +73,14 @@ const InboxIcon = () => (
       strokeLinejoin="round"
     />
     <path d="M6.5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+  </svg>
+)
+
+const UserCircleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
+    <circle cx="8" cy="6.5" r="2" stroke="currentColor" strokeWidth="1.25" />
+    <path d="M3.5 13a4.5 4.5 0 0 1 9 0" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
   </svg>
 )
 
@@ -337,8 +346,7 @@ function SidebarContent({
 
       {/* User section */}
       <div style={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}>
-        <Link
-          to={activeWorkspace ? `/${activeWorkspace.id}/profile` : "#"}
+        <div
           style={{
             flex: 1,
             minWidth: 0,
@@ -346,13 +354,7 @@ function SidebarContent({
             alignItems: "center",
             gap: "8px",
             padding: "6px 8px",
-            borderRadius: "6px",
-            textDecoration: "none",
-            color: "oklch(var(--color-ink))",
-            transition: "background var(--dur-fast) var(--ease-out)",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))" }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
         >
           {/* Avatar */}
           <div
@@ -378,7 +380,7 @@ function SidebarContent({
             )}
           </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
             <p
               style={{
                 margin: 0,
@@ -392,24 +394,52 @@ function SidebarContent({
             >
               {user?.name ?? user?.email}
             </p>
-            {user?.name && (
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "var(--text-xs)",
-                  color: "oklch(var(--color-ink-3))",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {user.email}
-              </p>
-            )}
+            <p
+              style={{
+                margin: 0,
+                fontSize: "var(--text-xs)",
+                color: "oklch(var(--color-ink-3))",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {user?.email}
+            </p>
           </div>
+        </div>
+
+        {/* Profile settings button */}
+        <Link
+          to={activeWorkspace ? `/${activeWorkspace.id}/profile` : "#"}
+          title="Profile settings"
+          aria-label="Profile settings"
+          style={{
+            padding: "5px",
+            borderRadius: "5px",
+            border: "none",
+            background: "transparent",
+            color: "oklch(var(--color-ink-3))",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            transition: "background var(--dur-fast), color var(--dur-fast)",
+            flexShrink: 0,
+            textDecoration: "none",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "oklch(var(--color-paper-3))"
+            e.currentTarget.style.color = "oklch(var(--color-ink))"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent"
+            e.currentTarget.style.color = "oklch(var(--color-ink-3))"
+          }}
+        >
+          <UserCircleIcon />
         </Link>
 
-        {/* Sign-out button stays outside the link */}
+        {/* Sign-out button */}
         <button
           onClick={handleLogout}
           title="Sign out"

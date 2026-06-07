@@ -54,17 +54,6 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box" as const,
 }
 
-const primaryBtn: React.CSSProperties = {
-  padding: "8px 18px",
-  borderRadius: "var(--radius-button)",
-  border: "none",
-  background: "oklch(var(--color-accent))",
-  color: "#fff",
-  fontSize: "var(--text-sm)",
-  fontWeight: 500,
-  cursor: "pointer",
-  fontFamily: "var(--font-body)",
-}
 
 const dangerBtn: React.CSSProperties = {
   padding: "7px 14px",
@@ -213,6 +202,7 @@ export default function WorkspaceSettingsPage() {
   const logoFileInputRef = useRef<HTMLInputElement>(null)
   const savedValuesRef = useRef({ name: "", description: "" })
   const savedStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const colorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedRef = useRef(false)
 
   // ── Cleanup ──────────────────────────────────────────────────────────────────
@@ -329,22 +319,38 @@ export default function WorkspaceSettingsPage() {
   }
 
   // ── Color handler ─────────────────────────────────────────────────────────────
-  const handleSaveColor = async (color: string) => {
+  const commitColor = useCallback(async (color: string, prevColor: string) => {
     if (!workspaceId) return
-    setSelectedColor(color)
     setColorSaving(true)
     try {
       await workspacesApi.update(workspaceId, { color })
-      updateWorkspace(workspaceId, { color })
       setSaveStatus("saved")
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000)
     } catch {
-      // silent — reverts on next load
+      setSelectedColor(prevColor)
+      updateWorkspace(workspaceId, { color: prevColor })
     } finally {
       setColorSaving(false)
     }
-  }
+  }, [workspaceId, updateWorkspace])
+
+  const handleSaveColor = useCallback((color: string) => {
+    if (!workspaceId) return
+    const prevColor = selectedColor
+    setSelectedColor(color)
+    updateWorkspace(workspaceId, { color })
+    void commitColor(color, prevColor)
+  }, [workspaceId, selectedColor, updateWorkspace, commitColor])
+
+  const handleCustomColorChange = useCallback((color: string) => {
+    if (!workspaceId) return
+    const prevColor = selectedColor
+    setSelectedColor(color)
+    updateWorkspace(workspaceId, { color })
+    if (colorDebounceRef.current) clearTimeout(colorDebounceRef.current)
+    colorDebounceRef.current = setTimeout(() => void commitColor(color, prevColor), 500)
+  }, [workspaceId, selectedColor, updateWorkspace, commitColor])
 
   // ── Delete handler ────────────────────────────────────────────────────────────
   const handleDelete = async () => {
@@ -399,10 +405,6 @@ export default function WorkspaceSettingsPage() {
           </Link>
           <span>›</span>
           <span style={{ color: "oklch(var(--color-ink-2))", fontWeight: 500 }}>Workspace Settings</span>
-          <span style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "6px" }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "oklch(var(--color-success))", display: "inline-block" }} />
-            <span style={{ fontSize: "0.625rem", fontWeight: 700, color: "oklch(var(--color-success))", letterSpacing: "0.03em" }}>Live</span>
-          </span>
         </div>
 
         {/* Save status */}
@@ -467,54 +469,67 @@ export default function WorkspaceSettingsPage() {
                 <div style={sectionBody}>
 
                   {/* Logo upload */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "20px" }}>
+                    {/* Badge */}
                     <div
                       style={{
-                        width: 52, height: 52, borderRadius: "10px",
-                        background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[selectedColor] ?? COLOR_GRADIENTS.blue),
+                        width: 70, height: 70, borderRadius: "18px",
+                        background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[selectedColor] ?? selectedColor),
                         flexShrink: 0, overflow: "hidden",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: logoUploading ? "default" : "pointer",
-                        opacity: logoUploading ? 0.6 : 1,
                         border: "2px solid oklch(var(--color-border))",
                       }}
-                      onClick={() => !logoUploading && logoFileInputRef.current?.click()}
-                      title="Click to change logo"
                     >
                       {detail?.logoUrl ? (
                         <img src={detail.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
-                        <span style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>{wsInitials}</span>
+                        <span style={{ fontSize: "26px", fontWeight: 700, color: "#fff" }}>{wsInitials}</span>
                       )}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <button
-                          type="button"
-                          onClick={() => logoFileInputRef.current?.click()}
-                          disabled={logoUploading}
-                          style={{ ...primaryBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
-                          onMouseEnter={(e) => { if (!logoUploading) e.currentTarget.style.background = "oklch(var(--color-accent-hover))" }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "oklch(var(--color-accent))" }}
-                        >
-                          {logoUploading ? "Uploading…" : "Upload Image"}
-                        </button>
-                        {detail?.logoUrl && (
+
+                    {/* Upload box + caption */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "2px", borderRadius: "18px" }}>
+                      <button
+                        type="button"
+                        onClick={() => logoFileInputRef.current?.click()}
+                        disabled={logoUploading}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          gap: "4px",
+                          width: "55px", height: "40px", padding: "0 12px",
+                          borderRadius: "var(--radius-card)",
+                          border: "1.5px dashed oklch(var(--color-border))",
+                          background: "oklch(var(--color-paper))",
+                          cursor: logoUploading ? "not-allowed" : "pointer",
+                          opacity: logoUploading ? 0.6 : 1,
+                          transition: "border-color 150ms ease, background 150ms ease",
+                          fontFamily: "var(--font-body)",
+                        }}
+                        onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.borderColor = "oklch(var(--color-accent))"; e.currentTarget.style.background = "oklch(var(--color-accent-muted))" } }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "oklch(var(--color-border))"; e.currentTarget.style.background = "oklch(var(--color-paper))" }}
+                      >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ color: "oklch(var(--color-ink-3))" }}>
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                      </button>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginLeft: "5px" }}>
+                        {detail?.logoUrl ? (
                           <button
                             type="button"
                             onClick={handleRemoveLogo}
                             disabled={logoUploading}
-                            style={{ ...dangerBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
-                            onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.background = "oklch(var(--color-error))"; e.currentTarget.style.borderColor = "oklch(var(--color-error))"; e.currentTarget.style.color = "#fff" } }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "oklch(var(--color-error) / 0.5)"; e.currentTarget.style.color = "oklch(var(--color-error))" }}
+                            style={{ background: "none", border: "none", padding: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))", cursor: logoUploading ? "not-allowed" : "pointer", fontFamily: "var(--font-body)" }}
                           >
                             Remove
                           </button>
+                        ) : (
+                          <p style={{ margin: 0, paddingTop: "2px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                            PNG or JPG, max 2 MB.
+                          </p>
                         )}
                       </div>
-                      <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                        PNG or JPG, max 2 MB. Used in the workspace badge.
-                      </p>
                       {logoError && <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{logoError}</p>}
                     </div>
                     <input
@@ -528,22 +543,19 @@ export default function WorkspaceSettingsPage() {
 
                   {/* Accent Color */}
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <div style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
                       <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>Accent Color</p>
-                      <span style={{ fontSize: "var(--text-xs)", fontFamily: "var(--font-mono)", color: "oklch(var(--color-ink-3))", letterSpacing: "0.04em" }}>
-                        {COLOR_HEX[selectedColor] ?? ""}
-                      </span>
                     </div>
                     <p style={{ margin: "0 0 10px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
                       Used when no logo is set.
                     </p>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                       {COLOR_OPTIONS.map((c) => (
                         <button
                           key={c}
                           type="button"
                           title={c}
-                          onClick={() => void handleSaveColor(c)}
+                          onClick={() => handleSaveColor(c)}
                           disabled={colorSaving}
                           style={{
                             width: 28, height: 28, borderRadius: "7px",
@@ -556,6 +568,44 @@ export default function WorkspaceSettingsPage() {
                           }}
                         />
                       ))}
+                      {/* Custom color picker */}
+                      <label
+                        title="Custom color"
+                        style={{
+                          position: "relative",
+                          width: 28, height: 28, borderRadius: "7px",
+                          border: selectedColor.startsWith("#") && !Object.values(COLOR_HEX).includes(selectedColor)
+                            ? "2.5px solid oklch(var(--color-ink))"
+                            : "2px solid oklch(var(--color-border))",
+                          cursor: colorSaving ? "not-allowed" : "pointer",
+                          transform: selectedColor.startsWith("#") && !Object.values(COLOR_HEX).includes(selectedColor)
+                            ? "scale(1.15)" : "scale(1)",
+                          transition: "transform 0.1s ease, border 0.1s ease",
+                          overflow: "hidden",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: selectedColor.startsWith("#") && !Object.values(COLOR_HEX).includes(selectedColor)
+                            ? selectedColor
+                            : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <input
+                          type="color"
+                          disabled={colorSaving}
+                          value={
+                            selectedColor.startsWith("#") && !Object.values(COLOR_HEX).includes(selectedColor)
+                              ? selectedColor
+                              : "#ffffff"
+                          }
+                          onChange={(e) => handleCustomColorChange(e.target.value)}
+                          style={{
+                            position: "absolute", opacity: 0,
+                            width: "100%", height: "100%",
+                            cursor: colorSaving ? "not-allowed" : "pointer",
+                            padding: 0, border: 0,
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
 
@@ -600,7 +650,7 @@ export default function WorkspaceSettingsPage() {
                   </div>
 
                   {/* Workspace URL (read-only) */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {/* <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <label htmlFor="ws-slug" style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
                       Workspace URL
                     </label>
@@ -619,7 +669,7 @@ export default function WorkspaceSettingsPage() {
                     <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
                       URL slug cannot be changed after workspace creation.
                     </p>
-                  </div>
+                  </div> */}
 
                   {/* Description */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -665,7 +715,7 @@ export default function WorkspaceSettingsPage() {
               <div style={{ ...sectionBody, display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
                 {/* Workspace badge */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "12px", background: "oklch(var(--color-paper-3))", borderRadius: "var(--radius-card)" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "8px", background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[selectedColor] ?? COLOR_GRADIENTS.blue), flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "8px", background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[selectedColor] ?? selectedColor), flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {detail?.logoUrl ? (
                       <img src={detail.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (

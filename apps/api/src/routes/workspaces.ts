@@ -228,8 +228,9 @@ router.post("/update", validateJWT, async (req, res) => {
     }
   }
 
-  if (color !== undefined && !VALID_COLORS.has(color)) {
-    res.status(400).json({ error: { message: "color must be one of: blue, teal, purple, orange, pink, yellow, slate, red", status: 400 } })
+  const isValidHex = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c)
+  if (color !== undefined && !VALID_COLORS.has(color) && !isValidHex(color)) {
+    res.status(400).json({ error: { message: "color must be a preset name or a valid hex color (e.g. #ff0000)", status: 400 } })
     return
   }
 
