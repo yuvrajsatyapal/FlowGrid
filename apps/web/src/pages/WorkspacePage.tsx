@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react"
-import { AnimatePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
 import { boardsApi, type BoardSummary } from "../api/boards"
@@ -227,6 +227,115 @@ function savePinned(workspaceId: string, ids: Set<string>): void {
   } catch { /* ignore */ }
 }
 
+// ── Board search shortcut hint ─────────────────────────────────────────────────
+
+const LS_BOARD_HINT_COUNT = "flowgrid:boardSearchShortcutHintCount"
+const LS_BOARD_SHORTCUT_USED = "flowgrid:hasUsedBoardSearchShortcut"
+
+function getBoardHintCount(): number {
+  try { return parseInt(localStorage.getItem(LS_BOARD_HINT_COUNT) ?? "0", 10) || 0 } catch { return 0 }
+}
+function setBoardHintCount(n: number): void {
+  try { localStorage.setItem(LS_BOARD_HINT_COUNT, String(n)) } catch {}
+}
+function isBoardShortcutLearned(): boolean {
+  try { return localStorage.getItem(LS_BOARD_SHORTCUT_USED) === "true" } catch { return false }
+}
+function markBoardShortcutLearned(): void {
+  try { localStorage.setItem(LS_BOARD_SHORTCUT_USED, "true") } catch {}
+}
+
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+
+function BoardSearchShortcutHint({ variant, onDismiss }: { variant: 1 | 2; onDismiss: () => void }) {
+  const shortcutKey = IS_MAC ? "⌘K" : "Ctrl+K"
+  const altPlatform = IS_MAC ? "Ctrl+K on Windows/Linux" : "⌘K on macOS"
+
+  useEffect(() => {
+    const ms = variant === 1 ? 5000 : 4000
+    const id = setTimeout(onDismiss, ms)
+    return () => clearTimeout(id)
+  }, [variant, onDismiss])
+
+  const kbdStyle: React.CSSProperties = {
+    display: "inline-block",
+    padding: "1px 5px",
+    borderRadius: "4px",
+    border: "1px solid oklch(var(--color-border))",
+    fontSize: "11px",
+    fontFamily: "var(--font-body)",
+    background: "oklch(var(--color-paper-2))",
+    lineHeight: 1.4,
+    verticalAlign: "middle",
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        right: "24px",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "10px",
+        padding: "11px 13px",
+        borderRadius: "var(--radius-card, 10px)",
+        background: "oklch(var(--color-paper))",
+        border: "1px solid oklch(var(--color-border))",
+        boxShadow: "0 8px 24px oklch(0% 0 0 / 0.12)",
+        maxWidth: "272px",
+        fontFamily: "var(--font-body)",
+        pointerEvents: "auto",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {variant === 1 ? (
+          <>
+            <p style={{ margin: "0 0 3px", fontSize: "13px", fontWeight: 600, color: "oklch(var(--color-ink))", lineHeight: 1.4 }}>
+              Tip: Press <kbd style={kbdStyle}>{shortcutKey}</kbd> to search boards instantly.
+            </p>
+            <p style={{ margin: 0, fontSize: "11.5px", color: "oklch(var(--color-ink-3))" }}>
+              Use {altPlatform}
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 2px", fontSize: "13px", color: "oklch(var(--color-ink-2))", lineHeight: 1.4 }}>
+              Search is also available with <kbd style={kbdStyle}>{shortcutKey}</kbd>
+            </p>
+            <p style={{ margin: 0, fontSize: "11.5px", color: "oklch(var(--color-ink-3))" }}>
+              (or {altPlatform})
+            </p>
+          </>
+        )}
+      </div>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss hint"
+        style={{
+          padding: "1px",
+          border: "none",
+          background: "none",
+          cursor: "pointer",
+          color: "oklch(var(--color-ink-3))",
+          display: "flex",
+          flexShrink: 0,
+          marginTop: "1px",
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+    </motion.div>
+  )
+}
+
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
@@ -252,6 +361,41 @@ export default function WorkspacePage() {
     try { return (localStorage.getItem("flowgrid:boardsView") as ViewType) ?? "grid" } catch { return "grid" }
   })
   const [page, setPage] = useState(1)
+
+  const boardSearchRef = useRef<HTMLInputElement>(null)
+  const [searchInputFocused, setSearchInputFocused] = useState(false)
+  const [hintToShow, setHintToShow] = useState<1 | 2 | null>(null)
+  const hintToShowRef = useRef<1 | 2 | null>(null)
+
+  const handleDismissHint = useCallback(() => {
+    hintToShowRef.current = null
+    setHintToShow(null)
+  }, [])
+
+  function handleBoardSearchFocus() {
+    if (hintToShowRef.current !== null) return
+    if (isBoardShortcutLearned()) return
+    const count = getBoardHintCount()
+    if (count >= 2) return
+    const next = (count + 1) as 1 | 2
+    setBoardHintCount(next)
+    hintToShowRef.current = next
+    setHintToShow(next)
+  }
+
+  // When the user presses Cmd+K on the Boards page, AppLayout opens the card SearchModal.
+  // Observe that event here to mark the shortcut as learned and dismiss any pending hint.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        markBoardShortcutLearned()
+        hintToShowRef.current = null
+        setHintToShow(null)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   const canManage = detail?.role === "OWNER" || detail?.role === "ADMIN"
 
@@ -552,21 +696,29 @@ export default function WorkspacePage() {
               {SEARCH_ICON}
             </span>
             <input
+              ref={boardSearchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => { setSearchInputFocused(true); handleBoardSearchFocus() }}
+              onBlur={() => setSearchInputFocused(false)}
               placeholder="Search boards…"
               style={{
                 width: "100%",
                 padding: "9px 12px 9px 34px",
                 borderRadius: "var(--radius-input)",
-                border: "1px solid oklch(var(--color-border))",
+                border: searchInputFocused
+                  ? "1px solid oklch(var(--color-accent))"
+                  : "1px solid oklch(var(--color-border))",
+                boxShadow: searchInputFocused
+                  ? "0 0 0 2px oklch(var(--color-accent) / 0.15)"
+                  : "none",
                 background: "oklch(var(--color-paper-2))",
                 color: "oklch(var(--color-ink))",
                 fontSize: "var(--text-sm)",
                 outline: "none",
                 boxSizing: "border-box",
                 fontFamily: "var(--font-body)",
-                transition: "border-color var(--dur-fast)",
+                transition: "border-color var(--dur-fast), box-shadow var(--dur-fast)",
               }}
             />
           </div>
@@ -1281,6 +1433,16 @@ export default function WorkspacePage() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {hintToShow !== null && (
+          <BoardSearchShortcutHint
+            key="shortcut-hint"
+            variant={hintToShow}
+            onDismiss={handleDismissHint}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showCreateModal && workspaceId && (
