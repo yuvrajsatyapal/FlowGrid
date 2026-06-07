@@ -23,6 +23,8 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
     return
   }
 
+  const days = Math.min(Math.max(Number(req.query.days ?? 30), 1), 365)
+
   try {
     // RBAC — must be a workspace member
     const [membership, totalMembers] = await Promise.all([
@@ -77,8 +79,11 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
     })
     const listIds = lists.map((l) => l.id)
 
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+    const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    const prevPeriodStart = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000)
+    // keep alias for queries that still reference the old name
+    const thirtyDaysAgo = periodStart
+    const sixtyDaysAgo = prevPeriodStart
 
     function trendPct(curr: number, prev: number): number {
       if (prev === 0) return curr > 0 ? 100 : 0
@@ -136,32 +141,37 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
           `
         : Promise.resolve([]),
 
-      // Activity by day over last 30 days
+      // Activity by day over selected period
       prisma.$queryRaw<{ day: Date; count: bigint }[]>`
         SELECT
           DATE_TRUNC('day', "createdAt") AS day,
           COUNT(*) AS count
         FROM "Activity"
         WHERE "boardId" = ANY(${boardIds}::text[])
-          AND "createdAt" >= ${thirtyDaysAgo}
+          AND "createdAt" >= ${periodStart}
         GROUP BY day
         ORDER BY day ASC
       `,
 
-      // Top 5 members by activity count
-      prisma.$queryRaw<{ userId: string; name: string | null; avatarUrl: string | null; count: bigint }[]>`
+      // All workspace members with their role + activity count in period
+      prisma.$queryRaw<{ userId: string; name: string | null; avatarUrl: string | null; role: string; count: bigint }[]>`
         SELECT
-          a."userId",
+          wm."userId",
           u.name,
           u."avatarUrl",
-          COUNT(*) AS count
-        FROM "Activity" a
-        JOIN "User" u ON u.id = a."userId"
-        WHERE a."boardId" = ANY(${boardIds}::text[])
-          AND a."createdAt" >= ${thirtyDaysAgo}
-        GROUP BY a."userId", u.name, u."avatarUrl"
+          wm.role,
+          COALESCE(act.count, 0) AS count
+        FROM "WorkspaceMember" wm
+        JOIN "User" u ON u.id = wm."userId"
+        LEFT JOIN (
+          SELECT "userId", COUNT(*) AS count
+          FROM "Activity"
+          WHERE "boardId" = ANY(${boardIds}::text[])
+            AND "createdAt" >= ${periodStart}
+          GROUP BY "userId"
+        ) act ON act."userId" = wm."userId"
+        WHERE wm."workspaceId" = ${workspaceId}
         ORDER BY count DESC
-        LIMIT 5
       `,
     ])
 
@@ -191,6 +201,7 @@ analyticsRouter.get("/", validateJWT, async (req, res) => {
       userId: r.userId,
       name: r.name,
       avatarUrl: r.avatarUrl,
+      role: r.role,
       count: Number(r.count),
     }))
 

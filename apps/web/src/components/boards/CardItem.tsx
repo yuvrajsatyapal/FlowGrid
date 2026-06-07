@@ -129,7 +129,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",
           border: "1px solid oklch(var(--color-border))",
-          padding: "13px 14px 12px",
+          padding: "13px 14px 14px",
           flex: overlay ? undefined : 1,
           minHeight: overlay ? undefined : minHeight,
           boxShadow: overlay ? "0 8px 24px oklch(0% 0 0 / 0.16)" : "0 1px 2px oklch(0% 0 0 / 0.04)",

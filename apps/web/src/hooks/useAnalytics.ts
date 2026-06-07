@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query"
 import { analyticsApi } from "../api/analytics"
 import type { AnalyticsData } from "@flowgrid/types"
 
-export function useAnalytics(workspaceId: string | undefined) {
+export function useAnalytics(workspaceId: string | undefined, days: number = 30) {
   return useQuery<AnalyticsData>({
-    queryKey: ["analytics", workspaceId],
-    queryFn: () => analyticsApi.get(workspaceId as string),
+    queryKey: ["analytics", workspaceId, days],
+    queryFn: () => analyticsApi.get(workspaceId as string, days),
     enabled: Boolean(workspaceId),
-    staleTime: 5 * 60 * 1000, // 5 min — analytics don't need to be real-time
+    staleTime: 5 * 60 * 1000,
   })
 }

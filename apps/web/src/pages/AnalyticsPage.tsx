@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import {
   BarChart,
@@ -8,8 +9,15 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
+import * as XLSX from "xlsx"
 import { useAnalytics } from "../hooks/useAnalytics"
 import type { Priority } from "@flowgrid/types"
+
+const PERIOD_OPTIONS = [
+  { label: "Last 7 Days", days: 7 },
+  { label: "Last 30 Days", days: 30 },
+  { label: "Last 90 Days", days: 90 },
+]
 
 const TICK_COLOR = "oklch(72% 0.010 250)"
 
@@ -212,86 +220,108 @@ function ChartCard({ title, children, isEmpty, emptyMsg, action }: {
   )
 }
 
-// ── Custom tooltip ────────────────────────────────────────────────────────────
-
-function ChartTooltip({ active, payload, label }: {
-  active?: boolean
-  payload?: { value: number }[]
-  label?: string
-}) {
-  if (!active || !payload?.length) return null
-  return (
-    <div
-      style={{
-        background: "oklch(var(--color-paper))",
-        border: "1px solid oklch(var(--color-border))",
-        borderRadius: "6px",
-        padding: "8px 12px",
-        fontSize: "var(--text-xs)",
-        color: "oklch(var(--color-ink))",
-        boxShadow: "0 2px 8px oklch(0% 0 0 / 0.08)",
-      }}
-    >
-      <span style={{ fontWeight: 600 }}>{label}</span>
-      <span style={{ marginLeft: "8px", color: "oklch(var(--color-accent))" }}>{payload[0].value}</span>
-    </div>
-  )
-}
-
 // ── Donut chart (SVG) ─────────────────────────────────────────────────────────
 
-function DonutChart({ data }: { data: { label: string; count: number; color: string }[] }) {
-  const total = data.reduce((acc, d) => acc + d.count, 0)
-  const r = 52
-  const circ = 2 * Math.PI * r
-  const cx = 70
-  const cy = 70
+function polarToXY(cx: number, cy: number, r: number, deg: number) {
+  const rad = ((deg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
 
-  let cumulative = 0
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number) {
+  const clamped = Math.min(endDeg - startDeg, 359.99)
+  const end = endDeg === startDeg + 360 ? startDeg + 359.99 : endDeg
+  const s = polarToXY(cx, cy, r, startDeg)
+  const e = polarToXY(cx, cy, r, end)
+  const large = clamped > 180 ? 1 : 0
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`
+}
+
+function DonutChart({ data }: { data: { label: string; count: number; color: string }[] }) {
+  const [tooltip, setTooltip] = useState<{ label: string; count: number; color: string; x: number; y: number } | null>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
+
+  const total = data.reduce((acc, d) => acc + d.count, 0)
+  const r = 100
+  const cx = 126
+  const cy = 126
+  const sw = 24
+
+  let cumDeg = 0
   const segments = data
     .filter((d) => d.count > 0)
-    .map((d) => {
-      const pct = d.count / total
-      const dash = pct * circ
-      const offset = circ - cumulative * circ
-      cumulative += pct
-      return { ...d, dash, offset }
+    .map((d, i) => {
+      const startDeg = cumDeg
+      const spanDeg = (d.count / total) * 360
+      cumDeg += spanDeg
+      return { ...d, startDeg, endDeg: cumDeg, i }
     })
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "24px", flexWrap: "wrap" }}>
-      <svg width="140" height="140" style={{ flexShrink: 0 }}>
-        {/* background ring */}
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="oklch(var(--color-paper-3))" strokeWidth="16" />
-        {segments.map((seg, i) => (
-          <circle
-            key={i}
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            stroke={seg.color}
-            strokeWidth="16"
-            strokeDasharray={`${seg.dash} ${circ - seg.dash}`}
-            strokeDashoffset={seg.offset}
-            transform={`rotate(-90 ${cx} ${cy})`}
-            strokeLinecap="butt"
-          />
-        ))}
-        <text x={cx} y={cy - 6} textAnchor="middle" fontSize="20" fontWeight="700" fill="oklch(var(--color-ink))">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px", width: "100%", padding: "8px 0", position: "relative" }}>
+      <svg width="252" height="252" style={{ flexShrink: 0, overflow: "visible" }}>
+        {/* Background ring */}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="oklch(var(--color-paper-3))" strokeWidth={sw} />
+        {segments.map((seg) => {
+          const isHov = hovered === seg.i
+          return (
+            <path
+              key={seg.i}
+              d={arcPath(cx, cy, r, seg.startDeg, seg.endDeg)}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={isHov ? sw + 6 : sw}
+              strokeLinecap="butt"
+              style={{ cursor: "pointer", transition: "stroke-width 0.15s ease" }}
+              onMouseEnter={(e) => {
+                setHovered(seg.i)
+                setTooltip({ label: seg.label, count: seg.count, color: seg.color, x: e.clientX, y: e.clientY })
+              }}
+              onMouseMove={(e) => setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+              onMouseLeave={() => { setHovered(null); setTooltip(null) }}
+            />
+          )
+        })}
+        <text x={cx} y={cy - 8} textAnchor="middle" fontSize="30" fontWeight="700" fill="oklch(var(--color-ink))" style={{ pointerEvents: "none" }}>
           {total}
         </text>
-        <text x={cx} y={cy + 14} textAnchor="middle" fontSize="10" fill="oklch(var(--color-ink-3))">
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="12" fill="oklch(var(--color-ink-3))" style={{ pointerEvents: "none" }}>
           cards
         </text>
       </svg>
+
+      {/* Floating tooltip */}
+      {tooltip && (
+        <div style={{
+          position: "fixed",
+          left: tooltip.x + 14,
+          top: tooltip.y - 36,
+          background: "oklch(var(--color-paper))",
+          border: "1px solid oklch(var(--color-border))",
+          borderRadius: "8px",
+          padding: "6px 12px",
+          boxShadow: "0 4px 12px oklch(0% 0 0 / 0.12)",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "var(--text-xs)",
+          fontFamily: "var(--font-body)",
+          pointerEvents: "none",
+          zIndex: 9999,
+          whiteSpace: "nowrap",
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: tooltip.color, flexShrink: 0 }} />
+          <span style={{ color: "oklch(var(--color-ink-2))" }}>{tooltip.label}</span>
+          <span style={{ fontWeight: 700, color: "oklch(var(--color-ink))" }}>{tooltip.count}</span>
+        </div>
+      )}
+
       {/* Legend */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
         {data.map((d) => (
-          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
-            <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))", minWidth: 52 }}>{d.label}</span>
-            <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "oklch(var(--color-ink))", fontVariantNumeric: "tabular-nums" }}>{d.count}</span>
+          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: 9, height: 9, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+            <span style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-2))", flex: 1 }}>{d.label}</span>
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "oklch(var(--color-ink))", fontVariantNumeric: "tabular-nums" }}>{d.count}</span>
           </div>
         ))}
       </div>
@@ -329,28 +359,41 @@ function Avatar({ name, avatarUrl, size = 32 }: { name: string | null; avatarUrl
 
 export default function AnalyticsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data, isLoading, isError } = useAnalytics(workspaceId)
+  const [days, setDays] = useState(30)
+  const { data, isLoading, isError } = useAnalytics(workspaceId, days)
 
   function handleExport() {
     if (!data) return
-    const rows: string[] = [
-      "Metric,Value,Trend%",
-      `Total Cards,${data.totals.totalCards},${data.totals.cardsTrendPct}`,
-      `Total Boards,${data.totals.totalBoards},${data.totals.boardsTrendPct}`,
-      `Total Members,${data.totals.totalMembers},${data.totals.membersTrendPct}`,
-      `Activities (30d),${data.totals.totalActivities},${data.totals.activitiesTrendPct}`,
-      "",
-      "Member,Actions",
-      ...data.topMembers.map((m) => `${m.name ?? "Unknown"},${m.count}`),
-    ]
-    const csv = rows.join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "analytics.csv"
-    a.click()
-    URL.revokeObjectURL(url)
+    const wb = XLSX.utils.book_new()
+
+    const summarySheet = XLSX.utils.aoa_to_sheet([
+      ["Metric", "Value", "Trend %"],
+      ["Total Cards", data.totals.totalCards, data.totals.cardsTrendPct],
+      ["Total Boards", data.totals.totalBoards, data.totals.boardsTrendPct],
+      ["Total Members", data.totals.totalMembers, data.totals.membersTrendPct],
+      ["Activities", data.totals.totalActivities, data.totals.activitiesTrendPct],
+    ])
+    XLSX.utils.book_append_sheet(wb, summarySheet, "Summary")
+
+    const prioritySheet = XLSX.utils.aoa_to_sheet([
+      ["Priority", "Count"],
+      ...data.cardsByPriority.map((r) => [PRIORITY_LABEL[r.priority], r.count]),
+    ])
+    XLSX.utils.book_append_sheet(wb, prioritySheet, "Cards by Priority")
+
+    const boardSheet = XLSX.utils.aoa_to_sheet([
+      ["Board", "Cards"],
+      ...data.cardsByBoard.map((r) => [r.boardName, r.count]),
+    ])
+    XLSX.utils.book_append_sheet(wb, boardSheet, "Cards by Board")
+
+    const membersSheet = XLSX.utils.aoa_to_sheet([
+      ["Member", "Actions"],
+      ...data.topMembers.map((m) => [m.name ?? "Unknown", m.count]),
+    ])
+    XLSX.utils.book_append_sheet(wb, membersSheet, "Top Contributors")
+
+    XLSX.writeFile(wb, `analytics-${days}d.xlsx`)
   }
 
   if (isLoading) {
@@ -371,7 +414,6 @@ export default function AnalyticsPage() {
 
   const hasPriorityData = data.cardsByPriority.some((r) => r.count > 0)
   const hasBoardData = data.cardsByBoard.some((r) => r.count > 0)
-  const hasActivityData = data.activityOverTime.length > 0
   const hasMembers = data.topMembers.length > 0
 
   const donutData = data.cardsByPriority
@@ -394,13 +436,8 @@ export default function AnalyticsPage() {
     count: r.count,
   }))
 
-  const activityChartData = data.activityOverTime.map((r) => ({
-    name: r.date.slice(5),
-    count: r.count,
-  }))
-
   return (
-    <div style={{ padding: "32px 40px", maxWidth: "1100px", display: "flex", flexDirection: "column", gap: "28px", fontFamily: "var(--font-body)" }}>
+    <div style={{ padding: "32px 40px", display: "flex", flexDirection: "column", gap: "28px", fontFamily: "var(--font-body)" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
@@ -439,6 +476,8 @@ export default function AnalyticsPage() {
             {CLOCK_ICON} Last updated: Just now
           </span>
           <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
             style={{
               padding: "6px 10px",
               borderRadius: "var(--radius-input)",
@@ -451,9 +490,9 @@ export default function AnalyticsPage() {
               outline: "none",
             }}
           >
-            <option>Last 30 Days</option>
-            <option>Last 7 Days</option>
-            <option>Last 90 Days</option>
+            {PERIOD_OPTIONS.map((o) => (
+              <option key={o.days} value={o.days}>{o.label}</option>
+            ))}
           </select>
           <button
             onClick={handleExport}
@@ -486,8 +525,8 @@ export default function AnalyticsPage() {
         <StatCard label="Activities" value={data.totals.totalActivities} trendPct={data.totals.activitiesTrendPct} iconType="activities" />
       </div>
 
-      {/* Charts grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: "16px" }}>
+      {/* Charts grid — priority narrower, board wider */}
+      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: "16px" }}>
 
         {/* Cards by priority — donut */}
         <ChartCard title="Cards by Priority" isEmpty={!hasPriorityData} emptyMsg="No cards yet — create some to see priority breakdown.">
@@ -496,7 +535,7 @@ export default function AnalyticsPage() {
 
         {/* Cards by board */}
         <ChartCard title="Cards by Board" isEmpty={!hasBoardData} emptyMsg="No cards yet — add cards to your boards.">
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={340}>
             <BarChart data={boardChartData} barCategoryGap="30%">
               <CartesianGrid vertical={false} stroke="oklch(var(--color-border))" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} axisLine={false} tickLine={false} />
@@ -518,21 +557,6 @@ export default function AnalyticsPage() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-
-        {/* Activity over time — full width */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <ChartCard title="Activity Over Time" isEmpty={!hasActivityData} emptyMsg="Activity Over Time — No activity recorded in the last 30 days.">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={activityChartData} barCategoryGap="20%">
-                <CartesianGrid vertical={false} stroke="oklch(var(--color-border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: TICK_COLOR }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11, fill: TICK_COLOR }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "oklch(var(--color-paper-3))" }} />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="oklch(var(--color-accent))" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </div>
       </div>
 
       {/* Team Insights / Top Contributors */}
@@ -589,8 +613,8 @@ export default function AnalyticsPage() {
                   <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {m.name ?? "Unknown"}
                   </p>
-                  <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                    Member
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", textTransform: "capitalize" }}>
+                    {m.role.charAt(0) + m.role.slice(1).toLowerCase()}
                   </p>
                 </div>
                 <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "oklch(var(--color-ink-2))", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>

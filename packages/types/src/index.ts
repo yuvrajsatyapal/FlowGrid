@@ -380,6 +380,7 @@ export interface TopMember {
   name: string | null
   avatarUrl: string | null
   count: number
+  role: string
 }
 
 export interface AnalyticsData {

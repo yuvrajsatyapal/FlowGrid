@@ -137,8 +137,11 @@ export default function BoardTimelineView({ boardId, onCardClick }: Props) {
             {ticks.map((d, i) => (
               <span
                 key={i}
-                className="absolute top-0 text-[10px] text-[oklch(var(--color-ink-3))] select-none"
-                style={{ left: `${pct(d)}%`, transform: "translateX(-50%)" }}
+                className="absolute top-0 text-[10px] text-[oklch(var(--color-ink-3))] select-none whitespace-nowrap"
+                style={{
+                  left: `${pct(d)}%`,
+                  transform: i === ticks.length - 1 ? "translateX(-100%)" : i === 0 ? "translateX(0)" : "translateX(-50%)",
+                }}
               >
                 {formatDay(d)}
               </span>

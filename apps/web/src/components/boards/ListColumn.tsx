@@ -252,7 +252,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         ref={setDropRef}
         style={{
           flex: 1,
-          padding: "0 8px",
+          padding: "0 8px 8px",
           minHeight: cardSlotHeight ?? 96,
           display: "flex",
           flexDirection: "column",
