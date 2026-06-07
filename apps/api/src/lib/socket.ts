@@ -92,6 +92,20 @@ export function initSocket(httpServer: http.Server): Server {
       io.to(boardId).emit("board:presence", { boardId, users })
     })
 
+    socket.on("workspace:join", async ({ workspaceId }: { workspaceId: string }) => {
+      if (!workspaceId || typeof workspaceId !== "string") return
+      const member = await prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId } },
+      })
+      if (!member) return
+      socket.join(`ws:${workspaceId}`)
+    })
+
+    socket.on("workspace:leave", ({ workspaceId }: { workspaceId: string }) => {
+      if (!workspaceId || typeof workspaceId !== "string") return
+      socket.leave(`ws:${workspaceId}`)
+    })
+
     socket.on("disconnect", async () => {
       // socket.rooms still contains joined rooms at disconnect time.
       // Exclude socket.id (default room) and userId (notification room — not a board).
@@ -115,6 +129,11 @@ export function emitBoardEvent(boardId: string, event: string, payload: unknown)
 export function emitToUser(userId: string, event: string, payload: unknown): void {
   if (!io) return
   io.to(userId).emit(event, payload)
+}
+
+export function emitWorkspaceEvent(workspaceId: string, event: string, payload: unknown): void {
+  if (!io) return
+  io.to(`ws:${workspaceId}`).emit(event, payload)
 }
 
 // ── Global user presence ───────────────────────────────────────────────────────

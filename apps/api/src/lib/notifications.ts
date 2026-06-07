@@ -64,6 +64,7 @@ export async function createNotification(params: {
         data: (params.data ?? Prisma.JsonNull) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput,
       },
     })
+    const isInvite = n.type === "WORKSPACE_INVITE" || n.type === "BOARD_INVITE"
     emitToUser(params.userId, "notification:new", {
       id: n.id,
       userId: n.userId,
@@ -74,6 +75,9 @@ export async function createNotification(params: {
       data: n.data,
       read: n.read,
       createdAt: n.createdAt,
+      // Newly created invite notifications are always PENDING — the REST list
+      // endpoint enriches this from the DB, but socket payloads skip that round-trip.
+      ...(isInvite && { inviteStatus: "PENDING" }),
     })
   } catch (err) {
     logger.error("Failed to create notification", { type: params.type, source: params.source, error: err instanceof Error ? err.message : err })

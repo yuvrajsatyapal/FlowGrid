@@ -473,7 +473,16 @@ router.post("/members/remove", validateJWT, async (req, res) => {
       }
     }
 
-    await prisma.workspaceMember.delete({ where: { id: memberId } })
+    await prisma.$transaction([
+      // Remove the user from all private board memberships within this workspace
+      prisma.boardMember.deleteMany({
+        where: {
+          userId: target.userId,
+          board: { workspaceId: target.workspaceId },
+        },
+      }),
+      prisma.workspaceMember.delete({ where: { id: memberId } }),
+    ])
 
     res.json({ success: true })
   } catch {

@@ -4,6 +4,7 @@ import { validateJWT } from "../middleware/auth"
 import { canWrite, isOwnerOrAdmin } from "../lib/roles"
 import { createNotification } from "../lib/notifications"
 import { newInviteToken, inviteExpiresAt, autoExpireBoardInvites, canManageBoardInvites } from "../lib/invites"
+import { emitWorkspaceEvent } from "../lib/socket"
 
 const router = Router()
 
@@ -189,24 +190,31 @@ router.post("/", validateJWT, async (req, res) => {
       }
     }
 
-    res.status(201).json({
-      board: {
-        id: board.id,
-        workspaceId: board.workspaceId,
-        name: board.name,
-        description: board.description,
-        visibility: board.visibility,
-        coverColor: board.coverColor,
-        createdAt: board.createdAt,
-        updatedAt: board.updatedAt,
-        deletedAt: board.deletedAt,
-        listCount: 0,
-        cardCount: 0,
-        members: [],
-        memberCount: 0,
-        isOwner: true,
-      },
-    })
+    const boardPayload = {
+      id: board.id,
+      workspaceId: board.workspaceId,
+      name: board.name,
+      description: board.description,
+      visibility: board.visibility,
+      coverColor: board.coverColor,
+      createdAt: board.createdAt,
+      updatedAt: board.updatedAt,
+      deletedAt: board.deletedAt,
+      listCount: 0,
+      cardCount: 0,
+      members: [],
+      memberCount: 0,
+      isOwner: true,
+    }
+
+    res.status(201).json({ board: boardPayload })
+
+    // Notify all workspace members watching the workspace page.
+    // Only emit WORKSPACE boards — PRIVATE boards are invitation-only and
+    // should not appear in other users' lists without explicit access.
+    if (boardVisibility === "WORKSPACE") {
+      emitWorkspaceEvent(workspaceId, "workspace:board:created", { board: { ...boardPayload, isOwner: false } })
+    }
   } catch {
     res.status(500).json({ error: { message: "Failed to create board", status: 500 } })
   }
@@ -266,14 +274,26 @@ router.get("/", validateJWT, async (req, res) => {
             },
           },
           // Board-level members for PRIVATE boards (avatar cluster + count)
+          // Filter to only workspace members to exclude stale rows from removed members.
           members: {
+            where: {
+              user: { workspaceMemberships: { some: { workspaceId } } },
+            },
             take: 2,
             orderBy: { createdAt: "asc" as const },
             select: {
               user: { select: { id: true, name: true, avatarUrl: true } },
             },
           },
-          _count: { select: { members: true } },
+          _count: {
+            select: {
+              members: {
+                where: {
+                  user: { workspaceMemberships: { some: { workspaceId } } },
+                },
+              },
+            },
+          },
         },
       }),
       // Oldest 2 workspace members for avatar cluster on WORKSPACE boards
@@ -479,6 +499,14 @@ router.post("/update", validateJWT, async (req, res) => {
         deletedAt: updated.deletedAt,
       },
     })
+
+    emitWorkspaceEvent(updated.workspaceId, "workspace:board:updated", {
+      id: updated.id,
+      name: updated.name,
+      visibility: updated.visibility,
+      coverColor: updated.coverColor,
+      updatedAt: updated.updatedAt,
+    })
   } catch {
     res.status(500).json({ error: { message: "Failed to update board", status: 500 } })
   }
@@ -514,6 +542,8 @@ router.post("/delete", validateJWT, async (req, res) => {
     await prisma.board.update({ where: { id: boardId }, data: { deletedAt: new Date() } })
 
     res.json({ success: true })
+
+    emitWorkspaceEvent(board.workspaceId, "workspace:board:deleted", { id: boardId })
   } catch {
     res.status(500).json({ error: { message: "Failed to delete board", status: 500 } })
   }

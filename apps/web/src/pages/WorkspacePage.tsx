@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { AnimatePresence } from "framer-motion"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
@@ -11,6 +11,7 @@ import EditBoardModal from "../components/boards/EditBoardModal"
 import type { ActivityResponse } from "@flowgrid/types"
 import { getInitials, getAvatarBg } from "../utils/avatar"
 import { useAuth } from "../contexts/AuthContext"
+import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -235,6 +236,7 @@ export default function WorkspacePage() {
   const [boards, setBoards] = useState<BoardSummary[]>([])
   const [activities, setActivities] = useState<ActivityResponse[]>([])
   const [upcomingCards, setUpcomingCards] = useState<UpcomingCard[]>([])
+  const pendingBoardsRefetch = useRef(false)
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() =>
     workspaceId ? loadPinned(workspaceId) : new Set()
   )
@@ -298,8 +300,8 @@ export default function WorkspacePage() {
     const visibilityChanged = prev && prev.visibility !== updated.visibility
     setBoards((bs) => bs.map((b) => (b.id === updated.id ? updated : b)))
     setEditingBoard((eb) => (eb && eb.id === updated.id ? updated : eb))
-    // Visibility change means member data is stale — refetch to get accurate counts/avatars
-    if (visibilityChanged) void fetchBoards()
+    // Visibility change means member data is stale — defer refetch until modal closes
+    if (visibilityChanged) pendingBoardsRefetch.current = true
   }
 
   function handleBoardDeletedFromModal(boardId: string) {
@@ -366,6 +368,41 @@ export default function WorkspacePage() {
     fetchBoards()
     fetchSideData()
   }, [fetchDetail, fetchBoards, fetchSideData])
+
+  // Stable ref so socket handlers always see the latest detail without re-subscribing
+  const detailRef = useRef(detail)
+  detailRef.current = detail
+
+  useWorkspaceSocket(workspaceId, {
+    onBoardUpdated: ({ id, name, visibility, coverColor, updatedAt }) => {
+      setBoards((prev) => {
+        const existing = prev.find((b) => b.id === id)
+        if (!existing) {
+          // Board not in our list — if it became WORKSPACE-visible, refetch to pick it up
+          if (visibility === "WORKSPACE") void fetchBoards()
+          return prev
+        }
+        const role = detailRef.current?.role
+        const isPrivileged = role === "OWNER" || role === "ADMIN"
+        // If board became PRIVATE and user has no privilege, remove it
+        if (visibility === "PRIVATE" && existing.visibility !== "PRIVATE" && !isPrivileged) {
+          return prev.filter((b) => b.id !== id)
+        }
+        return prev.map((b) =>
+          b.id === id ? { ...b, name, visibility: visibility as BoardSummary["visibility"], coverColor, updatedAt } : b,
+        )
+      })
+    },
+    onBoardCreated: ({ board }) => {
+      setBoards((prev) => {
+        if (prev.some((b) => b.id === board.id)) return prev
+        return [...prev, board]
+      })
+    },
+    onBoardDeleted: ({ id }) => {
+      setBoards((prev) => prev.filter((b) => b.id !== id))
+    },
+  })
 
   function handleBoardCreated(board: BoardSummary) {
     setShowCreateModal(false)
@@ -1264,7 +1301,13 @@ export default function WorkspacePage() {
             canDelete={detail?.role === "OWNER"}
             onUpdated={handleBoardUpdated}
             onDeleted={handleBoardDeletedFromModal}
-            onClose={() => setEditingBoard(null)}
+            onClose={() => {
+              setEditingBoard(null)
+              if (pendingBoardsRefetch.current) {
+                pendingBoardsRefetch.current = false
+                void fetchBoards()
+              }
+            }}
           />
         )}
       </AnimatePresence>

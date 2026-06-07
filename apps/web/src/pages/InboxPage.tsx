@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
-import { notificationsApi } from "../api/notifications"
+import { notificationsApi, type NotificationPage } from "../api/notifications"
 import { boardsApi } from "../api/boards"
 import { invitesApi } from "../api/invites"
 import { NOTIFICATIONS_KEY } from "../hooks/useNotifications"
@@ -64,17 +63,6 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-// Build an in-app deep link for a notification.
-// Invite notifications are handled inline (Accept/Decline buttons), not via row click.
-function notificationLink(n: AppNotification): string | null {
-  if (n.type === "WORKSPACE_INVITE" || n.type === "BOARD_INVITE") return null
-  const data = (n.data ?? {}) as Record<string, string | undefined>
-  if (data.boardId && data.workspaceId) {
-    return `/${data.workspaceId}/${data.boardId}${data.cardId ? `?card=${data.cardId}` : ""}`
-  }
-  if (data.workspaceId) return `/${data.workspaceId}`
-  return null
-}
 
 // ── Invite action component ───────────────────────────────────────────────────
 
@@ -193,9 +181,7 @@ type FilterType = "all" | "unread"
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
-
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [total, setTotal] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -203,6 +189,26 @@ export default function InboxPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState("")
   const [filter, setFilter] = useState<FilterType>("all")
+
+  // Real-time: watch the shared query cache that useNotifications (in AppLayout)
+  // keeps up-to-date via the socket. When a new notification is prepended there,
+  // mirror it into this page's local state so the list updates without a reload.
+  useEffect(() => {
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== "updated") return
+      const keys = event.query.queryKey
+      if (!Array.isArray(keys) || keys[0] !== NOTIFICATIONS_KEY[0]) return
+      const cached = queryClient.getQueryData<NotificationPage>(NOTIFICATIONS_KEY)
+      if (!cached?.notifications.length) return
+      const newest = cached.notifications[0]
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === newest.id)) return prev
+        return [newest, ...prev]
+      })
+      setTotal(cached.total)
+      setUnreadCount(cached.unreadCount)
+    })
+  }, [queryClient])
 
   // Keep the sidebar badge (which reads the shared query) in sync after mutations.
   const syncSidebar = useCallback(() => {
@@ -268,17 +274,6 @@ export default function InboxPage() {
       syncSidebar()
     } catch {
       setNotifications(prev)
-    }
-  }
-
-  const handleRowClick = (n: AppNotification) => {
-    if (!n.read) void handleMarkRead(n.id)
-    const link = notificationLink(n)
-    if (!link) return
-    if (link.startsWith("http")) {
-      window.location.href = link
-    } else {
-      navigate(link)
     }
   }
 
@@ -382,15 +377,9 @@ export default function InboxPage() {
         ) : (
           <div>
             {visible.map((n, i) => {
-              const link = notificationLink(n)
-              const clickable = !!link
               return (
                 <div
                   key={n.id}
-                  onClick={clickable ? () => handleRowClick(n) : undefined}
-                  role={clickable ? "button" : undefined}
-                  tabIndex={clickable ? 0 : undefined}
-                  onKeyDown={clickable ? (e) => { if (e.key === "Enter") handleRowClick(n) } : undefined}
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
@@ -398,11 +387,7 @@ export default function InboxPage() {
                     padding: "14px 18px",
                     borderBottom: i === visible.length - 1 ? "none" : "1px solid oklch(var(--color-border))",
                     background: n.read ? "transparent" : "oklch(var(--color-accent-muted) / 0.4)",
-                    cursor: clickable ? "pointer" : "default",
-                    transition: "background var(--dur-fast)",
                   }}
-                  onMouseEnter={(e) => { if (clickable) (e.currentTarget as HTMLDivElement).style.background = "oklch(var(--color-paper-3))" }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = n.read ? "transparent" : "oklch(var(--color-accent-muted) / 0.4)" }}
                 >
                   {/* Unread dot */}
                   <div style={{ flexShrink: 0, width: "7px", height: "7px", borderRadius: "50%", background: n.read ? "transparent" : "oklch(var(--color-accent))", marginTop: "6px" }} />
