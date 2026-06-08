@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import '../styles/landing.css'
 
 /* ─── palette ──────────────────────────────────────────────────────────────── */
@@ -13,6 +13,7 @@ const C = {
   dark: '#0f0f10',
   muted: 'rgba(28,27,27,0.55)',
   border: 'rgba(28,27,27,0.12)',
+  dim: 'rgba(10,39,41,0.55)',
 } as const
 
 /* ─── data ─────────────────────────────────────────────────────────────────── */
@@ -29,20 +30,20 @@ const HERO_CARDS = [
 
 const PROCESS_STEPS = [
   { num: '01', title: 'Planning',
-    body: <>Create a <strong style={{color: C.teal}}>CLEAR WORKFLOW</strong> using drag-and-drop boards, lists, labels, priorities, and rich card details.</> },
+    body: (active: boolean) => <>Create a <strong style={{color: active ? C.coral : C.dim}}>CLEAR WORKFLOW</strong> using drag-and-drop boards, lists, labels, priorities, and rich card details.</> },
   { num: '02', title: 'Collaborate',
-    body: <>Work together with <strong style={{color: C.teal}}>INSTANT REAL-TIME SYNC</strong> — see cards, comments, and updates appear across teammates immediately.</> },
+    body: (active: boolean) => <>Work together with <strong style={{color: active ? C.coral : C.dim}}>INSTANT REAL-TIME SYNC</strong> — see cards, comments, and updates appear across teammates immediately.</> },
   { num: '03', title: 'Organize',
-    body: <>Reduce repetitive work with <strong style={{color: C.teal}}>RECURRING TASKS</strong>, notifications, dependencies, and streamlined workflows.</> },
+    body: (active: boolean) => <>Reduce repetitive work with <strong style={{color: active ? C.coral : C.dim}}>RECURRING TASKS</strong>, notifications, dependencies, and streamlined workflows.</> },
   { num: '04', title: 'Deliver',
-    body: <>Track progress with <strong style={{color: C.teal}}>ANALYTICS</strong> and activity history to keep projects moving and blockers visible.</> },
+    body: (active: boolean) => <>Track progress with <strong style={{color: active ? C.coral : C.dim}}>ANALYTICS</strong> and activity history to keep projects moving and blockers visible.</> },
 ]
 
 const FEATURES = [
   {
     num: '01', bg: C.coral, textLight: true, title: 'Planning',
-    desc: 'Create a clear workflow using drag-and-drop boards, lists, labels, priorities, and rich card details.',
-    list: ['Drag-and-drop boards','Lists & labels','Priority flags','Rich card details','Custom fields','Board templates','Multiple views','Due dates'],
+    desc: 'Create a clear workflow using drag-and-drop cards, lists, labels, priorities, and rich card details.',
+    list: ['Drag-and-drop cards','Lists & labels','Priority flags','Rich card details','Custom fields','Board templates','Multiple views','Due dates'],
   },
   {
     num: '02', bg: C.cream, textLight: false, title: 'Collaborate',
@@ -52,7 +53,7 @@ const FEATURES = [
   {
     num: '03', bg: C.tealCard, textLight: true, title: 'Organize',
     desc: 'Reduce repetitive work with recurring tasks, notifications, dependencies, and streamlined workflows.',
-    list: ['Recurring tasks','Notifications','Dependencies','Workflow organization','Status tracking','Smart filters','Task management','Bulk actions'],
+    list: ['Recurring tasks','Notifications','Dependencies','Workflow organization','Status tracking','Smart filters','Task management','File attachments'],
   },
   {
     num: '04', bg: C.blush, textLight: false, title: 'Deliver',
@@ -62,14 +63,14 @@ const FEATURES = [
 ]
 
 const FAQ_ITEMS = [
-  { q: 'How is FlowGrid different from Trello?',
-    a: "FlowGrid adds multi-dimensional grid views, semantic task linking, real-time presence, and built-in analytics — all missing from Trello's simple list approach. It's built for teams that have outgrown basic kanban." },
+  { q: 'How is FlowGrid different from others?',
+    a: "FlowGrid combines multi-dimensional planning, intelligent task relationships, real-time collaboration, and built-in analytics in a workspace designed for fast-moving teams." },
   { q: 'Is collaboration really real-time?',
-    a: 'Yes. FlowGrid uses WebSocket-based sync that pushes every change in under 50 ms. Cursors, edits, comments, and status changes appear live for everyone on the board.' },
+    a: 'Yes. FlowGrid keeps everyone in sync as work happens. Board updates, task changes, and team activity appear instantly across the workspace, so everyone stays on the same page without refreshing.' },
   { q: 'Can we migrate from other tools?',
-    a: 'One-click importers cover Trello, Jira, Linear, and Asana. Your cards, attachments, comments, and history migrate intact — no manual re-entry.' },
+    a: 'Not currently. FlowGrid is focused on delivering a powerful project management experience, and migration tools are being considered for future releases.' },
   { q: 'What is the typical setup time?',
-    a: 'Most teams are running their first board in under 10 minutes. Onboarding guides you through workspace creation, board setup, and your first team invite.' },
+    a: 'Setup takes less than 2 minutes. Create a workspace, set up your first board, and start collaborating right away.' },
   { q: 'What happens after we sign up?',
     a: "You'll walk through a 3-step setup to create your workspace and first board. Enterprise customers get a dedicated success manager and custom onboarding session." },
 ]
@@ -119,7 +120,7 @@ function ScrollRevealText({ text }: { text: string }) {
       const rect = containerRef.current.getBoundingClientRect()
       const wh = window.innerHeight
       const scrolled = wh - rect.top
-      const total = wh * 0.85
+      const total = wh * 1.3
       const progress = Math.max(0, Math.min(1, scrolled / total))
       const revealedCount = Math.floor(progress * chars.length)
       charsRef.current.forEach((span, i) => {
@@ -134,7 +135,7 @@ function ScrollRevealText({ text }: { text: string }) {
 
   const sharedStyle: React.CSSProperties = {
     fontFamily: "'Hanken Grotesk', sans-serif",
-    fontSize: 'clamp(24px,3.2vw,48px)',
+    fontSize: 'clamp(26px,3.6vw,56px)',
     fontWeight: 600,
     lineHeight: 1.15,
   }
@@ -153,7 +154,7 @@ function ScrollRevealText({ text }: { text: string }) {
             <span
               key={i}
               ref={el => { charsRef.current[i] = el }}
-              style={{ opacity: 0, transition: 'opacity 80ms linear' }}
+              style={{ opacity: 0, transition: 'opacity 130ms linear' }}
             >
               {ch}
             </span>
@@ -182,7 +183,7 @@ function LandingNav({ scrolled }: { scrolled: boolean }) {
         </a>
 
         {/* Desktop nav */}
-        <nav style={{ display: 'flex', gap: 24, alignItems: 'center' }} className="hidden md:flex flex-1 justify-center px-4">
+        <nav style={{ gap: 24, alignItems: 'center' }} className="hidden md:flex flex-1 justify-center px-4">
           {[{ label: 'Features', href: '#features' }, { label: 'FAQs', href: '#faqs' }].map(({ label, href }) => (
             <a key={label} href={href}
                style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(28,27,27,0.72)', textDecoration: 'none', borderBottom: `2px solid ${C.border}`, padding: '8px 4px', transition: 'color 0.2s, border-color 0.2s' }}
@@ -195,7 +196,7 @@ function LandingNav({ scrolled }: { scrolled: boolean }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
           {/* <span style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: C.muted }} className="hidden md:inline">EN</span> */}
-          <a href="/login" className="lp-btn hidden md:inline-flex" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started Free</a>
+          <a href="/login" className="lp-btn hidden md:inline-flex" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started</a>
           <button onClick={() => setMenuOpen(o => !o)} aria-label="Open menu" className="md:hidden" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               {menuOpen
@@ -258,12 +259,14 @@ function HeroSection({ time }: { time: string }) {
 
   return (
     <section style={{ minHeight: '100svh', paddingTop: 80, paddingBottom: 40, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: C.bg }}
-             className="px-4 sm:px-6 md:px-8">
+             className="lp-hero-section px-4 sm:px-6 md:px-8">
       {/* ── Dual-font headline (NEXTEC pattern: normal-weight line + huge display line) */}
-      <div className="lp-hero-anim lp-hero-d0" style={{ paddingTop: 40 }}>
+      <div className="lp-hero-anim lp-hero-d0 lp-hero-headline-pad" style={{ paddingTop: 40 }}>
         <h1 style={{ width: '100%', maxWidth: '92rem', margin: '0 auto', textAlign: 'center' }}>
-          <span className="lp-hero-line1" style={{ color: C.text }}>
-            Organize work, collaborate faster —
+          <span className="lp-hero-line1" style={{ color: C.text, marginBottom: '15px', }}>
+            Organize work.{' '}
+            <br className="lp-hero-br" />
+            Collaborate faster.
           </span>
           <span className="lp-hero-line2" style={{ color: C.text }}>
             Stay in sync.
@@ -272,7 +275,7 @@ function HeroSection({ time }: { time: string }) {
       </div>
 
       {/* ── Hero cards with mouse parallax — flex row, NEXTEC card sizing */}
-      <div className="lp-hero-cards-anim lp-hero-d1"
+      <div className="lp-hero-cards-anim lp-hero-d1 lp-hero-cards-row"
            style={{ display: 'flex', gap: 28, justifyContent: 'center', flexWrap: 'wrap', marginTop: 40 }}
            role="list">
         {HERO_CARDS.map((card, i) => {
@@ -291,7 +294,7 @@ function HeroSection({ time }: { time: string }) {
               {/* inner: the actual card */}
               <div className="lp-hard-card"
                    style={{ backgroundColor: card.bg, position: 'relative', overflow: 'hidden', cursor: 'pointer',
-                     width: 'clamp(130px, 18vw, 178px)', aspectRatio: '89/128',
+                     width: 'clamp(108px, 15vw, 178px)', aspectRatio: '89/128',
                      flexShrink: 0, transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', willChange: 'transform',
                      border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
                    onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px) scale(1.02)')}
@@ -316,7 +319,7 @@ function HeroSection({ time }: { time: string }) {
                     <span style={{ width: 7, height: 7, background: card.textDark ? 'rgba(28,27,27,0.7)' : 'rgba(255,255,255,0.7)', display: 'inline-block' }} />
                     <span style={{ fontFamily: 'monospace' }}>{card.code}</span>
                   </span>
-                  <span>CE</span>
+                  <span>FG</span>
                 </div>
               </div>
               </div>{/* /lp-float-card */}
@@ -326,7 +329,7 @@ function HeroSection({ time }: { time: string }) {
       </div>
 
       {/* ── Bottom bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 24, borderTop: `1px solid ${C.border}`, marginTop: 24 }}>
+      <div className="lp-hero-bottom-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 24, borderTop: `1px solid ${C.border}`, marginTop: 24 }}>
         <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted }}>
           SCROLL DOWN
         </span>
@@ -346,7 +349,7 @@ function WhatIsFlowGrid() {
   return (
     <section style={{ padding: 'clamp(80px, 10vw, 144px) clamp(24px, 5vw, 64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
       <p className="lp-label lp-reveal" style={{ marginBottom: 20 }}>What is FlowGrid</p>
-      <div style={{ maxWidth: '75%' }}>
+      <div style={{ maxWidth: '85%' }}>
         <ScrollRevealText text="FlowGrid is where your team's work lives. We stripped away the noise to build a platform that prioritises clarity over complexity. Designed for high-performance teams who need to move from ideation to delivery without the typical friction of legacy tools." />
       </div>
     </section>
@@ -365,7 +368,6 @@ function ProcessSection() {
       const articles = articleRefs.current
       const target = window.innerHeight * 0.4
 
-      // ── Continuous scroll-driven progress bar (no React state, no transition) ──
       const first = articles[0]
       const last = articles[articles.length - 1]
       if (first && last && progressBarRef.current) {
@@ -375,19 +377,12 @@ function ProcessSection() {
         const scrolledRange = target - firstRect.top
         const p = Math.max(0, Math.min(1, scrolledRange / totalRange))
         progressBarRef.current.style.transform = `scaleX(${p})`
-      }
 
-      // ── Discrete activeStep for text highlight ──
-      let bestIdx = 0
-      let bestDist = Infinity
-      articles.forEach((el, idx) => {
-        if (!el) return
-        const rect = el.getBoundingClientRect()
-        const elCenter = (rect.top + rect.bottom) / 2
-        const dist = Math.abs(elCenter - target)
-        if (dist < bestDist) { bestDist = dist; bestIdx = idx }
-      })
-      setActiveStep(bestIdx)
+        // Derive activeStep from p so colors change exactly when bar hits each marker.
+        // Markers sit at 0, 1/(n-1), 2/(n-1), 1 — i.e. equally spaced.
+        const n = PROCESS_STEPS.length
+        setActiveStep(Math.min(n - 1, Math.floor(p * (n - 1) + 0.001)))
+      }
     }
     window.addEventListener('scroll', update, { passive: true })
     update()
@@ -402,20 +397,20 @@ function ProcessSection() {
         {PROCESS_STEPS.map((step, i) => {
           const open = mobileOpen === i
           return (
-            <div key={step.num} style={{ borderBottom: `1px solid ${open ? 'rgba(26,114,121,0.55)' : C.border}`, paddingTop: 24, paddingBottom: 24, transition: 'border-color 0.4s ease-in-out' }}>
+            <div key={step.num} style={{ borderBottom: `1px solid ${open ? 'rgba(224,90,58,0.5)' : C.border}`, paddingTop: 24, paddingBottom: 24, transition: 'border-color 0.4s ease-in-out' }}>
               <button style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}
                       aria-expanded={open}
                       onClick={() => setMobileOpen(open ? null : i)}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 700, marginTop: 4, opacity: 0.8, color: open ? C.teal : C.muted }}>
+                  <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 700, marginTop: 4, opacity: 0.8, color: open ? C.coral : C.muted }}>
                     {step.num}
                   </span>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 30, lineHeight: 1, color: open ? C.teal : C.text }}>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 30, lineHeight: 1, color: open ? C.coral : C.text }}>
                     {step.title}
                   </span>
                 </div>
                 <svg viewBox="0 0 24 24" width="26" height="26" fill="none"
-                     style={{ flexShrink: 0, color: open ? C.teal : C.text,
+                     style={{ flexShrink: 0, color: open ? C.coral : C.text,
                               transform: open ? 'rotate(45deg)' : 'rotate(0deg)',
                               transition: 'transform 0.35s ease-in-out, color 0.5s ease-in-out' }}>
                   <path d="M6 18L18 6" stroke="currentColor" strokeWidth="2.8" strokeLinecap="square"/>
@@ -431,7 +426,7 @@ function ProcessSection() {
               }}>
                 <div style={{ overflow: 'hidden' }}>
                   <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, fontWeight: 500, maxWidth: '82ch', color: 'rgba(28,27,27,0.82)' }}>
-                    {step.body}
+                    {step.body(open)}
                   </p>
                 </div>
               </div>
@@ -469,9 +464,9 @@ function ProcessSection() {
                 key={step.num}
                 ref={el => { articleRefs.current[i] = el }}
                 className="lp-step"
-                style={{ borderBottom: `1px solid ${isActive ? 'rgba(26,114,121,0.7)' : C.border}`, padding: '48px 0' }}>
+                style={{ borderBottom: `1px solid ${isActive ? 'rgba(224,90,58,0.5)' : C.border}`, padding: '48px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 24, fontWeight: 400, minWidth: 48, color: isActive ? C.coral : C.teal, transition: 'color 0.5s' }}>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 24, fontWeight: 400, minWidth: 48, color: isActive ? C.coral : C.dim, transition: 'color 0.5s' }}>
                     {step.num}
                   </span>
                   <div>
@@ -479,7 +474,7 @@ function ProcessSection() {
                       {step.title}
                     </h3>
                     <p style={{ marginTop: 24, maxWidth: '78ch', fontSize: 20, lineHeight: 1.65, fontWeight: 500, fontFamily: "'Hanken Grotesk', sans-serif", color: 'rgba(28,27,27,0.82)', opacity: isActive ? 1 : 0.65, transition: 'opacity 0.5s' }}>
-                      {step.body}
+                      {step.body(isActive)}
                     </p>
                   </div>
                 </div>
@@ -504,7 +499,7 @@ function BoldStatement() {
       const wh = window.innerHeight
       if (rect.top < wh && rect.bottom > 0) {
         const progress = (wh - rect.top) / (rect.height + wh)
-        barRef.current.style.width = `${Math.min(100, Math.max(0, progress * 150))}%`
+        barRef.current.style.width = `${Math.min(100, Math.max(0, progress * 108))}%`
       }
     }
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -512,14 +507,16 @@ function BoldStatement() {
   }, [])
 
   return (
-    <section ref={sectionRef} style={{ background: C.dark, padding: 'clamp(80px,10vw,140px) clamp(24px,5vw,64px)', position: 'relative', overflow: 'hidden' }}>
+    <section ref={sectionRef} style={{ background: C.dark, padding: 'clamp(65px,7vw,110px) clamp(24px,5vw,64px)', position: 'relative', overflow: 'hidden' }}>
       <div className="lp-reveal" style={{ maxWidth: '100rem', margin: '0 auto' }}>
         <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(48px,7.5vw,120px)', fontWeight: 400, lineHeight: 0.9, color: '#fff', textTransform: 'uppercase', textAlign: 'center' }}>
-          From idea to<br />shipped product.
+          From idea to
+          <div style={{marginBottom: 7}}></div>
+          shipped product.
         </h2>
       </div>
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.1)' }}>
-        <div ref={barRef} style={{ height: '100%', background: C.coral, width: '0%', transition: 'width 0.1s ease-out' }} />
+        <div ref={barRef} style={{ height: '100%', background: C.coral, width: '0%', transition: 'width 0.8s ease-out' }} />
       </div>
     </section>
   )
@@ -536,7 +533,7 @@ function FeaturesSection() {
           const mutedTc = feat.textLight ? 'rgba(255,255,255,0.86)' : 'rgba(28,27,27,0.72)'
           return (
             <div key={feat.num} className={`lp-flip-card lp-reveal lp-d${i + 1}`}
-                 style={{ position: 'relative', aspectRatio: '89/128', maxHeight: 480, cursor: 'pointer',
+                 style={{ position: 'relative', aspectRatio: '89/128', cursor: 'pointer',
                    border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
                  role="listitem">
               <div className="lp-flip-inner">
@@ -556,7 +553,7 @@ function FeaturesSection() {
                       <span style={{ width: 9, height: 9, background: feat.textLight ? 'rgba(255,255,255,0.7)' : 'rgba(28,27,27,0.7)', display: 'inline-block' }} />
                       <span style={{ fontFamily: 'monospace' }}>FG-24</span>
                     </span>
-                    <span>CE</span>
+                    <span>FG</span>
                   </div>
                 </div>
 
@@ -624,7 +621,7 @@ function FAQSection() {
           {FAQ_ITEMS.map((item, i) => {
             const isOpen = openIdx === i
             return (
-              <div key={i} style={{ borderBottom: `1px solid ${isOpen ? 'rgba(26,114,121,0.65)' : C.border}`, paddingTop: 16, paddingBottom: 16, transition: 'border-color 0.3s' }}>
+              <div key={i} style={{ borderBottom: `1px solid ${isOpen ? 'rgba(224,90,58,0.5)' : C.border}`, paddingTop: 16, paddingBottom: 16, transition: 'border-color 0.3s' }}>
                 <button
                   onClick={() => setOpenIdx(isOpen ? null : i)}
                   aria-expanded={isOpen}
@@ -663,140 +660,62 @@ function FAQSection() {
   )
 }
 
-/* ─── CTA ─────────────────────────────────────────────────────────────────── */
-function CTASection() {
-  const [email, setEmail] = useState('')
+/* ─── FOOTER ──────────────────────────────────────────────────────────────── */
+const FOOTER_LINKS = [
+  {
+    label: 'GitHub', href: 'https://github.com/yuvrajsatyapal',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 98 96" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path fillRule="evenodd" clipRule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Gmail', href: 'yuvrajsatyapal21@gmail.com',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 010 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.146C21.69 2.28 24 3.434 24 5.457z"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'LinkedIn', href: 'https://www.linkedin.com/in/yuvraj-satyapal-295628256',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>
+    ),
+  },
+]
+
+function Footer() {
   return (
-    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, textAlign: 'center' }}>
-      <div className="lp-reveal">
-        <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(48px,7.5vw,120px)', fontWeight: 400, lineHeight: 0.9, textTransform: 'uppercase' }}>
-          Ready to ship faster?
-        </h2>
-        <p style={{ marginTop: 20, fontFamily: "'Hanken Grotesk'", fontSize: 18, color: C.muted }}>
-          Start free. No credit card required.
-        </p>
-        <div style={{ display: 'flex', gap: 0, maxWidth: 480, marginTop: 32, marginLeft: 'auto', marginRight: 'auto' }}>
-          <input
-            type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="email@company.com"
-            style={{ flex: 1, padding: '14px 18px', fontFamily: "'Hanken Grotesk'", fontSize: 15, border: `1px solid rgba(28,27,27,0.25)`, borderRight: 'none', background: '#fff', outline: 'none', borderRadius: 0, minWidth: 0 }}
-            onFocus={e => (e.currentTarget.style.borderColor = C.coral)}
-            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(28,27,27,0.25)')}
-          />
-          <a href="/login" className="lp-btn" style={{ flexShrink: 0 }}>Get Started</a>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ─── DARK FOOTER — clip-path reveal (NEXTEC signature) ──────────────────── */
-const PANEL_H = 860
-
-function DarkReveal({ children }: { children: React.ReactNode }) {
-  const spacerRef = useRef<HTMLDivElement>(null)
-  const panelRef  = useRef<HTMLDivElement>(null)
-
-  const onScroll = useCallback(() => {
-    if (!spacerRef.current || !panelRef.current) return
-    const rect = spacerRef.current.getBoundingClientRect()
-    const wh = window.innerHeight
-
-    if (rect.bottom <= 0) {
-      panelRef.current.style.clipPath = 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)'
-      panelRef.current.style.pointerEvents = 'auto'
-      return
-    }
-    if (rect.top >= wh) {
-      panelRef.current.style.clipPath = 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)'
-      panelRef.current.style.pointerEvents = 'none'
-      return
-    }
-    const scrolled = wh - rect.top
-    const total    = wh + PANEL_H
-    const pct      = Math.max(0, Math.min(1, scrolled / total))
-    const fromPct  = (1 - pct) * 100
-    panelRef.current.style.clipPath = `polygon(0% ${fromPct}%, 100% ${fromPct}%, 100% 100%, 0% 100%)`
-    panelRef.current.style.pointerEvents = pct > 0.01 ? 'auto' : 'none'
-  }, [])
-
-  useEffect(() => {
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [onScroll])
-
-  return (
-    <>
-      <div ref={spacerRef} style={{ height: PANEL_H, background: 'transparent' }} aria-hidden="true" />
-      <div ref={panelRef} className="lp-dark-panel" style={{ position: 'fixed', inset: `auto 0 0 0`, height: PANEL_H, overflow: 'hidden', zIndex: 20, pointerEvents: 'none' }}>
-        {children}
-      </div>
-    </>
-  )
-}
-
-function DarkFooter() {
-  return (
-    <div style={{ background: C.dark, height: PANEL_H, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      {/* Contact */}
-      <section style={{ padding: 'clamp(48px,6vw,80px) clamp(24px,5vw,64px)', maxWidth: '100rem', margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'grid', gap: 48 }} className="lg:grid-cols-2 lg:gap-16">
-          <div>
-            <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 22, lineHeight: 1.4, color: C.coral, marginBottom: 24 }}>
-              Have a project to kick off?
-            </p>
-            <a href="mailto:hello@flowgrid.app" style={{ textDecoration: 'none', display: 'inline-block' }}>
-              <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(32px,5vw,64px)', color: C.coral, lineHeight: 1, letterSpacing: '-0.01em' }}>
-                hello@flowgrid.app
-              </div>
-            </a>
-            <p style={{ marginTop: 24, fontFamily: "'Hanken Grotesk'", fontSize: 15, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: '38ch' }}>
-              Or just say hi. We read every email and reply within one business day.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
-            {[
-              { heading: 'Product', links: ['Features', 'How it Works', 'Pricing', 'Changelog'] },
-              { heading: 'Company', links: ['Blog', 'About', 'Careers'] },
-              { heading: 'Legal',   links: ['Privacy', 'Terms'] },
-            ].map(col => (
-              <div key={col.heading}>
-                <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 12 }}>
-                  {col.heading}
-                </p>
-                {col.links.map(link => (
-                  <a key={link} href="#"
-                     style={{ display: 'block', fontFamily: "'Hanken Grotesk'", fontSize: 13, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', marginBottom: 8, transition: 'color 0.15s' }}
-                     onMouseEnter={e => (e.currentTarget.style.color = C.coral)}
-                     onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}>
-                    {link}
-                  </a>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer bar */}
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '20px clamp(24px,5vw,64px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <a href="/" style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, color: '#fff', textDecoration: 'none', letterSpacing: '0.02em' }}>FlowGrid</a>
-        <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-          {new Date().getFullYear()} / FlowGrid — Built for clarity.
-        </p>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {[{ label: 'GitHub', href: '#' }, { label: 'X', href: '#' }, { label: 'LinkedIn', href: '#' }].map(s => (
-            <a key={s.label} href={s.href}
-               style={{ fontFamily: "'Hanken Grotesk'", fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
-               onMouseEnter={e => (e.currentTarget.style.color = C.coral)}
-               onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}>
-              {s.label}
-            </a>
+    <footer style={{ background: C.dark, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '24px clamp(24px,5vw,64px) 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <a href="/" style={{ fontFamily: "'Anton', sans-serif", fontSize: 18, color: '#fff', textDecoration: 'none', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          FlowGrid
+        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 2vw, 12px)' }}>
+          <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 'clamp(8px, 2vw, 10px)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginRight: 'clamp(2px, 1vw, 4px)' }}>Connect</span>
+          {FOOTER_LINKS.map((s, i) => (
+            <span key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 2vw, 12px)' }}>
+              {i > 0 && <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 'clamp(10px, 3vw, 14px)', userSelect: 'none' }}>·</span>}
+              <a href={s.href} title={s.label} target="_blank" rel="noopener noreferrer"
+                 className="scale-[0.82] sm:scale-100"
+                 style={{ display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
+                 onMouseEnter={e => (e.currentTarget.style.color = C.coral)}
+                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}>
+                {s.icon}
+              </a>
+            </span>
           ))}
         </div>
-      </footer>
-    </div>
+      </div>
+      <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 'clamp(7px, 2vw, 10px)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)' }}>
+        <span className="sm:hidden">© 2026 FLOWGRID.</span>
+        <span className="hidden sm:inline">© 2026 FLOWGRID. PLAN. BUILD. SHIP.</span>
+      </p>
+    </footer>
   )
 }
 
@@ -805,6 +724,12 @@ export default function LandingPage() {
   const time = useClock()
   const [scrolled, setScrolled] = useState(false)
   useReveal()
+
+  useEffect(() => {
+    const prev = document.documentElement.style.background
+    document.documentElement.style.background = C.dark
+    return () => { document.documentElement.style.background = prev }
+  }, [])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -821,10 +746,7 @@ export default function LandingPage() {
       <BoldStatement />
       <FeaturesSection />
       <FAQSection />
-      <CTASection />
-      <DarkReveal>
-        <DarkFooter />
-      </DarkReveal>
+      <Footer />
     </div>
   )
 }
