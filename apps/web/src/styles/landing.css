@@ -159,10 +159,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: rgba(28,27,27,0.8);
   transition: color 0.25s;
 }
-.lp-faq-toggle-open { color: #E05A3A; }
 
 .lp-faq-bar-h {
   position: absolute;
@@ -194,6 +192,15 @@
   clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
 }
 
+/* ─── Nav buttons — smaller on mobile ────────────────────────────────────── */
+@media (max-width: 767px) {
+  .lp-nav-btn {
+    padding: 7px 10px !important;
+    font-size: 10px !important;
+    box-shadow: 3px 3px 0px #1c1b1b !important;
+  }
+}
+
 /* ─── Responsive fixes ────────────────────────────────────────────────────── */
 
 /* Float: smaller vertical travel on mobile so cards don't exceed their bounds */
@@ -217,7 +224,7 @@
   /* neutralise the extra inner padding that doubles up on mobile */
   .lp-hero-headline-pad { padding-top: 0 !important; }
   /* neutralise nested margins — gap on the flex parent handles spacing */
-  .lp-hero-cards-row    { margin-top: 0 !important; gap: 14px !important; max-width: 252px !important; margin-left: auto !important; margin-right: auto !important; }
+  .lp-hero-cards-row    { margin-top: 0 !important; gap: 22px !important; max-width: 280px !important; margin-left: auto !important; margin-right: auto !important; }
   .lp-hero-bottom-bar   { margin-top: 0 !important; padding-top: 20px !important; width: 100%; }
 }
 

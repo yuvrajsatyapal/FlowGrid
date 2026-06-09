@@ -1,20 +1,40 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import '../styles/landing.css'
 
-/* ─── palette ──────────────────────────────────────────────────────────────── */
-const C = {
-  bg: '#F5F0EB',
-  text: '#1c1b1b',
-  coral: '#E05A3A',
-  teal: '#1A7279',
-  tealCard: '#4A8B7C',
-  blush: '#F2DADA',
-  cream: '#FBF7F2',
-  dark: '#0f0f10',
-  muted: 'rgba(28,27,27,0.55)',
-  border: 'rgba(28,27,27,0.12)',
-  dim: 'rgba(10,39,41,0.55)',
-} as const
+/* ─── theme ─────────────────────────────────────────────────────────────────── */
+const ThemeCtx = createContext<{ isDark: boolean; toggle: () => void }>({ isDark: false, toggle: () => {} })
+const useTheme = () => useContext(ThemeCtx)
+
+function mkPalette(isDark: boolean) {
+  return isDark ? {
+    bg:       '#111113',
+    text:     '#EDE8E0',
+    coral:    '#E05A3A',
+    teal:     '#1A7279',
+    tealCard: '#4A8B7C',
+    blush:    '#F2DADA',
+    cream:    '#FBF7F2',
+    dark:     '#0a0a0b',
+    muted:    'rgba(237,232,224,0.50)',
+    border:   'rgba(237,232,224,0.14)',
+    dim:      'rgba(180,200,210,0.55)',
+  } : {
+    bg:       '#F5F0EB',
+    text:     '#1c1b1b',
+    coral:    '#E05A3A',
+    teal:     '#1A7279',
+    tealCard: '#4A8B7C',
+    blush:    '#F2DADA',
+    cream:    '#FBF7F2',
+    dark:     '#0f0f10',
+    muted:    'rgba(28,27,27,0.55)',
+    border:   'rgba(28,27,27,0.12)',
+    dim:      'rgba(10,39,41,0.55)',
+  }
+}
+
+/* ─── palette (light — kept for static data that references it) ─────────────── */
+const C = mkPalette(false)
 
 /* ─── data ─────────────────────────────────────────────────────────────────── */
 const HERO_CARDS = [
@@ -28,15 +48,16 @@ const HERO_CARDS = [
     icon: <polyline points="5,16 9,10 13,14 17,6 19,10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/> },
 ]
 
+type StepColors = { coral: string; dim: string }
 const PROCESS_STEPS = [
   { num: '01', title: 'Planning',
-    body: (active: boolean) => <>Create a <strong style={{color: active ? C.coral : C.dim}}>CLEAR WORKFLOW</strong> using drag-and-drop boards, lists, labels, priorities, and rich card details.</> },
+    body: (active: boolean, c: StepColors) => <>Create a <strong style={{color: active ? c.coral : c.dim, transition: 'color 0.5s'}}>CLEAR WORKFLOW</strong> using drag-and-drop boards, lists, labels, priorities, and rich card details.</> },
   { num: '02', title: 'Collaborate',
-    body: (active: boolean) => <>Work together with <strong style={{color: active ? C.coral : C.dim}}>INSTANT REAL-TIME SYNC</strong> — see cards, comments, and updates appear across teammates immediately.</> },
+    body: (active: boolean, c: StepColors) => <>Work together with <strong style={{color: active ? c.coral : c.dim, transition: 'color 0.5s'}}>INSTANT REAL-TIME SYNC</strong> — see cards, comments, and updates appear across teammates immediately.</> },
   { num: '03', title: 'Organize',
-    body: (active: boolean) => <>Reduce repetitive work with <strong style={{color: active ? C.coral : C.dim}}>RECURRING TASKS</strong>, notifications, dependencies, and streamlined workflows.</> },
+    body: (active: boolean, c: StepColors) => <>Reduce repetitive work with <strong style={{color: active ? c.coral : c.dim, transition: 'color 0.5s'}}>RECURRING TASKS</strong>, notifications, dependencies, and streamlined workflows.</> },
   { num: '04', title: 'Deliver',
-    body: (active: boolean) => <>Track progress with <strong style={{color: active ? C.coral : C.dim}}>ANALYTICS</strong> and activity history to keep projects moving and blockers visible.</> },
+    body: (active: boolean, c: StepColors) => <>Track progress with <strong style={{color: active ? c.coral : c.dim, transition: 'color 0.5s'}}>ANALYTICS</strong> and activity history to keep projects moving and blockers visible.</> },
 ]
 
 const FEATURES = [
@@ -106,6 +127,8 @@ function useClock() {
 
 /* ─── scroll-driven per-character text reveal ─────────────────────────────── */
 function ScrollRevealText({ text }: { text: string }) {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   const containerRef = useRef<HTMLDivElement>(null)
   const charsRef = useRef<(HTMLSpanElement | null)[]>([])
   const chars = text.split('')
@@ -143,12 +166,12 @@ function ScrollRevealText({ text }: { text: string }) {
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <h2 className="sr-only">{text}</h2>
-      <p aria-hidden="true" style={{ ...sharedStyle, opacity: 0.35 }}>
+      <p aria-hidden="true" style={{ ...sharedStyle, opacity: 0.35, color: P.text }}>
         <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
           {chars.map((ch, i) => <span key={i}>{ch}</span>)}
         </span>
       </p>
-      <p aria-hidden="true" style={{ ...sharedStyle, position: 'absolute', inset: 0, margin: 0 }}>
+      <p aria-hidden="true" style={{ ...sharedStyle, position: 'absolute', inset: 0, margin: 0, color: P.text }}>
         <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
           {chars.map((ch, i) => (
             <span
@@ -167,62 +190,63 @@ function ScrollRevealText({ text }: { text: string }) {
 
 /* ─── NAV ───────────────────────────────────────────────────────────────────── */
 function LandingNav({ scrolled }: { scrolled: boolean }) {
-  const [menuOpen, setMenuOpen] = useState(false)
+  const { isDark, toggle } = useTheme()
+  const P = mkPalette(isDark)
+
+  const navBg = isDark
+    ? (scrolled ? 'rgba(17,17,19,0.96)' : '#111113')
+    : (scrolled ? 'rgba(245,240,235,0.95)' : '#F5F0EB')
+
+  const ThemeIcon = () => isDark
+    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
 
   return (
     <header style={{
       position: 'fixed', inset: '0 0 auto 0', zIndex: 50,
-      background: scrolled ? 'rgba(245,240,235,0.95)' : C.bg,
+      background: navBg,
       backdropFilter: scrolled ? 'blur(20px)' : 'none',
       transition: 'background 0.3s, border-color 0.3s',
     }}>
       <div style={{ maxWidth: '100rem', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}
            className="px-4 sm:px-6 md:px-8 py-3.5 sm:py-5 md:py-6">
-        <a href="/" aria-label="FlowGrid home" style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: '0.02em', color: C.text, textDecoration: 'none', flexShrink: 0 }}>
+        <a href="/" aria-label="FlowGrid home" style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: '0.02em', color: P.text, textDecoration: 'none', flexShrink: 0 }}>
           FlowGrid
         </a>
 
-        {/* Desktop nav */}
+        {/* Desktop-only: Features + FAQs links */}
         <nav style={{ gap: 24, alignItems: 'center' }} className="hidden md:flex flex-1 justify-center px-4">
           {[{ label: 'Features', href: '#features' }, { label: 'FAQs', href: '#faqs' }].map(({ label, href }) => (
             <a key={label} href={href}
-               style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(28,27,27,0.72)', textDecoration: 'none', borderBottom: `2px solid ${C.border}`, padding: '8px 4px', transition: 'color 0.2s, border-color 0.2s' }}
-               onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderBottomColor = C.text }}
-               onMouseLeave={e => { e.currentTarget.style.color = 'rgba(28,27,27,0.72)'; e.currentTarget.style.borderBottomColor = C.border }}>
+               style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: P.muted, textDecoration: 'none', borderBottom: `2px solid ${P.border}`, padding: '8px 4px', transition: 'color 0.2s, border-color 0.2s' }}
+               onMouseEnter={e => { e.currentTarget.style.color = P.text; e.currentTarget.style.borderBottomColor = P.text }}
+               onMouseLeave={e => { e.currentTarget.style.color = P.muted; e.currentTarget.style.borderBottomColor = P.border }}>
               {label}
             </a>
           ))}
         </nav>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          {/* <span style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: C.muted }} className="hidden md:inline">EN</span> */}
-          <a href="/login" className="lp-btn hidden md:inline-flex" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started</a>
-          <button onClick={() => setMenuOpen(o => !o)} aria-label="Open menu" className="md:hidden" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              {menuOpen
-                ? <><path d="M6 18L18 6" stroke={C.text} strokeWidth="1.8" strokeLinecap="round"/><path d="M6 6L18 18" stroke={C.text} strokeWidth="1.8" strokeLinecap="round"/></>
-                : <><path d="M4 7H20" stroke={C.text} strokeWidth="1.8" strokeLinecap="round"/><path d="M4 12H20" stroke={C.text} strokeWidth="1.8" strokeLinecap="round"/><path d="M4 17H20" stroke={C.text} strokeWidth="1.8" strokeLinecap="round"/></>}
-            </svg>
+        {/* Always-visible: theme toggle + Get Started */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <button
+            onClick={toggle}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="lp-btn lp-nav-btn"
+            style={{ padding: '10px 13px', fontSize: 12 }}
+          >
+            <ThemeIcon />
           </button>
+          <a href="/login" className="lp-btn lp-nav-btn" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started</a>
         </div>
       </div>
-
-      {menuOpen && (
-        <div style={{ background: C.bg, borderTop: `1px solid ${C.border}`, padding: '16px 24px 24px' }} className="md:hidden">
-          {[{ label: 'Features', href: '#features' }, { label: 'FAQs', href: '#faqs' }].map(({ label, href }) => (
-            <a key={label} href={href} onClick={() => setMenuOpen(false)} style={{ display: 'block', padding: '12px 0', fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.text, textDecoration: 'none', borderBottom: `1px solid ${C.border}` }}>
-              {label}
-            </a>
-          ))}
-          <a href="/login" className="lp-btn" style={{ marginTop: 20, width: '100%', justifyContent: 'center', fontSize: 13 }}>Get Started Free</a>
-        </div>
-      )}
     </header>
   )
 }
 
 /* ─── HERO ──────────────────────────────────────────────────────────────────── */
 function HeroSection({ time }: { time: string }) {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   /* Mouse parallax — rAF lerp, each card gets its own depth layer */
   const cardParallaxRefs = useRef<(HTMLDivElement | null)[]>([])
   const currentPos = useRef({ x: 0, y: 0 })
@@ -258,17 +282,17 @@ function HeroSection({ time }: { time: string }) {
   }, [])
 
   return (
-    <section style={{ minHeight: '100svh', paddingTop: 80, paddingBottom: 40, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: C.bg }}
+    <section style={{ minHeight: '100svh', paddingTop: 80, paddingBottom: 40, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: P.bg }}
              className="lp-hero-section px-4 sm:px-6 md:px-8">
       {/* ── Dual-font headline (NEXTEC pattern: normal-weight line + huge display line) */}
       <div className="lp-hero-anim lp-hero-d0 lp-hero-headline-pad" style={{ paddingTop: 40 }}>
         <h1 style={{ width: '100%', maxWidth: '92rem', margin: '0 auto', textAlign: 'center' }}>
-          <span className="lp-hero-line1" style={{ color: C.text, marginBottom: '15px', }}>
+          <span className="lp-hero-line1" style={{ color: P.text, marginBottom: '15px', }}>
             Organize work.{' '}
             <br className="lp-hero-br" />
             Collaborate faster.
           </span>
-          <span className="lp-hero-line2" style={{ color: C.text }}>
+          <span className="lp-hero-line2" style={{ color: P.text }}>
             Stay in sync.
           </span>
         </h1>
@@ -296,7 +320,7 @@ function HeroSection({ time }: { time: string }) {
                    style={{ backgroundColor: card.bg, position: 'relative', overflow: 'hidden', cursor: 'pointer',
                      width: 'clamp(108px, 15vw, 178px)', aspectRatio: '89/128',
                      flexShrink: 0, transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', willChange: 'transform',
-                     border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
+                     border: `2px solid ${P.text}`, boxShadow: `6px 6px 0px ${P.text}` }}
                    onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px) scale(1.02)')}
                    onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0) scale(1)')}>
                 {/* ghost numeral */}
@@ -329,13 +353,13 @@ function HeroSection({ time }: { time: string }) {
       </div>
 
       {/* ── Bottom bar */}
-      <div className="lp-hero-bottom-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 24, borderTop: `1px solid ${C.border}`, marginTop: 24 }}>
-        <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.muted }}>
+      <div className="lp-hero-bottom-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 24, borderTop: `1px solid ${P.border}`, marginTop: 24 }}>
+        <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: P.muted }}>
           SCROLL DOWN
         </span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', color: C.muted }}>India,</span>
-          <span id="lp-clock" style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums', minWidth: '6ch', textAlign: 'right' }}>
+          <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', color: P.muted }}>India,</span>
+          <span id="lp-clock" style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', fontVariantNumeric: 'tabular-nums', minWidth: '6ch', textAlign: 'right', color: P.text }}>
             {time}
           </span>
         </div>
@@ -346,8 +370,10 @@ function HeroSection({ time }: { time: string }) {
 
 /* ─── WHAT IS FLOWGRID ──────────────────────────────────────────────────────── */
 function WhatIsFlowGrid() {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   return (
-    <section style={{ padding: 'clamp(80px, 10vw, 144px) clamp(24px, 5vw, 64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
+    <section style={{ padding: 'clamp(80px, 10vw, 144px) clamp(24px, 5vw, 64px)', background: P.bg, maxWidth: '100rem', margin: '0 auto' }}>
       <p className="lp-label lp-reveal" style={{ marginBottom: 20 }}>What is FlowGrid</p>
       <div style={{ maxWidth: '85%' }}>
         <ScrollRevealText text="FlowGrid is where your team's work lives. We stripped away the noise to build a platform that prioritises clarity over complexity. Designed for high-performance teams who need to move from ideation to delivery without the typical friction of legacy tools." />
@@ -358,6 +384,8 @@ function WhatIsFlowGrid() {
 
 /* ─── PROCESS ───────────────────────────────────────────────────────────────── */
 function ProcessSection() {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   const [activeStep, setActiveStep] = useState(0)
   const [mobileOpen, setMobileOpen] = useState<number | null>(0)
   const articleRefs = useRef<(HTMLElement | null)[]>([])
@@ -390,27 +418,27 @@ function ProcessSection() {
   }, [])
 
   return (
-    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, overflow: 'clip' }}>
+    <section style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: P.bg, overflow: 'clip' }}>
       {/* ── Mobile: accordion */}
       <div className="lg:hidden">
         <p className="lp-label" style={{ marginBottom: 12 }}>From idea to shipped product</p>
         {PROCESS_STEPS.map((step, i) => {
           const open = mobileOpen === i
           return (
-            <div key={step.num} style={{ borderBottom: `1px solid ${open ? 'rgba(224,90,58,0.5)' : C.border}`, paddingTop: 24, paddingBottom: 24, transition: 'border-color 0.4s ease-in-out' }}>
+            <div key={step.num} style={{ borderBottom: `1px solid ${open ? 'rgba(224,90,58,0.5)' : P.border}`, paddingTop: 24, paddingBottom: 24, transition: 'border-color 0.4s ease-in-out' }}>
               <button style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}
                       aria-expanded={open}
                       onClick={() => setMobileOpen(open ? null : i)}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 700, marginTop: 4, opacity: 0.8, color: open ? C.coral : C.muted }}>
+                  <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 14, fontWeight: 700, marginTop: 4, opacity: 0.8, color: open ? P.coral : P.muted }}>
                     {step.num}
                   </span>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 30, lineHeight: 1, color: open ? C.coral : C.text }}>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 30, lineHeight: 1, color: open ? P.coral : P.text }}>
                     {step.title}
                   </span>
                 </div>
                 <svg viewBox="0 0 24 24" width="26" height="26" fill="none"
-                     style={{ flexShrink: 0, color: open ? C.coral : C.text,
+                     style={{ flexShrink: 0, color: open ? P.coral : P.text,
                               transform: open ? 'rotate(45deg)' : 'rotate(0deg)',
                               transition: 'transform 0.35s ease-in-out, color 0.5s ease-in-out' }}>
                   <path d="M6 18L18 6" stroke="currentColor" strokeWidth="2.8" strokeLinecap="square"/>
@@ -425,8 +453,8 @@ function ProcessSection() {
                 transition: 'grid-template-rows 0.38s ease-in-out, opacity 0.32s ease-in-out, margin-top 0.38s ease-in-out',
               }}>
                 <div style={{ overflow: 'hidden' }}>
-                  <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, fontWeight: 500, maxWidth: '82ch', color: 'rgba(28,27,27,0.82)' }}>
-                    {step.body(open)}
+                  <p style={{ fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, fontWeight: 500, maxWidth: '82ch', color: P.muted }}>
+                    {step.body(open, P)}
                   </p>
                 </div>
               </div>
@@ -442,16 +470,16 @@ function ProcessSection() {
           <div style={{ marginBottom: 32, maxWidth: '25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700 }}>
               {PROCESS_STEPS.map((s, i) => (
-                <span key={s.num} style={{ color: i === activeStep ? C.teal : C.muted, transition: 'color 0.3s' }}>
+                <span key={s.num} style={{ color: i === activeStep ? P.teal : P.muted, transition: 'color 0.3s' }}>
                   {s.num}
                 </span>
               ))}
             </div>
-            <div style={{ marginTop: 10, height: 8, background: 'rgba(28,27,27,0.1)', overflow: 'hidden' }}>
-              <div ref={progressBarRef} style={{ height: '100%', background: C.teal, transform: 'scaleX(0)', transformOrigin: 'left' }} />
+            <div style={{ marginTop: 10, height: 8, background: isDark ? 'rgba(237,232,224,0.1)' : 'rgba(28,27,27,0.1)', overflow: 'hidden' }}>
+              <div ref={progressBarRef} style={{ height: '100%', background: P.teal, transform: 'scaleX(0)', transformOrigin: 'left' }} />
             </div>
           </div>
-          <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(58px,7vw,92px)', lineHeight: 0.88, color: C.coral, maxWidth: '11ch' }}>
+          <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(58px,7vw,92px)', lineHeight: 0.88, color: P.coral, maxWidth: '11ch' }}>
             From idea to shipped product
           </h2>
         </div>
@@ -459,22 +487,23 @@ function ProcessSection() {
         <div>
           {PROCESS_STEPS.map((step, i) => {
             const isActive = i === activeStep
+            const inactiveHeadingColor = isDark ? 'rgba(180,200,210,0.7)' : '#0A2729'
             return (
               <article
                 key={step.num}
                 ref={el => { articleRefs.current[i] = el }}
                 className="lp-step"
-                style={{ borderBottom: `1px solid ${isActive ? 'rgba(224,90,58,0.5)' : C.border}`, padding: '48px 0' }}>
+                style={{ borderBottom: `1px solid ${isActive ? 'rgba(224,90,58,0.5)' : P.border}`, padding: '48px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 24, fontWeight: 400, minWidth: 48, color: isActive ? C.coral : C.dim, transition: 'color 0.5s' }}>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 24, fontWeight: 400, minWidth: 48, color: isActive ? P.coral : P.dim, transition: 'color 0.5s' }}>
                     {step.num}
                   </span>
                   <div>
-                    <h3 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(42px,4.5vw,68px)', lineHeight: 0.9, color: isActive ? C.coral : '#0A2729', transition: 'color 0.5s' }}>
+                    <h3 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(42px,4.5vw,68px)', lineHeight: 0.9, color: isActive ? P.coral : inactiveHeadingColor, transition: 'color 0.5s' }}>
                       {step.title}
                     </h3>
-                    <p style={{ marginTop: 24, maxWidth: '78ch', fontSize: 20, lineHeight: 1.65, fontWeight: 500, fontFamily: "'Hanken Grotesk', sans-serif", color: 'rgba(28,27,27,0.82)', opacity: isActive ? 1 : 0.65, transition: 'opacity 0.5s' }}>
-                      {step.body(isActive)}
+                    <p style={{ marginTop: 24, maxWidth: '78ch', fontSize: 20, lineHeight: 1.65, fontWeight: 500, fontFamily: "'Hanken Grotesk', sans-serif", color: P.muted, opacity: isActive ? 1 : 0.65, transition: 'opacity 0.5s' }}>
+                      {step.body(isActive, P)}
                     </p>
                   </div>
                 </div>
@@ -508,6 +537,8 @@ function BoldStatement() {
 
   return (
     <section ref={sectionRef} style={{ background: C.dark, padding: 'clamp(65px,7vw,110px) clamp(24px,5vw,64px)', position: 'relative', overflow: 'hidden' }}>
+      {/* Top decorative bar */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.18)' }} />
       <div className="lp-reveal" style={{ maxWidth: '100rem', margin: '0 auto' }}>
         <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(48px,7.5vw,120px)', fontWeight: 400, lineHeight: 0.9, color: '#fff', textTransform: 'uppercase', textAlign: 'center' }}>
           From idea to
@@ -515,7 +546,8 @@ function BoldStatement() {
           shipped product.
         </h2>
       </div>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.1)' }}>
+      {/* Bottom scroll-driven progress bar */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.08)' }}>
         <div ref={barRef} style={{ height: '100%', background: C.coral, width: '0%', transition: 'width 0.8s ease-out' }} />
       </div>
     </section>
@@ -524,8 +556,10 @@ function BoldStatement() {
 
 /* ─── FEATURES (flip cards) ─────────────────────────────────────────────────── */
 function FeaturesSection() {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   return (
-    <section id="features" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, maxWidth: '100rem', margin: '0 auto' }}>
+    <section id="features" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: P.bg, maxWidth: '100rem', margin: '0 auto' }}>
       <p className="lp-label lp-reveal" style={{ marginBottom: 24 }}>Features</p>
       <div style={{ display: 'grid', gap: 20 }} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" role="list">
         {FEATURES.map((feat, i) => {
@@ -534,7 +568,7 @@ function FeaturesSection() {
           return (
             <div key={feat.num} className={`lp-flip-card lp-reveal lp-d${i + 1}`}
                  style={{ position: 'relative', aspectRatio: '89/128', cursor: 'pointer',
-                   border: '2px solid #1c1b1b', boxShadow: '6px 6px 0px #1c1b1b' }}
+                   border: `2px solid ${P.text}`, boxShadow: `6px 6px 0px ${P.text}` }}
                  role="listitem">
               <div className="lp-flip-inner">
                 {/* Front */}
@@ -600,18 +634,20 @@ function FeatureIcon({ num, color }: { num: string; color: string }) {
 
 /* ─── FAQ ─────────────────────────────────────────────────────────────────── */
 function FAQSection() {
+  const { isDark } = useTheme()
+  const P = mkPalette(isDark)
   const [openIdx, setOpenIdx] = useState<number | null>(0)
 
   return (
-    <section id="faqs" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: C.bg, borderTop: `1px solid ${C.border}` }}>
+    <section id="faqs" style={{ padding: 'clamp(80px,10vw,144px) clamp(24px,5vw,64px)', background: P.bg, borderTop: `1px solid ${P.border}` }}>
       <div style={{ maxWidth: '100rem', margin: '0 auto', display: 'grid', gap: 64 }} className="lg:grid-cols-[0.78fr_1.22fr] lg:gap-20">
         {/* Sticky left */}
         <div className="lp-reveal lg:sticky lg:top-20 lg:self-start">
           <p className="lp-label" style={{ marginBottom: 16 }}>Frequently asked questions</p>
-          <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(44px,7vw,68px)', lineHeight: 0.9, maxWidth: '12ch' }}>
+          <h2 style={{ fontFamily: "'Anton', sans-serif", fontSize: 'clamp(44px,7vw,68px)', lineHeight: 1, maxWidth: '12ch', color: P.text }}>
             What teams ask before switching to FlowGrid.
           </h2>
-          <p style={{ marginTop: 20, maxWidth: '48ch', fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, color: C.muted }}>
+          <p style={{ marginTop: 20, maxWidth: '48ch', fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, color: P.muted }}>
             Short answers on collaboration, migration, setup, and what happens after you sign up.
           </p>
         </div>
@@ -620,21 +656,21 @@ function FAQSection() {
         <div className="lp-reveal lp-d1" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {FAQ_ITEMS.map((item, i) => {
             const isOpen = openIdx === i
+            const dotBg = isOpen ? P.coral : (isDark ? 'rgba(237,232,224,0.18)' : 'rgba(28,27,27,0.18)')
             return (
-              <div key={i} style={{ borderBottom: `1px solid ${isOpen ? 'rgba(224,90,58,0.5)' : C.border}`, paddingTop: 16, paddingBottom: 16, transition: 'border-color 0.3s' }}>
+              <div key={i} style={{ borderBottom: `1px solid ${isOpen ? 'rgba(224,90,58,0.5)' : P.border}`, paddingTop: 16, paddingBottom: 16, transition: 'border-color 0.3s' }}>
                 <button
                   onClick={() => setOpenIdx(isOpen ? null : i)}
                   aria-expanded={isOpen}
                   style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, padding: '8px 0 8px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}>
                   <span style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
-                    {/* NEXTEC-style square indicator dot */}
-                    <span style={{ marginTop: 5, width: 12, height: 12, background: isOpen ? C.coral : 'rgba(28,27,27,0.18)', flexShrink: 0, display: 'inline-block', transition: 'background 0.25s' }} />
-                    <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 18, fontWeight: 700, lineHeight: 1.25, color: isOpen ? C.coral : C.text, transition: 'color 0.25s' }}>
+                    <span style={{ marginTop: 5, width: 12, height: 12, background: dotBg, flexShrink: 0, display: 'inline-block', transition: 'background 0.25s' }} />
+                    <span style={{ fontFamily: "'Hanken Grotesk'", fontSize: 18, fontWeight: 700, lineHeight: 1.25, color: isOpen ? P.coral : P.text, transition: 'color 0.25s' }}>
                       {item.q}
                     </span>
                   </span>
-                  {/* CSS span plus/minus — NEXTEC pattern */}
-                  <span className={`lp-faq-toggle${isOpen ? ' lp-faq-toggle-open' : ''}`} aria-hidden="true">
+                  <span className={`lp-faq-toggle${isOpen ? ' lp-faq-toggle-open' : ''}`} aria-hidden="true"
+                        style={{ color: isOpen ? P.coral : P.muted }}>
                     <span className="lp-faq-bar-h" />
                     <span className="lp-faq-bar-v" />
                   </span>
@@ -646,7 +682,7 @@ function FAQSection() {
                   transition: 'grid-template-rows 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s',
                 }}>
                   <div style={{ overflow: 'hidden' }}>
-                    <p style={{ paddingBottom: 24, paddingTop: 4, fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, color: 'rgba(28,27,27,0.76)', maxWidth: '78ch' }}>
+                    <p style={{ paddingBottom: 24, paddingTop: 4, fontFamily: "'Hanken Grotesk'", fontSize: 16, lineHeight: 1.7, color: P.muted, maxWidth: '78ch' }}>
                       {item.a}
                     </p>
                   </div>
@@ -723,13 +759,15 @@ function Footer() {
 export default function LandingPage() {
   const time = useClock()
   const [scrolled, setScrolled] = useState(false)
+  const [isDark, setIsDark] = useState(false)
+  const toggle = () => setIsDark(d => !d)
+  const P = mkPalette(isDark)
   useReveal()
 
   useEffect(() => {
-    const prev = document.documentElement.style.background
-    document.documentElement.style.background = C.dark
-    return () => { document.documentElement.style.background = prev }
-  }, [])
+    document.documentElement.style.background = isDark ? '#111113' : C.dark
+    return () => { document.documentElement.style.background = '' }
+  }, [isDark])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -738,15 +776,17 @@ export default function LandingPage() {
   }, [])
 
   return (
-    <div style={{ background: C.bg, color: C.text, overflowX: 'clip' }}>
-      <LandingNav scrolled={scrolled} />
-      <HeroSection time={time} />
-      <WhatIsFlowGrid />
-      <ProcessSection />
-      <BoldStatement />
-      <FeaturesSection />
-      <FAQSection />
-      <Footer />
-    </div>
+    <ThemeCtx.Provider value={{ isDark, toggle }}>
+      <div style={{ background: P.bg, color: P.text, overflowX: 'clip', transition: 'background 0.3s, color 0.3s' }}>
+        <LandingNav scrolled={scrolled} />
+        <HeroSection time={time} />
+        <WhatIsFlowGrid />
+        <ProcessSection />
+        <BoldStatement />
+        <FeaturesSection />
+        <FAQSection />
+        <Footer />
+      </div>
+    </ThemeCtx.Provider>
   )
 }
