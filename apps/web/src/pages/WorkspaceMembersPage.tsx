@@ -5,6 +5,7 @@ import { invitesApi, type WorkspaceInviteRecord } from "../api/invites"
 import { usersApi, type UserSearchResult } from "../api/users"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
+import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
 import type { Role } from "@flowgrid/types"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
@@ -386,6 +387,16 @@ export default function WorkspaceMembersPage() {
       if (tierDiff !== 0) return tierDiff
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     })
+
+  // Real-time presence — update online state immediately when members connect/disconnect
+  useWorkspaceSocket(workspaceId, {
+    onMemberOnline: ({ userId: onlineId }) => {
+      setMembers((prev) => prev.map((m) => (m.userId === onlineId ? { ...m, online: true } : m)))
+    },
+    onMemberOffline: ({ userId: offlineId }) => {
+      setMembers((prev) => prev.map((m) => (m.userId === offlineId ? { ...m, online: false } : m)))
+    },
+  })
 
   const fetchMembers = useCallback(async () => {
     if (!workspaceId) return

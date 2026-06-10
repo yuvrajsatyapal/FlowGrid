@@ -17,6 +17,8 @@ interface Props {
   overlay?: boolean
   /** When true, card is read-only: no click, no metadata — only label, title, description */
   isViewer?: boolean
+  /** When true, hides the description block (used on small/medium screens) */
+  hideDescription?: boolean
   onCardClick?: (cardId: string) => void
 }
 
@@ -87,7 +89,7 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, onCardClick }: Props) {
+export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, hideDescription = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
@@ -207,7 +209,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
               </span>
             </div>
 
-            {card.description && (
+            {!hideDescription && card.description && (
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <span
                   style={{

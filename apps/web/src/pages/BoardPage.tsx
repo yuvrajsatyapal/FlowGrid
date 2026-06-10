@@ -24,6 +24,7 @@ import BoardCalendarView from "../components/boards/BoardCalendarView"
 import BoardTimelineView from "../components/boards/BoardTimelineView"
 import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal"
 import { useBoardSocket } from "../hooks/useBoardSocket"
+import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
 import { cardDependenciesApi } from "../api/cardDependencies"
 import { computeBlockedCardIds } from "../utils/dependencies"
@@ -31,6 +32,18 @@ import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 import { workspacesApi } from "../api/workspaces"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
+
+function useWindowWidth() {
+  const [width, setWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  )
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
+  return width
+}
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -101,6 +114,9 @@ export default function BoardPage() {
   const [boardMembers, setBoardMembers] = useState<BoardAccessMember[]>([])
   const [loadingBoardMembers, setLoadingBoardMembers] = useState(false)
   const [allWsMembers, setAllWsMembers] = useState<{ userId: string; name: string | null; email: string; avatarUrl: string | null }[]>([])
+  // Global online presence (logged-in users), seeded from listMembers().online and kept
+  // live via the workspace socket — drives the green "online" dot in the header cluster.
+  const [onlineMemberIds, setOnlineMemberIds] = useState<Set<string>>(new Set())
   const [addMemberSearch, setAddMemberSearch] = useState("")
   const [addingMember, setAddingMember] = useState<string | null>(null)
   const [removingMember, setRemovingMember] = useState<string | null>(null)
@@ -141,6 +157,11 @@ export default function BoardPage() {
     { key: "3", description: "Timeline view", handler: () => setBoardView("timeline") },
   ])
 
+  const windowWidth = useWindowWidth()
+  const headerIsSmall = windowWidth < 640
+  const headerIsCompact = windowWidth < 768
+  const hideDescription = windowWidth < 1024
+
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
   const isViewer = board?.role === "VIEWER"
 
@@ -160,12 +181,19 @@ export default function BoardPage() {
       ])
       setBoardMembers(members)
       setAllWsMembers(wsMembers.map((m) => ({ userId: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl })))
+      setOnlineMemberIds(new Set(wsMembers.filter((m) => m.online).map((m) => m.userId)))
     } catch (err) {
       setAccessError((err as Error).message || "Failed to load board members")
     } finally {
       setLoadingBoardMembers(false)
     }
   }, [boardId, workspaceId])
+
+  // Load members eagerly so the header avatar cluster shows the full membership
+  // (all board members, online or offline), and refresh when the access panel opens.
+  useEffect(() => {
+    if (boardId) void loadBoardAccess()
+  }, [boardId, loadBoardAccess])
 
   useEffect(() => {
     if (accessPanelOpen) void loadBoardAccess()
@@ -498,9 +526,25 @@ export default function BoardPage() {
     })
   }
 
+  // ─── Real-time presence — keep the header's online dots live (logged-in status) ──
+  useWorkspaceSocket(workspaceId, {
+    onMemberOnline: ({ userId: id }) => setOnlineMemberIds((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    }),
+    onMemberOffline: ({ userId: id }) => setOnlineMemberIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    }),
+  })
+
   // ─── Real-time socket ────────────────────────────────────────────────────────
 
-  const { onlineUsers } = useBoardSocket(boardId, {
+  useBoardSocket(boardId, {
     onCardCreated: (card) => {
       // Dedup: sender already added the card via local handleCardCreated; skip if present
       setBoardCards((prev) => {
@@ -621,34 +665,50 @@ export default function BoardPage() {
 
   const coverBg = board.coverColor ?? DEFAULT_COVER
 
+  // Header avatar cluster shows the board's full membership (online or offline).
+  // PRIVATE boards: explicit board members. WORKSPACE boards: every workspace member
+  // (they implicitly have access). `onlineIds` flags who is currently logged in (a green
+  // dot), kept live via the workspace presence socket.
+  const headerMemberSource =
+    board.visibility === "PRIVATE"
+      ? boardMembers.map((m) => ({ userId: m.userId, name: m.name, avatarUrl: m.avatarUrl, memberSince: m.createdAt }))
+      : allWsMembers.map((m) => ({ userId: m.userId, name: m.name, avatarUrl: m.avatarUrl, memberSince: undefined }))
+  const onlineIds = onlineMemberIds
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "var(--font-body)" }}>
       {/* Board header */}
       <div
         style={{
           background: coverBg,
-          padding: "20px 28px",
+          padding: headerIsSmall ? "10px 14px" : headerIsCompact ? "14px 20px" : "20px 28px",
           display: "flex",
           alignItems: "center",
-          gap: "12px",
+          gap: headerIsSmall ? "6px" : "10px",
           flexShrink: 0,
+          minWidth: 0,
         }}
       >
         <h1
           style={{
             margin: 0,
-            fontSize: "var(--text-xl)",
+            fontSize: headerIsSmall ? "var(--text-base)" : headerIsCompact ? "var(--text-lg)" : "var(--text-xl)",
             fontWeight: 700,
             color: "#fff",
             fontFamily: "var(--font-display)",
             letterSpacing: "-0.01em",
             textShadow: "0 1px 3px oklch(0% 0 0 / 0.25)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            flexShrink: 1,
           }}
         >
           {board.name}
         </h1>
 
-        {board.visibility === "PRIVATE" && (
+        {!headerIsSmall && board.visibility === "PRIVATE" && (
           <span
             style={{
               display: "flex",
@@ -660,13 +720,14 @@ export default function BoardPage() {
               color: "#fff",
               fontSize: "var(--text-xs)",
               fontWeight: 500,
+              flexShrink: 0,
             }}
           >
             {LOCK_ICON}
             Private
           </span>
         )}
-        {board.visibility === "WORKSPACE" && (
+        {!headerIsSmall && board.visibility === "WORKSPACE" && (
           <span
             style={{
               display: "flex",
@@ -678,6 +739,7 @@ export default function BoardPage() {
               color: "#fff",
               fontSize: "var(--text-xs)",
               fontWeight: 500,
+              flexShrink: 0,
             }}
           >
             {GLOBE_ICON}
@@ -685,7 +747,7 @@ export default function BoardPage() {
           </span>
         )}
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: headerIsSmall ? 6 : 10, flexShrink: 0 }}>
           {/* View switcher */}
           <div
             role="group"
@@ -702,12 +764,13 @@ export default function BoardPage() {
               <button
                 key={v}
                 aria-pressed={boardView === v}
+                aria-label={v.charAt(0).toUpperCase() + v.slice(1)}
                 onClick={() => setBoardView(v)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 5,
-                  padding: "4px 10px",
+                  gap: headerIsCompact ? 0 : 5,
+                  padding: headerIsSmall ? "5px 7px" : "4px 10px",
                   borderRadius: "var(--radius-badge)",
                   border: "none",
                   cursor: "pointer",
@@ -719,10 +782,67 @@ export default function BoardPage() {
                 }}
               >
                 {VIEW_ICONS[v]}
-                {v.charAt(0).toUpperCase() + v.slice(1)}
+                {!headerIsCompact && (v.charAt(0).toUpperCase() + v.slice(1))}
               </button>
             ))}
           </div>
+
+          {/* Member avatar cluster — all board members */}
+          {(board.members?.length ?? 0) > 0 && (
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {board.members.slice(0, headerIsSmall ? 2 : 3).map((m, i) => (
+                <div
+                  key={m.id}
+                  title={m.name ?? undefined}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    border: `2.5px solid ${coverBg}`,
+                    marginLeft: i === 0 ? 0 : -8,
+                    background: m.avatarUrl ? "transparent" : getAvatarBg(m.id),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {m.avatarUrl ? (
+                    <img src={m.avatarUrl} alt={m.name ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff", fontFamily: "var(--font-body)", userSelect: "none" }}>
+                      {getInitials(m.name ?? "?")}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {board.memberCount > (headerIsSmall ? 2 : 3) && (
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    border: `2.5px solid ${coverBg}`,
+                    marginLeft: -8,
+                    background: "oklch(0% 0 0 / 0.28)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    flexShrink: 0,
+                    boxSizing: "border-box",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  +{board.memberCount - (headerIsSmall ? 2 : 3)}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Board Access button + floating dropdown */}
           {canManageAccess && (
@@ -920,7 +1040,12 @@ export default function BoardPage() {
             </div>
           )}
 
-          <BoardPresence users={onlineUsers} />
+          <BoardPresence
+            users={headerMemberSource}
+            onlineIds={onlineIds}
+            maxVisible={2}
+            coverColor={coverBg}
+          />
         </div>
       </div>
 
@@ -992,6 +1117,7 @@ export default function BoardPage() {
                     width={colWidth}
                     cardSlotHeight={cardSlotHeight}
                     blockedCardIds={blockedCardIds}
+                    hideDescription={hideDescription}
                   />
                 ) : (
                   <CreateListInline key="__add_list__" onSubmit={handleCreateList} width={colWidth} />
@@ -1004,7 +1130,7 @@ export default function BoardPage() {
               )}
 
               <DragOverlay dropAnimation={null}>
-                {activeCard ? <CardItem card={activeCard} overlay /> : null}
+                {activeCard ? <CardItem card={activeCard} overlay hideDescription={hideDescription} /> : null}
               </DragOverlay>
             </DndContext>
           )}

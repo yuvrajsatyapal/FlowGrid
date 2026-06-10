@@ -15,5 +15,5 @@ export function getInitials(name: string | null): string {
 
 export function getAvatarBg(id: string): string {
   const hue = Math.abs(hashCode(id)) % 360
-  return `hsl(${hue}, 55%, 48%)`
+  return `hsl(${hue}, 60%, 56%)`
 }

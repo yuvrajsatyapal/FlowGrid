@@ -36,8 +36,13 @@ export function initSocket(httpServer: http.Server): Server {
     // Per-user room for notification:new events
     socket.join(userId)
 
-    // Global online presence (any active socket connection marks the user online)
-    void markUserOnline(userId)
+    // Global online presence (any active socket connection marks the user online).
+    // Presence is connection-driven (not tied to workspace:join), so a user shows
+    // online the moment they open any page that holds a socket — including board pages.
+    void (async () => {
+      const nowOnline = await markUserOnline(userId)
+      if (nowOnline) await broadcastUserPresence(userId, true)
+    })()
 
     socket.on("board:join", async ({ boardId }: { boardId: string }) => {
       if (!boardId || typeof boardId !== "string") return
@@ -99,6 +104,9 @@ export function initSocket(httpServer: http.Server): Server {
       })
       if (!member) return
       socket.join(`ws:${workspaceId}`)
+      // Online/offline is broadcast from the connection/disconnection lifecycle (see
+      // broadcastUserPresence) — NOT here — so navigating between pages within the
+      // workspace never flips a still-connected user offline.
     })
 
     socket.on("workspace:leave", ({ workspaceId }: { workspaceId: string }) => {
@@ -106,15 +114,27 @@ export function initSocket(httpServer: http.Server): Server {
       socket.leave(`ws:${workspaceId}`)
     })
 
-    socket.on("disconnect", async () => {
-      // socket.rooms still contains joined rooms at disconnect time.
-      // Exclude socket.id (default room) and userId (notification room — not a board).
-      const boardIds = [...socket.rooms].filter((r) => r !== socket.id && r !== userId)
+    // MUST be "disconnecting", not "disconnect": in socket.io v4 `socket.rooms` is
+    // already cleared by the time the "disconnect" event fires, so room-based cleanup
+    // (board presence + workspace offline broadcast) would silently no-op — leaving
+    // users stuck "online" after logout/tab-close. In "disconnecting" the rooms are
+    // still populated.
+    socket.on("disconnecting", async () => {
+      // Exclude socket.id (auto room) and userId (notification room).
+      const allRooms = [...socket.rooms]
+      const boardIds = allRooms.filter((r) => r !== socket.id && r !== userId && !r.startsWith("ws:"))
+
       for (const boardId of boardIds) {
         const users = await removePresence(boardId, userId)
         io.to(boardId).emit("board:presence", { boardId, users })
       }
-      await markUserOffline(userId)
+
+      // Only flip the user offline once their LAST socket is gone (multiple tabs/pages
+      // each hold a connection). Broadcast to every workspace they belong to — not just
+      // this socket's rooms — because the last socket to close might not be in a ws room
+      // (e.g. a board-only socket).
+      const nowOffline = await markUserOffline(userId)
+      if (nowOffline) await broadcastUserPresence(userId, false)
     })
   })
 
@@ -142,18 +162,38 @@ export function emitWorkspaceEvent(workspaceId: string, event: string, payload: 
 // Both keys are cleared on server boot (see resetGlobalPresence) so a hard crash can't
 // leave a user stuck "online" forever.
 
-async function markUserOnline(userId: string): Promise<void> {
+// Returns true if this connection is the user's FIRST (they just came online).
+async function markUserOnline(userId: string): Promise<boolean> {
   const count = await redis.hincrby(redisKeys.onlineCounts(), userId, 1)
   if (count === 1) {
     await redis.sadd(redisKeys.onlineUsers(), userId)
+    return true
   }
+  return false
 }
 
-async function markUserOffline(userId: string): Promise<void> {
+// Returns true if this was the user's LAST connection (they just went offline).
+async function markUserOffline(userId: string): Promise<boolean> {
   const count = await redis.hincrby(redisKeys.onlineCounts(), userId, -1)
   if (count <= 0) {
     await redis.hdel(redisKeys.onlineCounts(), userId)
     await redis.srem(redisKeys.onlineUsers(), userId)
+    return true
+  }
+  return false
+}
+
+// Broadcast a user's online/offline transition to every workspace they belong to, so
+// each workspace member viewing a members list / board header updates in real time.
+async function broadcastUserPresence(userId: string, online: boolean): Promise<void> {
+  if (!io) return
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    select: { workspaceId: true },
+  })
+  const event = online ? "workspace:member:online" : "workspace:member:offline"
+  for (const m of memberships) {
+    io.to(`ws:${m.workspaceId}`).emit(event, { userId })
   }
 }
 
