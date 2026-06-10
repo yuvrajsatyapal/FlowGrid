@@ -341,6 +341,17 @@ export default function WorkspacePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
 
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener("change", handler)
+    setIsMobile(mq.matches)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
   const [boards, setBoards] = useState<BoardSummary[]>([])
   const [activities, setActivities] = useState<ActivityResponse[]>([])
@@ -602,7 +613,7 @@ export default function WorkspacePage() {
                     margin: 0,
                     fontSize: "var(--text-3xl)",
                     fontWeight: 700,
-                    letterSpacing: "var(--display-tracking)",
+                    letterSpacing: "0.03em",
                     fontFamily: "var(--font-display)",
                     lineHeight: 1.15,
                   }}
@@ -671,17 +682,12 @@ export default function WorkspacePage() {
         </div>
 
         {/* ── Search + Filter Toolbar ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "20px",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={isMobile
+          ? { display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }
+          : { display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }
+        }>
           {/* Search input */}
-          <div style={{ position: "relative", flex: "1 1 200px", maxWidth: "320px" }}>
+          <div style={isMobile ? { position: "relative" } : { position: "relative", flex: "1 1 200px", maxWidth: "320px" }}>
             <span
               style={{
                 position: "absolute",
@@ -723,87 +729,94 @@ export default function WorkspacePage() {
             />
           </div>
 
-          {/* Filter chips */}
-          <div
-            style={{
-              display: "flex",
-              borderRadius: "var(--radius-input)",
-              border: "1px solid oklch(var(--color-border))",
-              background: "oklch(var(--color-paper-2))",
-              overflow: "hidden",
-              flexShrink: 0,
-            }}
-          >
-            {([ ["all", "All"], ["pinned", "Pinned"] ] as [FilterType, string][]).map(([f, label]) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  padding: "7px 16px",
-                  border: "none",
-                  background: filter === f ? "oklch(var(--color-paper-3))" : "transparent",
-                  color: filter === f ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-3))",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: filter === f ? 600 : 400,
-                  cursor: "pointer",
-                  fontFamily: "var(--font-body)",
-                  transition: "background var(--dur-fast), color var(--dur-fast)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Board count badge */}
-          {!loadingBoards && filteredBoards.length > 0 && (
-            <span
+          {/* Controls row: transparent on desktop (items flow into parent row),
+              explicit flex row on mobile so [All][Pinned] and [count][grid][list] share one line */}
+          <div style={isMobile
+            ? { display: "flex", alignItems: "center", gap: "10px" }
+            : { display: "contents" }
+          }>
+            {/* Filter chips */}
+            <div
               style={{
-                fontSize: "var(--text-xs)",
-                color: "oklch(var(--color-ink-3))",
-                padding: "4px 10px",
-                borderRadius: "100px",
-                background: "oklch(var(--color-paper-3))",
+                display: "flex",
+                borderRadius: "var(--radius-input)",
+                border: "1px solid oklch(var(--color-border))",
+                background: "oklch(var(--color-paper-2))",
+                overflow: "hidden",
                 flexShrink: 0,
-                fontWeight: 500,
               }}
             >
-              {filteredBoards.length} {filteredBoards.length === 1 ? "board" : "boards"}
-            </span>
-          )}
+              {([ ["all", "All"], ["pinned", "Pinned"] ] as [FilterType, string][]).map(([f, label]) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    padding: "7px 16px",
+                    border: "none",
+                    background: filter === f ? "oklch(var(--color-paper-3))" : "transparent",
+                    color: filter === f ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-3))",
+                    fontSize: "var(--text-sm)",
+                    fontWeight: filter === f ? 600 : 400,
+                    cursor: "pointer",
+                    fontFamily: "var(--font-body)",
+                    transition: "background var(--dur-fast), color var(--dur-fast)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-          {/* View toggle */}
-          <div
-            style={{
-              display: "flex",
-              borderRadius: "var(--radius-input)",
-              border: "1px solid oklch(var(--color-border))",
-              background: "oklch(var(--color-paper-2))",
-              overflow: "hidden",
-              flexShrink: 0,
-            }}
-          >
-            {([ ["grid", GRID_ICON], ["list", LIST_ICON] ] as [ViewType, React.ReactNode][]).map(([v, icon]) => (
-              <button
-                key={v}
-                onClick={() => handleViewChange(v)}
-                aria-label={`${v} view`}
+            <div style={{ flex: 1 }} />
+
+            {/* Board count badge */}
+            {!loadingBoards && filteredBoards.length > 0 && (
+              <span
                 style={{
-                  padding: "7px 10px",
-                  border: "none",
-                  background: view === v ? "oklch(var(--color-paper-3))" : "transparent",
-                  color: view === v ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-3))",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  transition: "background var(--dur-fast), color var(--dur-fast)",
+                  fontSize: "var(--text-xs)",
+                  color: "oklch(var(--color-ink-3))",
+                  padding: "4px 10px",
+                  borderRadius: "100px",
+                  background: "oklch(var(--color-paper-3))",
+                  flexShrink: 0,
+                  fontWeight: 500,
                 }}
               >
-                {icon}
-              </button>
-            ))}
+                {filteredBoards.length} {filteredBoards.length === 1 ? "board" : "boards"}
+              </span>
+            )}
+
+            {/* View toggle */}
+            <div
+              style={{
+                display: "flex",
+                borderRadius: "var(--radius-input)",
+                border: "1px solid oklch(var(--color-border))",
+                background: "oklch(var(--color-paper-2))",
+                overflow: "hidden",
+                flexShrink: 0,
+              }}
+            >
+              {([ ["grid", GRID_ICON], ["list", LIST_ICON] ] as [ViewType, React.ReactNode][]).map(([v, icon]) => (
+                <button
+                  key={v}
+                  onClick={() => handleViewChange(v)}
+                  aria-label={`${v} view`}
+                  style={{
+                    padding: "7px 10px",
+                    border: "none",
+                    background: view === v ? "oklch(var(--color-paper-3))" : "transparent",
+                    color: view === v ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-3))",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "background var(--dur-fast), color var(--dur-fast)",
+                  }}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

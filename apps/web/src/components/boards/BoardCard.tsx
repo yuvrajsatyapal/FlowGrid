@@ -282,6 +282,22 @@ export default function BoardCard({ board, workspaceId, isPinned, onTogglePin, o
             transition: "background var(--dur-fast), color var(--dur-fast)",
             boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
           }}
+          onMouseEnter={(e) => {
+            if (isPinned) {
+              e.currentTarget.style.background = "oklch(var(--color-accent-hover))"
+            } else {
+              e.currentTarget.style.background = "oklch(var(--color-accent) / 0.15)"
+              e.currentTarget.style.color = "oklch(var(--color-accent))"
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (isPinned) {
+              e.currentTarget.style.background = "oklch(var(--color-accent))"
+            } else {
+              e.currentTarget.style.background = "oklch(var(--color-paper) / 0.92)"
+              e.currentTarget.style.color = "oklch(var(--color-ink-2))"
+            }
+          }}
         >
           <PinIcon filled={isPinned} />
         </button>

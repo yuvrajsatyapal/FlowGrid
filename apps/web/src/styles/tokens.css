@@ -34,8 +34,8 @@
   --color-success: 47% 0.080 175; /* dusty teal #25695b */
   --color-warning: 70% 0.150 65;
 
-  /* ── Fonts ── editorial: Anton headlines + Hanken Grotesk body */
-  --font-display: "Anton", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  /* ── Fonts ── editorial: Inter headlines + Hanken Grotesk body (matches dark mode display) */
+  --font-display: "Inter", "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
 
   /* Editorial is flat — no elevation shadows */

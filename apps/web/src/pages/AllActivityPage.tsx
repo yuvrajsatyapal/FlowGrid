@@ -145,8 +145,8 @@ export default function AllActivityPage() {
           {CHEVRON_LEFT} Back
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "oklch(var(--color-accent))", display: "flex" }}>{ACTIVITY_ICON}</span>
-          <h1 style={{ margin: 0, fontSize: "var(--text-xl)", fontWeight: 700, fontFamily: "var(--font-display)" }}>
+          <span style={{ color: "oklch(var(--color-accent))", display: "flex", flexShrink: 0 }}>{ACTIVITY_ICON}</span>
+          <h1 style={{ margin: 0, fontSize: "var(--text-xl)", fontWeight: 700, fontFamily: "var(--font-display)", whiteSpace: "nowrap" }}>
             All Activity
           </h1>
         </div>
@@ -158,6 +158,8 @@ export default function AllActivityPage() {
             borderRadius: "100px",
             background: "oklch(var(--color-paper-3))",
             fontWeight: 500,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
           Last 7 days

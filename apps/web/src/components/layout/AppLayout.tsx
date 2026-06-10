@@ -233,8 +233,10 @@ function UnreadBadge({ count }: { count: number }) {
 
 function SidebarContent({
   onNavClick,
+  hideLogo,
 }: {
   onNavClick?: () => void
+  hideLogo?: boolean
 }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
@@ -256,24 +258,26 @@ function SidebarContent({
   return (
     <>
       {/* Logo */}
-      <div style={{ padding: "4px 8px 8px", display: "flex", alignItems: "center", gap: "8px" }}>
-        <svg width="26" height="26" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-          <rect width="40" height="40" rx="8" fill="oklch(52% 0.22 260)" />
-          <rect x="8" y="8" width="10" height="24" rx="2" fill="white" opacity="0.9" />
-          <rect x="22" y="8" width="10" height="16" rx="2" fill="white" opacity="0.6" />
-        </svg>
-        <span
-          style={{
-            fontSize: "var(--text-sm)",
-            fontWeight: 600,
-            letterSpacing: "-0.02em",
-            fontFamily: "var(--font-display)",
-            color: "oklch(var(--color-ink))",
-          }}
-        >
-          FlowGrid
-        </span>
-      </div>
+      {!hideLogo && (
+        <div style={{ padding: "4px 8px 8px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <svg width="26" height="26" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <rect width="40" height="40" rx="8" fill="oklch(52% 0.22 260)" />
+            <rect x="8" y="8" width="10" height="24" rx="2" fill="white" opacity="0.9" />
+            <rect x="22" y="8" width="10" height="16" rx="2" fill="white" opacity="0.6" />
+          </svg>
+          <span
+            style={{
+              fontSize: "var(--text-sm)",
+              fontWeight: 500,
+              letterSpacing: "0.03em",
+              fontFamily: "var(--font-display)",
+              color: "oklch(var(--color-ink))",
+            }}
+          >
+            FlowGrid
+          </span>
+        </div>
+      )}
 
       {/* Workspace switcher */}
       <WorkspaceSwitcher />
@@ -636,22 +640,6 @@ export default function AppLayout() {
           >
             <HamburgerIcon />
           </button>
-          <svg width="22" height="22" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-            <rect width="40" height="40" rx="8" fill="oklch(52% 0.22 260)" />
-            <rect x="8" y="8" width="10" height="24" rx="2" fill="white" opacity="0.9" />
-            <rect x="22" y="8" width="10" height="16" rx="2" fill="white" opacity="0.6" />
-          </svg>
-          <span
-            style={{
-              fontSize: "var(--text-sm)",
-              fontWeight: 600,
-              letterSpacing: "-0.02em",
-              fontFamily: "var(--font-display)",
-              color: "oklch(var(--color-ink))",
-            }}
-          >
-            FlowGrid
-          </span>
         </div>
       )}
 
@@ -693,27 +681,37 @@ export default function AppLayout() {
                 zIndex: 260,
               }}
             >
-              {/* Drawer close button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close navigation menu"
-                autoFocus
-                style={{
-                  alignSelf: "flex-end",
-                  padding: "6px",
-                  marginBottom: "4px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: "transparent",
-                  color: "oklch(var(--color-ink-3))",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <CloseIcon />
-              </button>
-              <SidebarContent onNavClick={() => setIsMobileMenuOpen(false)} />
+              {/* Drawer header: logo + close button on same row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <svg width="26" height="26" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                    <rect width="40" height="40" rx="8" fill="oklch(52% 0.22 260)" />
+                    <rect x="8" y="8" width="10" height="24" rx="2" fill="white" opacity="0.9" />
+                    <rect x="22" y="8" width="10" height="16" rx="2" fill="white" opacity="0.6" />
+                  </svg>
+                  <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, letterSpacing: "0.03em", fontFamily: "var(--font-display)", color: "oklch(var(--color-ink))" }}>
+                    FlowGrid
+                  </span>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  aria-label="Close navigation menu"
+                  autoFocus
+                  style={{
+                    padding: "6px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "transparent",
+                    color: "oklch(var(--color-ink-3))",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <SidebarContent onNavClick={() => setIsMobileMenuOpen(false)} hideLogo />
             </motion.aside>
           </>
         )}

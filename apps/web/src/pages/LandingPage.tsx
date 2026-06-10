@@ -604,10 +604,10 @@ function FeaturesSection() {
                       </li>
                     ))}
                   </ul>
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: feat.bg, padding: '14px 24px', fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#030303' }}>
+                  <a href="/login" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: feat.bg, padding: '14px 24px', fontFamily: "'Hanken Grotesk'", fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#030303', textDecoration: 'none' }}>
                     <span>Explore feature</span>
                     <span>→</span>
-                  </div>
+                  </a>
                 </div>
               </div>
             </div>

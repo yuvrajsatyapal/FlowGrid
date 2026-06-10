@@ -127,25 +127,11 @@ export default function AllDeadlinesPage() {
           {CHEVRON_LEFT} Back
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "oklch(var(--color-accent))", display: "flex" }}>{FLAG_ICON}</span>
-          <h1 style={{ margin: 0, fontSize: "var(--text-xl)", fontWeight: 700, fontFamily: "var(--font-display)" }}>
+          <span style={{ color: "oklch(var(--color-accent))", display: "flex", flexShrink: 0 }}>{FLAG_ICON}</span>
+          <h1 style={{ margin: 0, fontSize: "var(--text-xl)", fontWeight: 700, fontFamily: "var(--font-display)", whiteSpace: "nowrap" }}>
             All Deadlines
           </h1>
         </div>
-        {!loading && cards.length > 0 && (
-          <span
-            style={{
-              fontSize: "var(--text-xs)",
-              color: "oklch(var(--color-ink-3))",
-              padding: "3px 10px",
-              borderRadius: "100px",
-              background: "oklch(var(--color-paper-3))",
-              fontWeight: 500,
-            }}
-          >
-            {cards.length} {cards.length === 1 ? "card" : "cards"}
-          </span>
-        )}
       </div>
 
       {/* Content */}
