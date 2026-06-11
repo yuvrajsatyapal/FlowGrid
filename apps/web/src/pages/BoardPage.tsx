@@ -26,24 +26,13 @@ import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal"
 import { useBoardSocket } from "../hooks/useBoardSocket"
 import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
+import { useWindowWidth } from "../hooks/useWindowWidth"
 import { cardDependenciesApi } from "../api/cardDependencies"
 import { computeBlockedCardIds } from "../utils/dependencies"
 import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 import { workspacesApi } from "../api/workspaces"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
-
-function useWindowWidth() {
-  const [width, setWidth] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth : 1200
-  )
-  useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth)
-    window.addEventListener("resize", onResize)
-    return () => window.removeEventListener("resize", onResize)
-  }, [])
-  return width
-}
 
 type BoardView = "kanban" | "calendar" | "timeline"
 
@@ -150,17 +139,25 @@ export default function BoardPage() {
 
   useEffect(() => { void refreshDepGraph() }, [refreshDepGraph])
 
+  const windowWidth = useWindowWidth()
+  const headerIsSmall = windowWidth < 640
+  const headerIsCompact = windowWidth < 768
+  // Covers all iPads (mini 768, Air 820, Pro 11" 834/1194, Pro 12.9" 1024/1366) in any orientation.
+  // At this range: hide Timeline tab + show icons only (no text) in the view switcher.
+  const headerIsTablet = windowWidth < 1180
+  const hideDescription = windowWidth < 1024
+
+  // Auto-switch away from timeline on phones and all iPad sizes
+  useEffect(() => {
+    if (headerIsTablet && boardView === "timeline") setBoardView("kanban")
+  }, [headerIsTablet, boardView])
+
   useKeyboardShortcuts([
     { key: "?", description: "Open keyboard shortcuts", handler: () => setShortcutsOpen(true) },
     { key: "1", description: "Kanban view", handler: () => setBoardView("kanban") },
     { key: "2", description: "Calendar view", handler: () => setBoardView("calendar") },
-    { key: "3", description: "Timeline view", handler: () => setBoardView("timeline") },
+    { key: "3", description: "Timeline view", handler: () => { if (!headerIsTablet) setBoardView("timeline") } },
   ])
-
-  const windowWidth = useWindowWidth()
-  const headerIsSmall = windowWidth < 640
-  const headerIsCompact = windowWidth < 768
-  const hideDescription = windowWidth < 1024
 
   const canEdit = board?.role === "OWNER" || board?.role === "ADMIN"
   const isViewer = board?.role === "VIEWER"
@@ -336,7 +333,14 @@ export default function BoardPage() {
     1,
     Math.min(MAX_COLS_PER_PAGE, colsAvail > 0 ? Math.floor((colsAvail + COL_GAP) / (MIN_COL + COL_GAP)) : MAX_COLS_PER_PAGE),
   )
-  const colWidth = Math.min(MAX_COL, Math.floor((colsAvail - (colsPerPage - 1) * COL_GAP) / colsPerPage))
+  // Single column (phones / narrow windows): fill the full available width so the list isn't
+  // left-biased with a wide right margin from the MAX_COL cap. Filling colsAvail exactly also
+  // centers it — equal COL_PAD margins each side, no leftover slack. Multi-column layouts
+  // (tablet/desktop, colsPerPage >= 2) keep the MAX_COL cap unchanged.
+  const colWidth =
+    colsPerPage === 1
+      ? colsAvail
+      : Math.min(MAX_COL, Math.floor((colsAvail - (colsPerPage - 1) * COL_GAP) / colsPerPage))
 
   // Per-card height so a FULL list (MAX_CARDS_PER_LIST) fills the column top-to-bottom with no
   // leftover gap. A full list has no "Add a card" row, so the only vertical chrome is the
@@ -346,7 +350,7 @@ export default function BoardPage() {
   const CONTAINER_VPAD = 32 // kanban scroll container top+bottom padding (16 each)
   const LIST_HEADER = 44 // list title row (slightly generous → avoid a scrollbar)
   const CARD_GAP = 8 // matches CardItem marginBottom
-  const CARD_MIN = 96
+  const CARD_MIN = 110
   const cardSlotHeight =
     colsHeight > 0
       ? Math.max(
@@ -708,13 +712,13 @@ export default function BoardPage() {
           {board.name}
         </h1>
 
-        {!headerIsSmall && board.visibility === "PRIVATE" && (
+        {board.visibility === "PRIVATE" && (
           <span
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "4px",
-              padding: "3px 8px",
+              gap: headerIsSmall ? 0 : "4px",
+              padding: headerIsSmall ? "3px 5px" : "3px 8px",
               borderRadius: "var(--radius-badge)",
               background: "oklch(0% 0 0 / 0.30)",
               color: "#fff",
@@ -724,16 +728,16 @@ export default function BoardPage() {
             }}
           >
             {LOCK_ICON}
-            Private
+            {!headerIsSmall && "Private"}
           </span>
         )}
-        {!headerIsSmall && board.visibility === "WORKSPACE" && (
+        {board.visibility === "WORKSPACE" && (
           <span
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "4px",
-              padding: "3px 8px",
+              gap: headerIsSmall ? 0 : "4px",
+              padding: headerIsSmall ? "3px 5px" : "3px 8px",
               borderRadius: "var(--radius-badge)",
               background: "oklch(0% 0 0 / 0.30)",
               color: "#fff",
@@ -743,7 +747,7 @@ export default function BoardPage() {
             }}
           >
             {GLOBE_ICON}
-            Workspace
+            {!headerIsSmall && "Workspace"}
           </span>
         )}
 
@@ -760,7 +764,7 @@ export default function BoardPage() {
               padding: 2,
             }}
           >
-            {(["kanban", "calendar", "timeline"] as BoardView[]).map((v) => (
+            {(["kanban", "calendar", ...(headerIsTablet ? [] : ["timeline"])] as BoardView[]).map((v) => (
               <button
                 key={v}
                 aria-pressed={boardView === v}
@@ -769,7 +773,7 @@ export default function BoardPage() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: headerIsCompact ? 0 : 5,
+                  gap: headerIsTablet ? 0 : 5,
                   padding: headerIsSmall ? "5px 7px" : "4px 10px",
                   borderRadius: "var(--radius-badge)",
                   border: "none",
@@ -782,7 +786,7 @@ export default function BoardPage() {
                 }}
               >
                 {VIEW_ICONS[v]}
-                {!headerIsCompact && (v.charAt(0).toUpperCase() + v.slice(1))}
+                {!headerIsTablet && (v.charAt(0).toUpperCase() + v.slice(1))}
               </button>
             ))}
           </div>
@@ -850,11 +854,12 @@ export default function BoardPage() {
                 <button
                   onClick={() => setAccessPanelOpen((v) => !v)}
                   aria-pressed={accessPanelOpen}
+                  aria-label="Manage board access"
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 5,
-                    padding: "4px 10px",
+                    padding: headerIsSmall ? "5px 7px" : "4px 10px",
                     borderRadius: "var(--radius-badge)",
                     border: "none",
                     cursor: "pointer",
@@ -869,7 +874,7 @@ export default function BoardPage() {
                     <circle cx="6" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.1" />
                     <path d="M1 10.5c0-2.21 2.24-4 5-4s5 1.79 5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
                   </svg>
-                  Access
+                  {!headerIsSmall && "Access"}
                 </button>
 
                 {accessPanelOpen && board.visibility === "PRIVATE" && (
@@ -1060,13 +1065,30 @@ export default function BoardPage() {
         </div>
       ) : (
         /* Kanban columns (paginated — a page of lists at a time) */
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, position: "relative" }}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            position: "relative",
+            // Mobile: the wrapper scrolls as one unit so the pager flows right after the
+            // (content-sized) column. Desktop keeps the inner scroll + bottom-pinned pager.
+            overflowY: headerIsCompact ? "auto" : undefined,
+          }}
+        >
           <div
             ref={kanbanRef}
             style={{
-              flex: 1,
+              // Mobile: grow to fill leftover height (flex-grow 1) but never shrink below content
+              // (shrink 0) — on tall phones this expands to push the pager to the bottom edge (no
+              // dead zone), while on short screens (iPhone SE) the cards already overflow so it
+              // stays content-height and the wrapper scrolls exactly as before. Desktop: flex:1.
+              flex: headerIsCompact ? "1 0 auto" : 1,
               overflowX: "hidden",
-              overflowY: "auto",
+              // Mobile: overflow visible so this never owns a nested scroll — the wrapper scrolls
+              // as one unit. Desktop keeps the inner scroll with the pager pinned below.
+              overflowY: headerIsCompact ? "visible" : "auto",
               padding: `16px ${COL_PAD}px`,
               display: "flex",
               alignItems: "flex-start",
@@ -1115,9 +1137,10 @@ export default function BoardPage() {
                     onCardCreated={handleCardCreated}
                     onCardClick={isViewer ? undefined : (id) => setOpenCardId(id)}
                     width={colWidth}
-                    cardSlotHeight={cardSlotHeight}
+                    cardSlotHeight={headerIsCompact ? undefined : cardSlotHeight}
                     blockedCardIds={blockedCardIds}
                     hideDescription={hideDescription}
+                    mobile={headerIsSmall}
                   />
                 ) : (
                   <CreateListInline key="__add_list__" onSubmit={handleCreateList} width={colWidth} />
