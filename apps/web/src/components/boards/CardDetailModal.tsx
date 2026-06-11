@@ -749,7 +749,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                 borderBottom: "1px solid oklch(var(--color-border))",
               }}
             >
@@ -834,7 +834,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
                 borderBottom: "1px solid oklch(var(--color-border))",
               }}
             >
