@@ -2003,6 +2003,19 @@ function MobileDateField({
           ×
         </button>
       )}
+      {/* Calendar affordance — accent colored. Decorative; the invisible
+          native input underneath captures the tap and opens the OS picker. */}
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+        style={{ flexShrink: 0, pointerEvents: "none", color: "oklch(var(--color-accent))" }}
+      >
+        <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
     </div>
   )
 }
