@@ -482,6 +482,20 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   const windowWidth = useWindowWidth()
   const isMobile = windowWidth < 640
 
+  // On mobile, the four content sections render as collapsible summary rows.
+  // Set holds the keys of currently-expanded sections (all collapsed by default).
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const toggleSection = (key: string) =>
+    setExpandedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+
   return (
     <motion.div
       ref={overlayRef}
@@ -1254,27 +1268,50 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               </div>
             </div>
 
-            {/* Checklist */}
-            <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+            {/* Checklist — collapsible */}
+            <MobileSectionRow
+              icon="✓"
+              title="Checklist"
+              summary={localCard.checklistTotal > 0 ? `${localCard.checklistDone}/${localCard.checklistTotal}` : undefined}
+              expanded={expandedSections.has("checklist")}
+              onToggle={() => toggleSection("checklist")}
+            >
               <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} canToggle={canToggleChecklist} />
-            </div>
+            </MobileSectionRow>
 
-            {/* Attachments */}
-            <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+            {/* Attachments — collapsible */}
+            <MobileSectionRow
+              icon="📎"
+              title="Attachments"
+              summary={localCard.attachmentCount > 0 ? `${localCard.attachmentCount} file${localCard.attachmentCount === 1 ? "" : "s"}` : undefined}
+              expanded={expandedSections.has("attachments")}
+              onToggle={() => toggleSection("attachments")}
+            >
               <AttachmentSection cardId={localCard.id} canEdit={effectiveCanEdit} />
-            </div>
+            </MobileSectionRow>
 
-            {/* Watchers */}
+            {/* Watchers — collapsible */}
             {user && (
-              <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+              <MobileSectionRow
+                icon="👁"
+                title="Watchers"
+                expanded={expandedSections.has("watchers")}
+                onToggle={() => toggleSection("watchers")}
+              >
                 <WatchersSection cardId={localCard.id} currentUserId={user.id} assigneeId={localCard.assigneeId} />
-              </div>
+              </MobileSectionRow>
             )}
 
-            {/* Dependencies — last section, no border-bottom */}
-            <div style={{ padding: "16px 14px" }}>
+            {/* Dependencies — collapsible, last section */}
+            <MobileSectionRow
+              icon="🔗"
+              title="Dependencies"
+              expanded={expandedSections.has("dependencies")}
+              onToggle={() => toggleSection("dependencies")}
+              isLast
+            >
               <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={effectiveCanEdit} onChanged={() => void refreshBlocked()} />
-            </div>
+            </MobileSectionRow>
 
           </div>
         ) : (
@@ -1861,6 +1898,72 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+    </div>
+  )
+}
+
+// Collapsible summary row for the mobile card detail. Shows an icon + title +
+// a short summary on the right, with a chevron that rotates when expanded.
+// The section's full content renders below the row only when open.
+function MobileSectionRow({
+  icon,
+  title,
+  summary,
+  expanded,
+  onToggle,
+  isLast = false,
+  children,
+}: {
+  icon: string
+  title: string
+  summary?: string
+  expanded: boolean
+  onToggle: () => void
+  isLast?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ borderBottom: isLast ? "none" : "1px solid oklch(var(--color-border))" }}>
+      <button
+        onClick={onToggle}
+        aria-expanded={expanded}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "13px 14px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--font-body)",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "oklch(var(--color-ink))", flex: 1 }}>
+          {title}
+        </span>
+        {summary && (
+          <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", flexShrink: 0 }}>
+            {summary}
+          </span>
+        )}
+        <span
+          style={{
+            fontSize: 11,
+            color: "oklch(var(--color-ink-3))",
+            flexShrink: 0,
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.15s",
+            display: "inline-block",
+          }}
+          aria-hidden="true"
+        >
+          ▸
+        </span>
+      </button>
+      {expanded && <div style={{ padding: "0 14px 16px" }}>{children}</div>}
     </div>
   )
 }
