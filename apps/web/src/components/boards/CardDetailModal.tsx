@@ -368,6 +368,14 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
     await saveField({ assigneeId: val || null })
   }
 
+  // Value-based variants for the mobile custom dropdown (MobileSelect)
+  async function handlePriorityValueChange(v: string) {
+    await saveField({ priority: v as Priority })
+  }
+  async function handleAssigneeValueChange(v: string) {
+    await saveField({ assigneeId: v || null })
+  }
+
   async function handleLabelToggle(label: LabelSummary) {
     const assigned = localCard.labels.some((l) => l.id === label.id)
     setSaveState("saving")
@@ -771,50 +779,19 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 }}
               >
                 <FieldLabel>Priority</FieldLabel>
-                <div style={{ position: "relative" }}>
-                  {(() => {
-                    const dotColor = PRIORITY_OPTIONS.find((o) => o.value === localCard.priority)?.color
-                    return dotColor ? (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute",
-                          left: 10,
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          width: 9,
-                          height: 9,
-                          borderRadius: "50%",
-                          background: dotColor,
-                          pointerEvents: "none",
-                          zIndex: 1,
-                        }}
-                      />
-                    ) : null
-                  })()}
-                  <select
-                    value={localCard.priority}
-                    onChange={handlePriorityChange}
-                    disabled={!effectiveCanEdit}
-                    style={{
-                      width: "100%",
-                      padding: localCard.priority !== "NONE" ? "8px 8px 8px 26px" : "8px 8px",
-                      borderRadius: "var(--radius-input)",
-                      border: "1px solid oklch(var(--color-border))",
-                      background: "oklch(var(--color-paper))",
-                      color: "oklch(var(--color-ink))",
-                      fontSize: "var(--text-sm)",
-                      fontFamily: "var(--font-body)",
-                      cursor: effectiveCanEdit ? "pointer" : "default",
-                    }}
-                  >
-                    {PRIORITY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MobileSelect
+                  ariaLabel="Priority"
+                  value={localCard.priority}
+                  disabled={!effectiveCanEdit}
+                  onChange={(v) => void handlePriorityValueChange(v)}
+                  options={PRIORITY_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: o.label,
+                    leading: o.color ? (
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: o.color, flexShrink: 0 }} />
+                    ) : undefined,
+                  }))}
+                />
               </div>
 
               {/* Due Date cell */}
@@ -862,65 +839,23 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
               {/* Assignee cell */}
               <div style={{ padding: "12px 14px" }}>
                 <FieldLabel>Assignee</FieldLabel>
-                <div style={{ position: "relative" }}>
-                  {localCard.assignee && (
-                    localCard.assignee.avatarUrl ? (
-                      <img
-                        src={localCard.assignee.avatarUrl}
-                        alt=""
-                        width={20}
-                        height={20}
-                        style={{
-                          position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-                          borderRadius: "50%", objectFit: "cover", display: "block",
-                          pointerEvents: "none", zIndex: 1,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-                          width: 20, height: 20, borderRadius: "50%",
-                          background: getAvatarBg(localCard.assignee.id),
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          color: "#fff", fontSize: 9, fontWeight: 600, fontFamily: "var(--font-body)",
-                          pointerEvents: "none", zIndex: 1,
-                        }}
-                      >
-                        {getInitials(localCard.assignee.name)}
-                      </div>
-                    )
-                  )}
-                  <select
-                    value={localCard.assigneeId ?? ""}
-                    onChange={handleAssigneeChange}
-                    disabled={!effectiveCanEdit}
-                    style={{
-                      width: "100%",
-                      padding: localCard.assignee ? "8px 22px 8px 34px" : "8px 22px 8px 8px",
-                      borderRadius: "var(--radius-input)",
-                      border: "1px solid oklch(var(--color-border))",
-                      background: "oklch(var(--color-paper))",
-                      color: "oklch(var(--color-ink))",
-                      fontSize: "calc(var(--text-sm) - 1px)",
-                      fontFamily: "var(--font-body)",
-                      cursor: effectiveCanEdit ? "pointer" : "default",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    <option value="">Unassigned</option>
-                    {members.map((m) => (
-                      // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
-                      // The backend validates assigneeId against workspaceMember.userId
-                      <option key={m.id} value={m.userId}>
-                        {m.name ?? m.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <MobileSelect
+                  ariaLabel="Assignee"
+                  value={localCard.assigneeId ?? ""}
+                  disabled={!effectiveCanEdit}
+                  placeholder="Unassigned"
+                  onChange={(v) => void handleAssigneeValueChange(v)}
+                  options={[
+                    { value: "", label: "Unassigned" },
+                    // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
+                    // The backend validates assigneeId against workspaceMember.userId
+                    ...members.map((m) => ({
+                      value: m.userId,
+                      label: m.name ?? m.email,
+                      leading: <MiniAvatar id={m.userId} name={m.name} avatarUrl={m.avatarUrl} />,
+                    })),
+                  ]}
+                />
               </div>
             </div>
 
@@ -1861,6 +1796,43 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   )
 }
 
+// 20px round avatar (photo or coloured initials) used in the mobile
+// assignee dropdown — both the closed trigger and the option rows.
+function MiniAvatar({ id, name, avatarUrl }: { id: string; name: string | null; avatarUrl: string | null }) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        width={20}
+        height={20}
+        style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }}
+      />
+    )
+  }
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: 20,
+        height: 20,
+        borderRadius: "50%",
+        background: getAvatarBg(id),
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontSize: 9,
+        fontWeight: 600,
+        fontFamily: "var(--font-body)",
+        flexShrink: 0,
+      }}
+    >
+      {getInitials(name)}
+    </div>
+  )
+}
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -2030,6 +2002,125 @@ function MobileDateField({
         >
           ×
         </button>
+      )}
+    </div>
+  )
+}
+
+interface MobileSelectOption {
+  value: string
+  label: string
+  leading?: React.ReactNode
+}
+
+// Custom dropdown for the mobile card detail. Unlike a native <select>, this
+// lets us style the trigger and option list, show avatars/dots in both the
+// closed state and the option rows, and control the font size and position.
+function MobileSelect({
+  value,
+  options,
+  onChange,
+  disabled = false,
+  placeholder = "Select",
+  ariaLabel,
+}: {
+  value: string
+  options: MobileSelectOption[]
+  onChange: (value: string) => void
+  disabled?: boolean
+  placeholder?: string
+  ariaLabel: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find((o) => o.value === value)
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => { if (!disabled) setOpen((v) => !v) }}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 10px",
+          borderRadius: "var(--radius-input)",
+          border: "1px solid oklch(var(--color-border))",
+          background: "oklch(var(--color-paper))",
+          color: "oklch(var(--color-ink))",
+          fontSize: "var(--text-sm)",
+          fontFamily: "var(--font-body)",
+          cursor: disabled ? "default" : "pointer",
+          textAlign: "left",
+        }}
+      >
+        {selected?.leading}
+        <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <span aria-hidden="true" style={{ flexShrink: 0, color: "oklch(var(--color-ink-3))", fontSize: 10 }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 399 }} onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              right: 0,
+              zIndex: 400,
+              maxHeight: 240,
+              overflowY: "auto",
+              background: "oklch(var(--color-paper))",
+              border: "1px solid oklch(var(--color-border))",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
+              padding: 4,
+            }}
+          >
+            {options.map((opt) => {
+              const isSel = opt.value === value
+              return (
+                <button
+                  key={opt.value || "__none"}
+                  type="button"
+                  role="option"
+                  aria-selected={isSel}
+                  onClick={() => { onChange(opt.value); setOpen(false) }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: isSel ? "oklch(var(--color-paper-2))" : "transparent",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {opt.leading}
+                  <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {opt.label}
+                  </span>
+                  {isSel && <span style={{ color: "oklch(var(--color-accent))", flexShrink: 0 }}>✓</span>}
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
