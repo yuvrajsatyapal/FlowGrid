@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, useRef } from "react"
 import { Calendar, dateFnsLocalizer, type Event as RBCEvent, type ToolbarProps } from "react-big-calendar"
 import { format, parse, startOfWeek, getDay } from "date-fns"
 import { enUS } from "date-fns/locale"
@@ -45,46 +45,97 @@ const selectStyle: React.CSSProperties = {
   paddingRight: 28,
 }
 
+function useToolbarWidth() {
+  const [isCompact, setIsCompact] = useState(() => window.innerWidth < 640)
+  const rafRef = useRef<number | null>(null)
+  useEffect(() => {
+    const handler = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => setIsCompact(window.innerWidth < 640))
+    }
+    window.addEventListener("resize", handler)
+    return () => {
+      window.removeEventListener("resize", handler)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [])
+  return isCompact
+}
+
 function CustomToolbar({ label, onNavigate, date }: ToolbarProps<CalendarEvent>) {
   const month = date.getMonth()
   const year = date.getFullYear()
   const years = Array.from({ length: 10 }, (_, i) => year - 3 + i)
+  const isCompact = useToolbarWidth()
+
+  const compactBtnStyle: React.CSSProperties = {
+    ...btnStyle,
+    padding: "5px 9px",
+    fontSize: "0.75rem",
+  }
+  const compactSelectStyle: React.CSSProperties = {
+    ...selectStyle,
+    padding: "5px 8px",
+    fontSize: "0.75rem",
+    paddingRight: 24,
+  }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", paddingBottom: 16, gap: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", paddingBottom: 12, gap: isCompact ? 6 : 12 }}>
       {/* Left: Today + arrows */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <button style={btnStyle} onClick={() => onNavigate("TODAY")}>Today</button>
-        <button style={{ ...btnStyle, padding: "6px 10px", fontSize: "1rem" }} onClick={() => onNavigate("PREV")}>‹</button>
-        <button style={{ ...btnStyle, padding: "6px 10px", fontSize: "1rem" }} onClick={() => onNavigate("NEXT")}>›</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+        <button
+          style={isCompact ? compactBtnStyle : btnStyle}
+          onClick={() => onNavigate("TODAY")}
+        >
+          Today
+        </button>
+        <button
+          style={{ ...(isCompact ? compactBtnStyle : btnStyle), padding: isCompact ? "5px 8px" : "6px 10px", fontSize: "1rem" }}
+          onClick={() => onNavigate("PREV")}
+        >
+          ‹
+        </button>
+        <button
+          style={{ ...(isCompact ? compactBtnStyle : btnStyle), padding: isCompact ? "5px 8px" : "6px 10px", fontSize: "1rem" }}
+          onClick={() => onNavigate("NEXT")}
+        >
+          ›
+        </button>
       </div>
 
-      {/* Center: label */}
-      <span style={{ flex: 1, textAlign: "center", fontSize: "1.25rem", fontWeight: 700, color: "oklch(var(--color-ink))" }}>
-        {label}
-      </span>
+      {/* Center: label — hidden on compact (dropdowns already show month/year) */}
+      {!isCompact ? (
+        <span style={{ flex: 1, textAlign: "center", fontSize: "1.25rem", fontWeight: 700, color: "oklch(var(--color-ink))", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {label}
+        </span>
+      ) : (
+        <span style={{ flex: 1 }} />
+      )}
 
       {/* Right: month + year dropdowns */}
-      <div style={{ display: "flex", gap: 6, position: "relative" }}>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <div style={{ position: "relative" }}>
           <select
             value={month}
-            style={selectStyle}
+            style={isCompact ? compactSelectStyle : selectStyle}
             onChange={(e) => onNavigate("DATE", new Date(year, parseInt(e.target.value), 1))}
           >
-            {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            {MONTHS.map((m, i) => (
+              <option key={i} value={i}>{isCompact ? m.slice(0, 3) : m}</option>
+            ))}
           </select>
-          <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 10, color: "oklch(var(--color-ink-3))" }}>▾</span>
+          <span style={{ position: "absolute", right: isCompact ? 6 : 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 10, color: "oklch(var(--color-ink-3))" }}>▾</span>
         </div>
         <div style={{ position: "relative" }}>
           <select
             value={year}
-            style={selectStyle}
+            style={isCompact ? compactSelectStyle : selectStyle}
             onChange={(e) => onNavigate("DATE", new Date(parseInt(e.target.value), month, 1))}
           >
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 10, color: "oklch(var(--color-ink-3))" }}>▾</span>
+          <span style={{ position: "absolute", right: isCompact ? 6 : 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 10, color: "oklch(var(--color-ink-3))" }}>▾</span>
         </div>
       </div>
     </div>
@@ -94,26 +145,22 @@ function CustomToolbar({ label, onNavigate, date }: ToolbarProps<CalendarEvent>)
 function CustomDateHeader({ date, label }: { date: Date; label: string; isOffRange: boolean }) {
   const isToday = date.toDateString() === new Date().toDateString()
 
-  if (isToday) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 2px" }}>
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end", padding: "3px 3px 3px 2px" }}>
+      {isToday ? (
         <span style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 28, height: 28, borderRadius: "50%",
+          width: 24, height: 24, borderRadius: "50%",
           background: "#f97316", color: "#fff", fontWeight: 700, fontSize: "0.8125rem",
+          lineHeight: 1,
         }}>
           {label}
         </span>
-        <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "oklch(var(--color-ink-3))", position: "relative", top: -2 }}>Today</span>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 2px" }}>
-      <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
-        {label}
-      </span>
+      ) : (
+        <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "oklch(var(--color-ink-2))", lineHeight: "24px" }}>
+          {label}
+        </span>
+      )}
     </div>
   )
 }
@@ -200,7 +247,7 @@ export default function BoardCalendarView({ boardId, onCardClick }: Props) {
   }
 
   return (
-    <div className="h-full p-4 overflow-auto">
+    <div style={{ height: "100%", padding: "12px 8px 8px", overflowY: "auto", overflowX: "hidden", boxSizing: "border-box" }}>
       <style>{`
         /* ── Base ── */
         .rbc-calendar { font-family: inherit; color: oklch(var(--color-ink)); background: oklch(var(--color-paper)); }
@@ -272,13 +319,23 @@ export default function BoardCalendarView({ boardId, onCardClick }: Props) {
         /* Hide time labels in week view */
         .rbc-time-gutter { display: none !important; }
         .rbc-time-header-gutter { display: none !important; }
+
+        /* ── Mobile responsive ── */
+        @media (max-width: 639px) {
+          .rbc-header { padding: 6px 2px; font-size: 0.5625rem; letter-spacing: 0.02em; }
+          .rbc-date-cell { padding: 3px 4px; }
+          .rbc-date-cell > a, .rbc-date-cell > button { font-size: 0.6875rem; }
+          .rbc-event { padding: 2px 5px !important; font-size: 0.6875rem !important; border-radius: 12px !important; }
+          .rbc-show-more { font-size: 0.625rem; padding: 0 4px; }
+          .rbc-month-view { border-radius: 8px; }
+        }
       `}</style>
       <Calendar<CalendarEvent>
         localizer={localizer}
         events={events}
         defaultView="month"
         views={["month"]}
-        style={{ height: "calc(100vh - 160px)", minHeight: 500 }}
+        style={{ height: "calc(100vh - 180px)", minHeight: 400 }}
         components={{ toolbar: CustomToolbar, month: { dateHeader: CustomDateHeader } }}
         eventPropGetter={(event) => ({
           style: {

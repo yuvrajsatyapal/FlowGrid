@@ -23,6 +23,8 @@ interface Props {
   blockedCardIds?: Set<string>
   isViewer?: boolean
   hideDescription?: boolean
+  /** Phones (<640px): cards get a crisper resting elevation */
+  mobile?: boolean
 }
 
 function isDoneList(name: string): boolean {
@@ -30,7 +32,7 @@ function isDoneList(name: string): boolean {
   return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, cardSlotHeight, blockedCardIds, isViewer = false, hideDescription = false }: Props) {
+export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, cardSlotHeight, blockedCardIds, isViewer = false, hideDescription = false, mobile = false }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -93,9 +95,13 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
         flexDirection: "column",
         width,
         flexShrink: 0,
-        // A full list stretches to the column height so its cards fill it edge-to-edge;
-        // a partial/empty list stays content-sized (grows with the number of cards).
-        alignSelf: isFull ? "stretch" : "flex-start",
+        // A full list stretches to the column height so its cards fill it edge-to-edge —
+        // but ONLY when cards have a fixed slot height (desktop), where a full list is sized
+        // to exactly fill the stretched box. On small/medium screens cards are content-sized
+        // (cardSlotHeight undefined): stretching would pin the column's height to the viewport
+        // and clip its border/background, leaving the last card(s) overflowing below it. So
+        // there we stay content-sized (flex-start) and the column grows to wrap every card.
+        alignSelf: isFull && cardSlotHeight != null ? "stretch" : "flex-start",
         background: "oklch(var(--color-paper-2))",
         borderRadius: "var(--radius-card)",
         border: "1px solid oklch(var(--color-border))",
@@ -262,14 +268,14 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
       >
         <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
-            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} minHeight={cardSlotHeight} isViewer={isViewer} onCardClick={isViewer ? undefined : onCardClick} hideDescription={hideDescription} />
+            <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} minHeight={cardSlotHeight} isViewer={isViewer} onCardClick={isViewer ? undefined : onCardClick} hideDescription={hideDescription} mobile={mobile} />
           ))}
         </SortableContext>
       </div>
 
       {/* Add card — hidden once the list hits the card cap (delete a card to add another) */}
       {canEdit && !isFull && (
-        <div style={{ padding: "4px 4px 6px" }}>
+        <div style={{ padding: "2px 4px 4px" }}>
           <CreateCardInline onSubmit={handleCreateCard} />
         </div>
       )}

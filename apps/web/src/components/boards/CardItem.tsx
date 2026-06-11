@@ -19,8 +19,15 @@ interface Props {
   isViewer?: boolean
   /** When true, hides the description block (used on small/medium screens) */
   hideDescription?: boolean
+  /** Phones (<640px): give cards a crisper resting elevation so they read as cleanly
+   *  "lifted" off the grey column even when not hovered. Desktop/tablet stay flat. */
+  mobile?: boolean
   onCardClick?: (cardId: string) => void
 }
+
+// Phones (<640px) render content-sized cards (no fixed slot height from the column). Give them
+// a gentle floor so short cards (label + title only) don't read as cramped.
+const MOBILE_CARD_MIN_HEIGHT = 112
 
 const PRIORITY_DOT: Record<Priority, string | null> = {
   NONE: null,
@@ -66,7 +73,7 @@ function formatCompletedDate(iso: string): string {
 function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | null; avatarUrl: string | null }) {
   if (avatarUrl) {
     return (
-      <img src={avatarUrl} alt={name ?? "Assignee"} width={22} height={22}
+      <img src={avatarUrl} alt={name ?? "Assignee"} width={26} height={26}
         style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }} />
     )
   }
@@ -75,10 +82,10 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
       aria-label={name ?? "Assigned user"}
       title={name ?? undefined}
       style={{
-        width: 22, height: 22, borderRadius: "50%",
+        width: 26, height: 26, borderRadius: "50%",
         background: getAvatarBg(id),
         display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 700,
+        flexShrink: 0, color: "#fff", fontSize: 10, fontWeight: 700,
         fontFamily: "var(--font-body)", userSelect: "none",
       }}
     >
@@ -89,13 +96,15 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, hideDescription = false, onCardClick }: Props) {
+export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, hideDescription = false, mobile = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
 
   const firstLabel = card.labels[0] ?? null
   const prioritySuffix = card.priority !== "NONE" ? ` — ${card.priority.toLowerCase()} priority` : ""
   const isComplete = card.completedAt != null
   const done = isComplete || isDoneList
+  // Desktop passes an explicit slot height; phones fall back to a gentle minimum.
+  const resolvedMinHeight = minHeight ?? (mobile ? MOBILE_CARD_MIN_HEIGHT : undefined)
 
   return (
     <div
@@ -111,7 +120,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
         flex: overlay ? undefined : "1 1 0",
         display: overlay ? undefined : "flex",
         flexDirection: "column",
-        minHeight: overlay ? undefined : minHeight,
+        minHeight: overlay ? undefined : resolvedMinHeight,
       }}
       {...(overlay ? {} : { ...attributes, ...listeners })}
     >
@@ -124,7 +133,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
           e.stopPropagation()
           onCardClick?.(card.id)
         }}
-        whileHover={(!overlay && !isDragging && !isViewer) ? { y: -2 } : undefined}
+        whileHover={(!overlay && !isDragging && !isViewer && !mobile) ? { y: -2 } : undefined}
         whileTap={(!overlay && !isDragging && !isViewer) ? { scale: 0.98 } : undefined}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
         style={{
@@ -133,19 +142,25 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
           border: "1px solid oklch(var(--color-border))",
           padding: "13px 14px 14px",
           flex: overlay ? undefined : 1,
-          minHeight: overlay ? undefined : minHeight,
-          boxShadow: overlay ? "0 8px 24px oklch(0% 0 0 / 0.16)" : "0 1px 2px oklch(0% 0 0 / 0.04)",
+          minHeight: overlay ? undefined : resolvedMinHeight,
+          boxShadow: overlay
+            ? "0 8px 24px oklch(0% 0 0 / 0.16)"
+            : mobile
+              ? "0 1px 2px oklch(0% 0 0 / 0.05), 0 6px 16px -8px oklch(0% 0 0 / 0.12)"
+              : "0 1px 2px oklch(0% 0 0 / 0.04)",
           display: "flex",
           flexDirection: "column",
           gap: 8,
           overflow: "hidden",
         }}
         onMouseEnter={(e) => {
-          if (overlay || isDragging || isViewer) return
+          // No hover affordance on phones — touch has no hover, and a single highlighted
+          // card makes its flat neighbours look mismatched. Cards stay visually uniform.
+          if (overlay || isDragging || isViewer || mobile) return
           ;(e.currentTarget as HTMLDivElement).style.borderColor = "oklch(var(--color-accent-muted))"
         }}
         onMouseLeave={(e) => {
-          if (overlay || isDragging || isViewer) return
+          if (overlay || isDragging || isViewer || mobile) return
           ;(e.currentTarget as HTMLDivElement).style.borderColor = ""
         }}
       >
@@ -239,7 +254,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
               </div>
             )}
 
-            {!isViewer && blocked && !isComplete && (
+            {!isViewer && blocked && !isComplete && !mobile && (
               <span
                 style={{
                   alignSelf: "flex-start",
@@ -266,32 +281,64 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
             )}
           </div>
 
-          {/* Right column: stats stacked at top, avatar pinned to bottom — hidden for viewers */}
+          {/* Right column: stats at top, avatar just below — no flex spacer to avoid white void */}
           {!isViewer && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
-              {card.dueDate && (
-                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", fontWeight: 600, color: "oklch(var(--color-error))", whiteSpace: "nowrap" }}>
-                  {FLAG_ICON} {formatDueDate(card.dueDate)}
-                </span>
-              )}
-              {card.checklistTotal > 0 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: card.checklistDone === card.checklistTotal ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))" }}>
-                  ✓ {card.checklistDone}/{card.checklistTotal}
-                </span>
-              )}
-              {card.attachmentCount > 0 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: "oklch(var(--color-ink-3))" }}>
-                  {PAPERCLIP_ICON} {card.attachmentCount}
-                </span>
-              )}
-              <div style={{ flex: 1 }} />
-              {card.assignee && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0, minWidth: 0 }}>
+              {/* Stats cluster */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                {card.dueDate && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", fontWeight: 600, color: "oklch(var(--color-error))", whiteSpace: "nowrap" }}>
+                    {FLAG_ICON} {formatDueDate(card.dueDate)}
+                  </span>
+                )}
+                {card.checklistTotal > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: card.checklistDone === card.checklistTotal ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))" }}>
+                    ✓ {card.checklistDone}/{card.checklistTotal}
+                  </span>
+                )}
+                {card.attachmentCount > 0 && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "0.6875rem", color: "oklch(var(--color-ink-3))" }}>
+                    {PAPERCLIP_ICON} {card.attachmentCount}
+                  </span>
+                )}
+              </div>
+              {/* Avatar pinned to bottom via justify-content: space-between — desktop only */}
+              {!mobile && card.assignee && (
                 <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
               )}
             </div>
           )}
 
         </div>
+
+        {/* Mobile bottom row: blocked badge (left) + avatar (right) */}
+        {!isViewer && mobile && ((blocked && !isComplete) || card.assignee) && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              {blocked && !isComplete && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                    padding: "1px 6px",
+                    borderRadius: "var(--radius-badge)",
+                    background: "oklch(var(--color-error) / 0.12)",
+                    color: "oklch(var(--color-error))",
+                    fontSize: "0.5625rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  🔒 Blocked
+                </span>
+              )}
+            </div>
+            {card.assignee && (
+              <AssigneeAvatar id={card.assignee.id} name={card.assignee.name} avatarUrl={card.assignee.avatarUrl} />
+            )}
+          </div>
+        )}
       </motion.div>
     </div>
   )
