@@ -64,6 +64,16 @@ function taskShortId(id: string): string {
   return `TASK-${id.replace(/-/g, "").slice(-4).toUpperCase()}`
 }
 
+// Format a native date-input value (yyyy-mm-dd) as "Jun 20".
+// Built from parts to avoid the UTC-parsing off-by-one of new Date("yyyy-mm-dd").
+function formatShortDate(value: string): string {
+  const [y, m, d] = value.split("-").map(Number)
+  if (!y || !m || !d) {
+    return value
+  }
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
 // Icons for header buttons
 const TRASH_ICON = (
   <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -761,72 +771,64 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 }}
               >
                 <FieldLabel>Priority</FieldLabel>
-                <select
-                  value={localCard.priority}
-                  onChange={handlePriorityChange}
-                  disabled={!effectiveCanEdit}
-                  style={{
-                    width: "100%",
-                    padding: "6px 8px",
-                    borderRadius: "var(--radius-input)",
-                    border: "1px solid oklch(var(--color-border))",
-                    background: "oklch(var(--color-paper-2))",
-                    color: "oklch(var(--color-ink))",
-                    fontSize: "var(--text-sm)",
-                    fontFamily: "var(--font-body)",
-                    cursor: effectiveCanEdit ? "pointer" : "default",
-                  }}
-                >
-                  {PRIORITY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ position: "relative" }}>
+                  {(() => {
+                    const dotColor = PRIORITY_OPTIONS.find((o) => o.value === localCard.priority)?.color
+                    return dotColor ? (
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          position: "absolute",
+                          left: 10,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: 9,
+                          height: 9,
+                          borderRadius: "50%",
+                          background: dotColor,
+                          pointerEvents: "none",
+                          zIndex: 1,
+                        }}
+                      />
+                    ) : null
+                  })()}
+                  <select
+                    value={localCard.priority}
+                    onChange={handlePriorityChange}
+                    disabled={!effectiveCanEdit}
+                    style={{
+                      width: "100%",
+                      padding: localCard.priority !== "NONE" ? "8px 8px 8px 26px" : "8px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper))",
+                      color: "oklch(var(--color-ink))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                    }}
+                  >
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Due Date cell */}
               <div style={{ padding: "12px 14px" }}>
                 <FieldLabel>Due Date</FieldLabel>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input
-                    type="date"
-                    value={localDueDate}
-                    onChange={handleDueDateChange}
-                    disabled={!effectiveCanEdit}
-                    style={{
-                      flex: 1,
-                      padding: "6px 8px",
-                      borderRadius: "var(--radius-input)",
-                      border: "1px solid oklch(var(--color-border))",
-                      background: "oklch(var(--color-paper-2))",
-                      color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
-                      fontSize: "var(--text-sm)",
-                      fontFamily: "var(--font-body)",
-                      cursor: effectiveCanEdit ? "pointer" : "default",
-                      colorScheme: "dark",
-                      minWidth: 0,
-                    }}
-                  />
-                  {localDueDate && effectiveCanEdit && (
-                    <button
-                      onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
-                      aria-label="Clear due date"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "oklch(var(--color-ink-3))",
-                        fontSize: 16,
-                        lineHeight: 1,
-                        padding: "2px 4px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
+                <MobileDateField
+                  value={localDueDate}
+                  onChange={handleDueDateChange}
+                  onClear={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
+                  disabled={!effectiveCanEdit}
+                  accent="oklch(var(--color-error))"
+                  placeholder="Set date"
+                  clearLabel="Clear due date"
+                />
               </div>
             </div>
 
@@ -846,103 +848,76 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 }}
               >
                 <FieldLabel>Start Date</FieldLabel>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input
-                    type="date"
-                    value={localStartDate}
-                    onChange={handleStartDateChange}
-                    disabled={!effectiveCanEdit}
-                    style={{
-                      flex: 1,
-                      padding: "6px 8px",
-                      borderRadius: "var(--radius-input)",
-                      border: "1px solid oklch(var(--color-border))",
-                      background: "oklch(var(--color-paper-2))",
-                      color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
-                      fontSize: "var(--text-sm)",
-                      fontFamily: "var(--font-body)",
-                      cursor: effectiveCanEdit ? "pointer" : "default",
-                      colorScheme: "dark",
-                      minWidth: 0,
-                    }}
-                  />
-                  {localStartDate && effectiveCanEdit && (
-                    <button
-                      onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
-                      aria-label="Clear start date"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "oklch(var(--color-ink-3))",
-                        fontSize: 16,
-                        lineHeight: 1,
-                        padding: "2px 4px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
+                <MobileDateField
+                  value={localStartDate}
+                  onChange={handleStartDateChange}
+                  onClear={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
+                  disabled={!effectiveCanEdit}
+                  accent="oklch(var(--color-ink))"
+                  placeholder="Set date"
+                  clearLabel="Clear start date"
+                />
               </div>
 
               {/* Assignee cell */}
               <div style={{ padding: "12px 14px" }}>
                 <FieldLabel>Assignee</FieldLabel>
-                <select
-                  value={localCard.assigneeId ?? ""}
-                  onChange={handleAssigneeChange}
-                  disabled={!effectiveCanEdit}
-                  style={{
-                    width: "100%",
-                    padding: "6px 8px",
-                    borderRadius: "var(--radius-input)",
-                    border: "1px solid oklch(var(--color-border))",
-                    background: "oklch(var(--color-paper-2))",
-                    color: "oklch(var(--color-ink))",
-                    fontSize: "var(--text-sm)",
-                    fontFamily: "var(--font-body)",
-                    cursor: effectiveCanEdit ? "pointer" : "default",
-                  }}
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
-                    // The backend validates assigneeId against workspaceMember.userId
-                    <option key={m.id} value={m.userId}>
-                      {m.name ?? m.email}
-                    </option>
-                  ))}
-                </select>
-                {localCard.assignee && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                    {localCard.assignee.avatarUrl ? (
+                <div style={{ position: "relative" }}>
+                  {localCard.assignee && (
+                    localCard.assignee.avatarUrl ? (
                       <img
                         src={localCard.assignee.avatarUrl}
-                        alt={localCard.assignee.name ?? "Assignee"}
+                        alt=""
                         width={20}
                         height={20}
-                        style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }}
+                        style={{
+                          position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+                          borderRadius: "50%", objectFit: "cover", display: "block",
+                          pointerEvents: "none", zIndex: 1,
+                        }}
                       />
                     ) : (
                       <div
+                        aria-hidden="true"
                         style={{
+                          position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
                           width: 20, height: 20, borderRadius: "50%",
                           background: getAvatarBg(localCard.assignee.id),
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 600,
-                          fontFamily: "var(--font-body)",
+                          color: "#fff", fontSize: 9, fontWeight: 600, fontFamily: "var(--font-body)",
+                          pointerEvents: "none", zIndex: 1,
                         }}
                       >
                         {getInitials(localCard.assignee.name)}
                       </div>
-                    )}
-                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
-                      {localCard.assignee.name ?? localCard.assignee.id}
-                    </span>
-                  </div>
-                )}
+                    )
+                  )}
+                  <select
+                    value={localCard.assigneeId ?? ""}
+                    onChange={handleAssigneeChange}
+                    disabled={!effectiveCanEdit}
+                    style={{
+                      width: "100%",
+                      padding: localCard.assignee ? "8px 8px 8px 34px" : "8px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper))",
+                      color: "oklch(var(--color-ink))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {members.map((m) => (
+                      // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
+                      // The backend validates assigneeId against workspaceMember.userId
+                      <option key={m.id} value={m.userId}>
+                        {m.name ?? m.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -950,10 +925,9 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
             <div style={{ padding: "12px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
               <FieldLabel>Labels</FieldLabel>
 
-              {/* Assigned labels */}
-              {localCard.labels.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-                  {localCard.labels.map((label) => (
+              {/* Chips + Add label, inline on one row */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                {localCard.labels.map((label) => (
                     <span
                       key={label.id}
                       style={{
@@ -982,12 +956,10 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                         </button>
                       )}
                     </span>
-                  ))}
-                </div>
-              )}
+                ))}
 
-              {/* Add label button + popover (mobile: fixed centered overlay) */}
-              {effectiveCanEdit && (
+                {/* Add label button + popover (mobile: fixed centered overlay) */}
+                {effectiveCanEdit && (
                 <div style={{ position: "relative" }}>
                   <button
                     onClick={() => setLabelPopoverOpen((v) => !v)}
@@ -1245,7 +1217,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     </>
                   )}
                 </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Description — full width */}
@@ -1964,6 +1937,97 @@ function MobileSectionRow({
         </span>
       </button>
       {expanded && <div style={{ padding: "0 14px 16px" }}>{children}</div>}
+    </div>
+  )
+}
+
+// Mobile date field: a styled pill showing "Jun 20" (formatted) over an
+// invisible native date input. Tapping the pill opens the OS date picker;
+// the × clears the value. `accent` colors the text (red for due dates).
+function MobileDateField({
+  value,
+  onChange,
+  onClear,
+  disabled,
+  accent,
+  placeholder,
+  clearLabel,
+}: {
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onClear: () => void
+  disabled: boolean
+  accent: string
+  placeholder: string
+  clearLabel: string
+}) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 10px",
+        borderRadius: "var(--radius-input)",
+        border: "1px solid oklch(var(--color-border))",
+        background: "oklch(var(--color-paper))",
+      }}
+    >
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        aria-label={clearLabel.replace("Clear ", "")}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          margin: 0,
+          padding: 0,
+          border: "none",
+          opacity: 0,
+          cursor: disabled ? "default" : "pointer",
+        }}
+      />
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: "var(--text-sm)",
+          fontWeight: value ? 600 : 400,
+          fontFamily: "var(--font-body)",
+          color: value ? accent : "oklch(var(--color-ink-3))",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {value ? formatShortDate(value) : placeholder}
+      </span>
+      {value && !disabled && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onClear() }}
+          aria-label={clearLabel}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "oklch(var(--color-ink-3))",
+            fontSize: 16,
+            lineHeight: 1,
+            padding: 0,
+            flexShrink: 0,
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
