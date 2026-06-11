@@ -12,6 +12,7 @@ import { labelsApi, type LabelSummary } from "../../api/labels"
 import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
 import { useAuth } from "../../contexts/AuthContext"
+import { useWindowWidth } from "../../hooks/useWindowWidth"
 import { AttachmentSection } from "./AttachmentSection"
 import ChecklistSection from "./ChecklistSection"
 import DependenciesSection from "./DependenciesSection"
@@ -478,6 +479,9 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
   // startDateValue / dueDateValue are now kept in localStartDate / localDueDate state
 
+  const windowWidth = useWindowWidth()
+  const isMobile = windowWidth < 640
+
   return (
     <motion.div
       ref={overlayRef}
@@ -570,42 +574,71 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
             {/* Completion toggle */}
             {effectiveCanEdit && (
-              <button
-                onClick={handleToggleComplete}
-                disabled={completing}
-                aria-pressed={isComplete}
-                title={isComplete ? "Mark as incomplete" : "Mark as complete"}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "5px 12px",
-                  borderRadius: "var(--radius-button)",
-                  border: isComplete ? "none" : "1px solid oklch(var(--color-border))",
-                  background: isComplete ? "oklch(var(--color-success))" : "transparent",
-                  color: isComplete ? "#fff" : "oklch(var(--color-ink-2))",
-                  fontSize: "var(--text-xs)",
-                  fontWeight: 600,
-                  fontFamily: "var(--font-body)",
-                  cursor: completing ? "default" : "pointer",
-                  opacity: completing ? 0.6 : 1,
-                  flexShrink: 0,
-                }}
-              >
-                <span style={{
-                  width: 14, height: 14, borderRadius: 4, flexShrink: 0,
-                  border: isComplete ? "none" : "1.5px solid oklch(var(--color-ink-3))",
-                  background: isComplete ? "rgba(255,255,255,0.25)" : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {isComplete && (
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                      <path d="M2.5 6.2l2.2 2.2L9.5 3.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </span>
-                {isComplete ? "Completed" : "Mark as Complete"}
-              </button>
+              isMobile ? (
+                /* Mobile: icon-only 28×28 button */
+                <button
+                  onClick={handleToggleComplete}
+                  disabled={completing}
+                  aria-pressed={isComplete}
+                  title={isComplete ? "Mark as incomplete" : "Mark as complete"}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "var(--radius-button)",
+                    border: isComplete ? "none" : "1px solid oklch(var(--color-border))",
+                    background: isComplete ? "oklch(var(--color-success))" : "transparent",
+                    color: isComplete ? "#fff" : "oklch(var(--color-ink-2))",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: completing ? "default" : "pointer",
+                    opacity: completing ? 0.6 : 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M2.5 6.2l2.2 2.2L9.5 3.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              ) : (
+                /* Desktop: existing text button — unchanged */
+                <button
+                  onClick={handleToggleComplete}
+                  disabled={completing}
+                  aria-pressed={isComplete}
+                  title={isComplete ? "Mark as incomplete" : "Mark as complete"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: "var(--radius-button)",
+                    border: isComplete ? "none" : "1px solid oklch(var(--color-border))",
+                    background: isComplete ? "oklch(var(--color-success))" : "transparent",
+                    color: isComplete ? "#fff" : "oklch(var(--color-ink-2))",
+                    fontSize: "var(--text-xs)",
+                    fontWeight: 600,
+                    fontFamily: "var(--font-body)",
+                    cursor: completing ? "default" : "pointer",
+                    opacity: completing ? 0.6 : 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{
+                    width: 14, height: 14, borderRadius: 4, flexShrink: 0,
+                    border: isComplete ? "none" : "1.5px solid oklch(var(--color-ink-3))",
+                    background: isComplete ? "rgba(255,255,255,0.25)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {isComplete && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                        <path d="M2.5 6.2l2.2 2.2L9.5 3.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {isComplete ? "Completed" : "Mark as Complete"}
+                </button>
+              )
             )}
 
             {/* Delete card */}
