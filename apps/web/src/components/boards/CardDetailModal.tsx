@@ -898,14 +898,17 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                     disabled={!effectiveCanEdit}
                     style={{
                       width: "100%",
-                      padding: localCard.assignee ? "8px 8px 8px 34px" : "8px 8px",
+                      padding: localCard.assignee ? "8px 22px 8px 34px" : "8px 22px 8px 8px",
                       borderRadius: "var(--radius-input)",
                       border: "1px solid oklch(var(--color-border))",
                       background: "oklch(var(--color-paper))",
                       color: "oklch(var(--color-ink))",
-                      fontSize: "var(--text-sm)",
+                      fontSize: "calc(var(--text-sm) - 1px)",
                       fontFamily: "var(--font-body)",
                       cursor: effectiveCanEdit ? "pointer" : "default",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     <option value="">Unassigned</option>
