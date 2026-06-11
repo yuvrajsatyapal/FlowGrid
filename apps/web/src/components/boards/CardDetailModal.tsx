@@ -728,231 +728,210 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
         )}
 
         {/* ── Body ── */}
-        <div style={{ display: "flex", gap: 0 }}>
-          {/* Left: description */}
-          <div
-            style={{
-              flex: 1,
-              padding: "16px 20px 20px",
-              borderRight: "1px solid oklch(var(--color-border))",
-              minWidth: 0,
-            }}
-          >
+        {isMobile ? (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+
+            {/* Row 1: Priority (left) + Due Date (right) */}
             <div
               style={{
-                fontSize: "var(--text-xs)",
-                fontWeight: 600,
-                color: "oklch(var(--color-ink-3))",
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                marginBottom: 8,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                borderBottom: "1px solid oklch(var(--color-border))",
               }}
             >
-              Description
-            </div>
-            <div
-              style={{
-                border: "1px solid oklch(var(--color-border))",
-                borderRadius: "var(--radius-input)",
-                background: "oklch(var(--color-paper-2))",
-                padding: "10px 12px",
-                minHeight: 120,
-                fontSize: "var(--text-sm)",
-                fontFamily: "var(--font-body)",
-                color: "oklch(var(--color-ink))",
-                lineHeight: 1.6,
-              }}
-            >
-              <EditorContent editor={editor} />
-            </div>
-
-            {/* Checklists */}
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} canToggle={canToggleChecklist} />
-            </div>
-
-            {/* Attachments */}
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
-              <AttachmentSection cardId={localCard.id} canEdit={effectiveCanEdit} />
-            </div>
-          </div>
-
-          {/* Right: fields */}
-          <div style={{ width: 220, flexShrink: 0, padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
-
-            {/* Priority */}
-            <div>
-              <FieldLabel>Priority</FieldLabel>
-              <select
-                value={localCard.priority}
-                onChange={handlePriorityChange}
-                disabled={!effectiveCanEdit}
+              {/* Priority cell */}
+              <div
                 style={{
-                  width: "100%",
-                  padding: "6px 8px",
-                  borderRadius: "var(--radius-input)",
-                  border: "1px solid oklch(var(--color-border))",
-                  background: "oklch(var(--color-paper-2))",
-                  color: "oklch(var(--color-ink))",
-                  fontSize: "var(--text-sm)",
-                  fontFamily: "var(--font-body)",
-                  cursor: effectiveCanEdit ? "pointer" : "default",
+                  padding: "12px 14px",
+                  borderRight: "1px solid oklch(var(--color-border))",
                 }}
               >
-                {PRIORITY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Start date */}
-            <div>
-              <FieldLabel>Start Date</FieldLabel>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input
-                  type="date"
-                  value={localStartDate}
-                  onChange={handleStartDateChange}
+                <FieldLabel>Priority</FieldLabel>
+                <select
+                  value={localCard.priority}
+                  onChange={handlePriorityChange}
                   disabled={!effectiveCanEdit}
                   style={{
-                    flex: 1,
+                    width: "100%",
                     padding: "6px 8px",
                     borderRadius: "var(--radius-input)",
                     border: "1px solid oklch(var(--color-border))",
                     background: "oklch(var(--color-paper-2))",
-                    color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                    color: "oklch(var(--color-ink))",
                     fontSize: "var(--text-sm)",
                     fontFamily: "var(--font-body)",
                     cursor: effectiveCanEdit ? "pointer" : "default",
-                    colorScheme: "dark",
                   }}
-                />
-                {localStartDate && effectiveCanEdit && (
-                  <button
-                    onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
-                    aria-label="Clear start date"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "oklch(var(--color-ink-3))",
-                      fontSize: 16,
-                      lineHeight: 1,
-                      padding: "2px 4px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
+                >
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
 
-            {/* Due date */}
-            <div>
-              <FieldLabel>Due Date</FieldLabel>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input
-                  type="date"
-                  value={localDueDate}
-                  onChange={handleDueDateChange}
-                  disabled={!effectiveCanEdit}
-                  style={{
-                    flex: 1,
-                    padding: "6px 8px",
-                    borderRadius: "var(--radius-input)",
-                    border: "1px solid oklch(var(--color-border))",
-                    background: "oklch(var(--color-paper-2))",
-                    color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
-                    fontSize: "var(--text-sm)",
-                    fontFamily: "var(--font-body)",
-                    cursor: effectiveCanEdit ? "pointer" : "default",
-                    colorScheme: "dark",
-                  }}
-                />
-                {localDueDate && effectiveCanEdit && (
-                  <button
-                    onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
-                    aria-label="Clear due date"
+              {/* Due Date cell */}
+              <div style={{ padding: "12px 14px" }}>
+                <FieldLabel>Due Date</FieldLabel>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="date"
+                    value={localDueDate}
+                    onChange={handleDueDateChange}
+                    disabled={!effectiveCanEdit}
                     style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "oklch(var(--color-ink-3))",
-                      fontSize: 16,
-                      lineHeight: 1,
-                      padding: "2px 4px",
-                      flexShrink: 0,
+                      flex: 1,
+                      padding: "6px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper-2))",
+                      color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                      colorScheme: "dark",
+                      minWidth: 0,
                     }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Assignee */}
-            <div>
-              <FieldLabel>Assignee</FieldLabel>
-              <select
-                value={localCard.assigneeId ?? ""}
-                onChange={handleAssigneeChange}
-                disabled={!effectiveCanEdit}
-                style={{
-                  width: "100%",
-                  padding: "6px 8px",
-                  borderRadius: "var(--radius-input)",
-                  border: "1px solid oklch(var(--color-border))",
-                  background: "oklch(var(--color-paper-2))",
-                  color: "oklch(var(--color-ink))",
-                  fontSize: "var(--text-sm)",
-                  fontFamily: "var(--font-body)",
-                  cursor: effectiveCanEdit ? "pointer" : "default",
-                }}
-              >
-                <option value="">Unassigned</option>
-                {members.map((m) => (
-                  // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
-                  // The backend validates assigneeId against workspaceMember.userId
-                  <option key={m.id} value={m.userId}>
-                    {m.name ?? m.email}
-                  </option>
-                ))}
-              </select>
-              {localCard.assignee && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                  {localCard.assignee.avatarUrl ? (
-                    <img
-                      src={localCard.assignee.avatarUrl}
-                      alt={localCard.assignee.name ?? "Assignee"}
-                      width={20}
-                      height={20}
-                      style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }}
-                    />
-                  ) : (
-                    <div
+                  />
+                  {localDueDate && effectiveCanEdit && (
+                    <button
+                      onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
+                      aria-label="Clear due date"
                       style={{
-                        width: 20, height: 20, borderRadius: "50%",
-                        background: getAvatarBg(localCard.assignee.id),
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 600,
-                        fontFamily: "var(--font-body)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "oklch(var(--color-ink-3))",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: "2px 4px",
+                        flexShrink: 0,
                       }}
                     >
-                      {getInitials(localCard.assignee.name)}
-                    </div>
+                      ×
+                    </button>
                   )}
-                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
-                    {localCard.assignee.name ?? localCard.assignee.id}
-                  </span>
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Labels */}
-            <div>
+            {/* Row 2: Start Date (left) + Assignee (right) */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                borderBottom: "1px solid oklch(var(--color-border))",
+              }}
+            >
+              {/* Start Date cell */}
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRight: "1px solid oklch(var(--color-border))",
+                }}
+              >
+                <FieldLabel>Start Date</FieldLabel>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="date"
+                    value={localStartDate}
+                    onChange={handleStartDateChange}
+                    disabled={!effectiveCanEdit}
+                    style={{
+                      flex: 1,
+                      padding: "6px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper-2))",
+                      color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                      colorScheme: "dark",
+                      minWidth: 0,
+                    }}
+                  />
+                  {localStartDate && effectiveCanEdit && (
+                    <button
+                      onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
+                      aria-label="Clear start date"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "oklch(var(--color-ink-3))",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: "2px 4px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Assignee cell */}
+              <div style={{ padding: "12px 14px" }}>
+                <FieldLabel>Assignee</FieldLabel>
+                <select
+                  value={localCard.assigneeId ?? ""}
+                  onChange={handleAssigneeChange}
+                  disabled={!effectiveCanEdit}
+                  style={{
+                    width: "100%",
+                    padding: "6px 8px",
+                    borderRadius: "var(--radius-input)",
+                    border: "1px solid oklch(var(--color-border))",
+                    background: "oklch(var(--color-paper-2))",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: effectiveCanEdit ? "pointer" : "default",
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.userId}>
+                      {m.name ?? m.email}
+                    </option>
+                  ))}
+                </select>
+                {localCard.assignee && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                    {localCard.assignee.avatarUrl ? (
+                      <img
+                        src={localCard.assignee.avatarUrl}
+                        alt={localCard.assignee.name ?? "Assignee"}
+                        width={20}
+                        height={20}
+                        style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 20, height: 20, borderRadius: "50%",
+                          background: getAvatarBg(localCard.assignee.id),
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 600,
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {getInitials(localCard.assignee.name)}
+                      </div>
+                    )}
+                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
+                      {localCard.assignee.name ?? localCard.assignee.id}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Labels — full width */}
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
               <FieldLabel>Labels</FieldLabel>
 
               {/* Assigned labels */}
@@ -991,276 +970,840 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 </div>
               )}
 
-              {/* Add label button + popover (popover opens upward as an overlay so it
-                  doesn't push the rest of the modal down) */}
+              {/* Add label button + popover (mobile: fixed centered overlay) */}
               {effectiveCanEdit && (
                 <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setLabelPopoverOpen((v) => !v)}
-                  style={{
-                    fontSize: "var(--text-xs)",
-                    color: "oklch(var(--color-accent))",
-                    background: "none",
-                    border: "1px solid oklch(var(--color-border))",
-                    borderRadius: "var(--radius-badge)",
-                    padding: "3px 8px",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  + Add label
-                </button>
+                  <button
+                    onClick={() => setLabelPopoverOpen((v) => !v)}
+                    style={{
+                      fontSize: "var(--text-xs)",
+                      color: "oklch(var(--color-accent))",
+                      background: "none",
+                      border: "1px solid oklch(var(--color-border))",
+                      borderRadius: "var(--radius-badge)",
+                      padding: "3px 8px",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    + Add label
+                  </button>
 
-              {/* Label popover */}
-              {labelPopoverOpen && (
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "calc(100% + 6px)",
-                    left: 0,
-                    width: 240,
-                    maxHeight: 320,
-                    overflowY: "auto",
-                    zIndex: 30,
-                    padding: "10px",
-                    background: "oklch(var(--color-paper))",
-                    border: "1px solid oklch(var(--color-border))",
-                    borderRadius: "var(--radius-card)",
-                    boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
-                  }}
-                >
-                  {/* Existing labels */}
-                  {boardLabels.length === 0 ? (
-                    <p style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", margin: "0 0 8px" }}>
-                      No labels yet.
-                    </p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-                      {boardLabels.map((label) => {
-                        const assigned = localCard.labels.some((l) => l.id === label.id)
+                  {/* Mobile label popover — fixed centered */}
+                  {labelPopoverOpen && (
+                    <div
+                      style={{
+                        position: "fixed",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: 240,
+                        maxHeight: 320,
+                        overflowY: "auto",
+                        zIndex: 400,
+                        padding: "10px",
+                        background: "oklch(var(--color-paper))",
+                        border: "1px solid oklch(var(--color-border))",
+                        borderRadius: "var(--radius-card)",
+                        boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
+                      }}
+                    >
+                      {/* Existing labels */}
+                      {boardLabels.length === 0 ? (
+                        <p style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", margin: "0 0 8px" }}>
+                          No labels yet.
+                        </p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                          {boardLabels.map((label) => {
+                            const assigned = localCard.labels.some((l) => l.id === label.id)
 
-                        // Inline editor for this label
-                        if (editingLabelId === label.id) {
-                          return (
-                            <div
-                              key={label.id}
-                              style={{
-                                display: "flex", flexDirection: "column", gap: 8,
-                                padding: 10,
-                                background: "oklch(var(--color-paper-2))",
-                                border: "1px solid oklch(var(--color-accent) / 0.5)",
-                                borderRadius: 8,
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: editLabelColor, flexShrink: 0 }} />
-                                <span style={{ flex: 1, fontSize: "0.625rem", fontWeight: 700, color: "oklch(var(--color-ink-3))", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                  Edit label
-                                </span>
-                              </div>
-                              <input
-                                value={editLabelName}
-                                onChange={(e) => setEditLabelName(e.target.value)}
-                                maxLength={32}
-                                autoFocus
-                                placeholder="Label name"
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") { e.preventDefault(); handleSaveLabelEdit(label) }
-                                  if (e.key === "Escape") cancelEditLabel()
-                                }}
-                                style={{
-                                  width: "100%", boxSizing: "border-box",
-                                  padding: "6px 8px", borderRadius: "var(--radius-input)",
-                                  border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))",
-                                  color: "oklch(var(--color-ink))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", outline: "none",
-                                }}
-                              />
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {LABEL_COLORS.map((c) => (
-                                  <button
-                                    key={c.value}
-                                    type="button"
-                                    aria-label={c.name}
-                                    onClick={() => setEditLabelColor(c.value)}
+                            // Inline editor for this label
+                            if (editingLabelId === label.id) {
+                              return (
+                                <div
+                                  key={label.id}
+                                  style={{
+                                    display: "flex", flexDirection: "column", gap: 8,
+                                    padding: 10,
+                                    background: "oklch(var(--color-paper-2))",
+                                    border: "1px solid oklch(var(--color-accent) / 0.5)",
+                                    borderRadius: 8,
+                                  }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: editLabelColor, flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontSize: "0.625rem", fontWeight: 700, color: "oklch(var(--color-ink-3))", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                      Edit label
+                                    </span>
+                                  </div>
+                                  <input
+                                    value={editLabelName}
+                                    onChange={(e) => setEditLabelName(e.target.value)}
+                                    maxLength={32}
+                                    autoFocus
+                                    placeholder="Label name"
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); handleSaveLabelEdit(label) }
+                                      if (e.key === "Escape") cancelEditLabel()
+                                    }}
                                     style={{
-                                      width: 20, height: 20, borderRadius: "50%", background: c.value,
-                                      border: editLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid oklch(var(--color-border))",
-                                      cursor: "pointer", padding: 0, flexShrink: 0,
+                                      width: "100%", boxSizing: "border-box",
+                                      padding: "6px 8px", borderRadius: "var(--radius-input)",
+                                      border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))",
+                                      color: "oklch(var(--color-ink))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", outline: "none",
                                     }}
                                   />
-                                ))}
-                              </div>
-                              <div style={{ display: "flex", gap: 6 }}>
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                    {LABEL_COLORS.map((c) => (
+                                      <button
+                                        key={c.value}
+                                        type="button"
+                                        aria-label={c.name}
+                                        onClick={() => setEditLabelColor(c.value)}
+                                        style={{
+                                          width: 20, height: 20, borderRadius: "50%", background: c.value,
+                                          border: editLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid oklch(var(--color-border))",
+                                          cursor: "pointer", padding: 0, flexShrink: 0,
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <button
+                                      onClick={() => handleSaveLabelEdit(label)}
+                                      disabled={labelBusy || !editLabelName.trim()}
+                                      style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: labelBusy || !editLabelName.trim() ? "not-allowed" : "pointer", opacity: labelBusy || !editLabelName.trim() ? 0.55 : 1 }}
+                                    >
+                                      {labelBusy ? "Saving…" : "Save"}
+                                    </button>
+                                    <button
+                                      onClick={cancelEditLabel}
+                                      disabled={labelBusy}
+                                      style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            }
+
+                            // Delete confirmation for this label
+                            if (confirmDeleteLabelId === label.id) {
+                              return (
+                                <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, background: "oklch(var(--color-error) / 0.08)", borderRadius: 6 }}>
+                                  <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
+                                    Delete "{label.name}"?
+                                  </span>
+                                  <button
+                                    onClick={() => handleDeleteLabel(label.id)}
+                                    disabled={labelBusy}
+                                    style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-error))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                  >
+                                    {labelBusy ? "…" : "Delete"}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteLabelId(null)}
+                                    disabled={labelBusy}
+                                    style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "none", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              )
+                            }
+
+                            // Normal row: toggle assignment + edit + delete
+                            return (
+                              <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
                                 <button
-                                  onClick={() => handleSaveLabelEdit(label)}
-                                  disabled={labelBusy || !editLabelName.trim()}
-                                  style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: labelBusy || !editLabelName.trim() ? "not-allowed" : "pointer", opacity: labelBusy || !editLabelName.trim() ? 0.55 : 1 }}
+                                  onClick={() => handleLabelToggle(label)}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 8, flex: 1,
+                                    background: assigned ? "oklch(var(--color-paper-2))" : "none",
+                                    border: "none", borderRadius: 4,
+                                    padding: "4px 6px", cursor: "pointer", textAlign: "left",
+                                  }}
                                 >
-                                  {labelBusy ? "Saving…" : "Save"}
+                                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
+                                  <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))" }}>
+                                    {label.name}
+                                  </span>
+                                  {assigned && (
+                                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))" }}>✓</span>
+                                  )}
                                 </button>
                                 <button
-                                  onClick={cancelEditLabel}
-                                  disabled={labelBusy}
-                                  style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                  onClick={() => startEditLabel(label)}
+                                  aria-label={`Edit label ${label.name}`}
+                                  style={labelIconBtnStyle}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))"; e.currentTarget.style.color = "oklch(var(--color-ink))" }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-ink-3))" }}
                                 >
-                                  Cancel
+                                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                    <path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => { setEditingLabelId(null); setConfirmDeleteLabelId(label.id) }}
+                                  aria-label={`Delete label ${label.name}`}
+                                  style={{ ...labelIconBtnStyle, color: "oklch(var(--color-error))" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-error) / 0.12)" }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                    <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
                                 </button>
                               </div>
-                            </div>
-                          )
-                        }
+                            )
+                          })}
+                        </div>
+                      )}
 
-                        // Delete confirmation for this label
-                        if (confirmDeleteLabelId === label.id) {
-                          return (
-                            <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, background: "oklch(var(--color-error) / 0.08)", borderRadius: 6 }}>
-                              <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
-                                Delete “{label.name}”?
-                              </span>
-                              <button
-                                onClick={() => handleDeleteLabel(label.id)}
-                                disabled={labelBusy}
-                                style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-error))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
-                              >
-                                {labelBusy ? "…" : "Delete"}
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteLabelId(null)}
-                                disabled={labelBusy}
-                                style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "none", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", cursor: "pointer" }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )
-                        }
-
-                        // Normal row: toggle assignment + edit + delete
-                        return (
-                          <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                            <button
-                              onClick={() => handleLabelToggle(label)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8, flex: 1,
-                                background: assigned ? "oklch(var(--color-paper-2))" : "none",
-                                border: "none", borderRadius: 4,
-                                padding: "4px 6px", cursor: "pointer", textAlign: "left",
-                              }}
-                            >
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
-                              <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))" }}>
-                                {label.name}
-                              </span>
-                              {assigned && (
-                                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))" }}>✓</span>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => startEditLabel(label)}
-                              aria-label={`Edit label ${label.name}`}
-                              style={labelIconBtnStyle}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))"; e.currentTarget.style.color = "oklch(var(--color-ink))" }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-ink-3))" }}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                <path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => { setEditingLabelId(null); setConfirmDeleteLabelId(label.id) }}
-                              aria-label={`Delete label ${label.name}`}
-                              style={{ ...labelIconBtnStyle, color: "oklch(var(--color-error))" }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-error) / 0.12)" }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* Create label inline form */}
-                  <div style={{ borderTop: "1px solid oklch(var(--color-border))", paddingTop: 8 }}>
-                    <p style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-3))", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      Create label
-                    </p>
-                    <form onSubmit={handleCreateLabel} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <input
-                        value={newLabelName}
-                        onChange={(e) => setNewLabelName(e.target.value)}
-                        placeholder="Label name"
-                        maxLength={32}
-                        style={{
-                          padding: "5px 8px",
-                          borderRadius: "var(--radius-input)",
-                          border: "1px solid oklch(var(--color-border))",
-                          background: "oklch(var(--color-paper-2))",
-                          color: "oklch(var(--color-ink))",
-                          fontSize: "var(--text-xs)",
-                          fontFamily: "var(--font-body)",
-                          outline: "none",
-                        }}
-                      />
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {LABEL_COLORS.map((c) => (
-                          <button
-                            key={c.value}
-                            type="button"
-                            title={c.name}
-                            onClick={() => setNewLabelColor(c.value)}
+                      {/* Create label inline form */}
+                      <div style={{ borderTop: "1px solid oklch(var(--color-border))", paddingTop: 8 }}>
+                        <p style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-3))", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          Create label
+                        </p>
+                        <form onSubmit={handleCreateLabel} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <input
+                            value={newLabelName}
+                            onChange={(e) => setNewLabelName(e.target.value)}
+                            placeholder="Label name"
+                            maxLength={32}
                             style={{
-                              width: 18, height: 18, borderRadius: "50%",
-                              background: c.value,
-                              border: newLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid transparent",
-                              cursor: "pointer", padding: 0,
+                              padding: "5px 8px",
+                              borderRadius: "var(--radius-input)",
+                              border: "1px solid oklch(var(--color-border))",
+                              background: "oklch(var(--color-paper-2))",
+                              color: "oklch(var(--color-ink))",
+                              fontSize: "var(--text-xs)",
+                              fontFamily: "var(--font-body)",
+                              outline: "none",
                             }}
                           />
-                        ))}
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                            {LABEL_COLORS.map((c) => (
+                              <button
+                                key={c.value}
+                                type="button"
+                                title={c.name}
+                                onClick={() => setNewLabelColor(c.value)}
+                                style={{
+                                  width: 18, height: 18, borderRadius: "50%",
+                                  background: c.value,
+                                  border: newLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid transparent",
+                                  cursor: "pointer", padding: 0,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={creatingLabel || !newLabelName.trim()}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: "var(--radius-button)",
+                              border: "none",
+                              background: "oklch(var(--color-accent))",
+                              color: "#fff",
+                              fontSize: "var(--text-xs)",
+                              fontWeight: 600,
+                              cursor: creatingLabel || !newLabelName.trim() ? "not-allowed" : "pointer",
+                              opacity: creatingLabel || !newLabelName.trim() ? 0.55 : 1,
+                              fontFamily: "var(--font-body)",
+                            }}
+                          >
+                            {creatingLabel ? "Creating…" : "Create & assign"}
+                          </button>
+                        </form>
                       </div>
-                      <button
-                        type="submit"
-                        disabled={creatingLabel || !newLabelName.trim()}
-                        style={{
-                          padding: "5px 10px",
-                          borderRadius: "var(--radius-button)",
-                          border: "none",
-                          background: "oklch(var(--color-accent))",
-                          color: "#fff",
-                          fontSize: "var(--text-xs)",
-                          fontWeight: 600,
-                          cursor: creatingLabel || !newLabelName.trim() ? "not-allowed" : "pointer",
-                          opacity: creatingLabel || !newLabelName.trim() ? 0.55 : 1,
-                          fontFamily: "var(--font-body)",
-                        }}
-                      >
-                        {creatingLabel ? "Creating…" : "Create & assign"}
-                      </button>
-                    </form>
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
-                </div>
-              )}
+            </div>
+
+            {/* Description — full width */}
+            <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+              <FieldLabel>Description</FieldLabel>
+              <div
+                style={{
+                  border: "1px solid oklch(var(--color-border))",
+                  borderRadius: "var(--radius-input)",
+                  background: "oklch(var(--color-paper-2))",
+                  padding: "10px 12px",
+                  minHeight: 120,
+                  fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-body)",
+                  color: "oklch(var(--color-ink))",
+                  lineHeight: 1.6,
+                }}
+              >
+                <EditorContent editor={editor} />
+              </div>
+            </div>
+
+            {/* Checklist */}
+            <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+              <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} canToggle={canToggleChecklist} />
+            </div>
+
+            {/* Attachments */}
+            <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
+              <AttachmentSection cardId={localCard.id} canEdit={effectiveCanEdit} />
             </div>
 
             {/* Watchers */}
             {user && (
-              <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+              <div style={{ padding: "16px 14px", borderBottom: "1px solid oklch(var(--color-border))" }}>
                 <WatchersSection cardId={localCard.id} currentUserId={user.id} assigneeId={localCard.assigneeId} />
               </div>
             )}
 
-            {/* Dependencies */}
-            <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+            {/* Dependencies — last section, no border-bottom */}
+            <div style={{ padding: "16px 14px" }}>
               <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={effectiveCanEdit} onChanged={() => void refreshBlocked()} />
             </div>
 
           </div>
-        </div>
+        ) : (
+          <div style={{ display: "flex", gap: 0 }}>
+            {/* Left: description */}
+            <div
+              style={{
+                flex: 1,
+                padding: "16px 20px 20px",
+                borderRight: "1px solid oklch(var(--color-border))",
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "var(--text-xs)",
+                  fontWeight: 600,
+                  color: "oklch(var(--color-ink-3))",
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  marginBottom: 8,
+                }}
+              >
+                Description
+              </div>
+              <div
+                style={{
+                  border: "1px solid oklch(var(--color-border))",
+                  borderRadius: "var(--radius-input)",
+                  background: "oklch(var(--color-paper-2))",
+                  padding: "10px 12px",
+                  minHeight: 120,
+                  fontSize: "var(--text-sm)",
+                  fontFamily: "var(--font-body)",
+                  color: "oklch(var(--color-ink))",
+                  lineHeight: 1.6,
+                }}
+              >
+                <EditorContent editor={editor} />
+              </div>
+
+              {/* Checklists */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+                <ChecklistSection cardId={localCard.id} canEdit={effectiveCanEdit} canToggle={canToggleChecklist} />
+              </div>
+
+              {/* Attachments */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid oklch(var(--color-border))" }}>
+                <AttachmentSection cardId={localCard.id} canEdit={effectiveCanEdit} />
+              </div>
+            </div>
+
+            {/* Right: fields */}
+            <div style={{ width: 220, flexShrink: 0, padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+              {/* Priority */}
+              <div>
+                <FieldLabel>Priority</FieldLabel>
+                <select
+                  value={localCard.priority}
+                  onChange={handlePriorityChange}
+                  disabled={!effectiveCanEdit}
+                  style={{
+                    width: "100%",
+                    padding: "6px 8px",
+                    borderRadius: "var(--radius-input)",
+                    border: "1px solid oklch(var(--color-border))",
+                    background: "oklch(var(--color-paper-2))",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: effectiveCanEdit ? "pointer" : "default",
+                  }}
+                >
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Start date */}
+              <div>
+                <FieldLabel>Start Date</FieldLabel>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="date"
+                    value={localStartDate}
+                    onChange={handleStartDateChange}
+                    disabled={!effectiveCanEdit}
+                    style={{
+                      flex: 1,
+                      padding: "6px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper-2))",
+                      color: localStartDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                      colorScheme: "dark",
+                    }}
+                  />
+                  {localStartDate && effectiveCanEdit && (
+                    <button
+                      onClick={() => { setLocalStartDate(""); void saveField({ startDate: null }) }}
+                      aria-label="Clear start date"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "oklch(var(--color-ink-3))",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: "2px 4px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Due date */}
+              <div>
+                <FieldLabel>Due Date</FieldLabel>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="date"
+                    value={localDueDate}
+                    onChange={handleDueDateChange}
+                    disabled={!effectiveCanEdit}
+                    style={{
+                      flex: 1,
+                      padding: "6px 8px",
+                      borderRadius: "var(--radius-input)",
+                      border: "1px solid oklch(var(--color-border))",
+                      background: "oklch(var(--color-paper-2))",
+                      color: localDueDate ? "oklch(var(--color-ink))" : "oklch(var(--color-ink-3))",
+                      fontSize: "var(--text-sm)",
+                      fontFamily: "var(--font-body)",
+                      cursor: effectiveCanEdit ? "pointer" : "default",
+                      colorScheme: "dark",
+                    }}
+                  />
+                  {localDueDate && effectiveCanEdit && (
+                    <button
+                      onClick={() => { setLocalDueDate(""); void saveField({ dueDate: null }) }}
+                      aria-label="Clear due date"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "oklch(var(--color-ink-3))",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        padding: "2px 4px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Assignee */}
+              <div>
+                <FieldLabel>Assignee</FieldLabel>
+                <select
+                  value={localCard.assigneeId ?? ""}
+                  onChange={handleAssigneeChange}
+                  disabled={!effectiveCanEdit}
+                  style={{
+                    width: "100%",
+                    padding: "6px 8px",
+                    borderRadius: "var(--radius-input)",
+                    border: "1px solid oklch(var(--color-border))",
+                    background: "oklch(var(--color-paper-2))",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: effectiveCanEdit ? "pointer" : "default",
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => (
+                    // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
+                    // The backend validates assigneeId against workspaceMember.userId
+                    <option key={m.id} value={m.userId}>
+                      {m.name ?? m.email}
+                    </option>
+                  ))}
+                </select>
+                {localCard.assignee && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                    {localCard.assignee.avatarUrl ? (
+                      <img
+                        src={localCard.assignee.avatarUrl}
+                        alt={localCard.assignee.name ?? "Assignee"}
+                        width={20}
+                        height={20}
+                        style={{ borderRadius: "50%", objectFit: "cover", display: "block", flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 20, height: 20, borderRadius: "50%",
+                          background: getAvatarBg(localCard.assignee.id),
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, color: "#fff", fontSize: 9, fontWeight: 600,
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {getInitials(localCard.assignee.name)}
+                      </div>
+                    )}
+                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
+                      {localCard.assignee.name ?? localCard.assignee.id}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Labels */}
+              <div>
+                <FieldLabel>Labels</FieldLabel>
+
+                {/* Assigned labels */}
+                {localCard.labels.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                    {localCard.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          padding: "2px 6px",
+                          borderRadius: "var(--radius-badge)",
+                          border: "1px solid oklch(var(--color-border))",
+                          background: "oklch(var(--color-paper-2))",
+                          fontSize: "var(--text-xs)",
+                          color: "oklch(var(--color-ink-2))",
+                        }}
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
+                        {label.name}
+                        {effectiveCanEdit && (
+                          <button
+                            onClick={() => handleLabelToggle({ id: label.id, name: label.name, color: label.color })}
+                            aria-label={`Remove label ${label.name}`}
+                            style={{
+                              background: "none", border: "none", cursor: "pointer",
+                              color: "oklch(var(--color-ink-3))", fontSize: 12, lineHeight: 1,
+                              padding: 0, marginLeft: 2,
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add label button + popover (popover opens upward as an overlay so it
+                    doesn't push the rest of the modal down) */}
+                {effectiveCanEdit && (
+                  <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setLabelPopoverOpen((v) => !v)}
+                    style={{
+                      fontSize: "var(--text-xs)",
+                      color: "oklch(var(--color-accent))",
+                      background: "none",
+                      border: "1px solid oklch(var(--color-border))",
+                      borderRadius: "var(--radius-badge)",
+                      padding: "3px 8px",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    + Add label
+                  </button>
+
+                {/* Label popover */}
+                {labelPopoverOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 6px)",
+                      left: 0,
+                      width: 240,
+                      maxHeight: 320,
+                      overflowY: "auto",
+                      zIndex: 30,
+                      padding: "10px",
+                      background: "oklch(var(--color-paper))",
+                      border: "1px solid oklch(var(--color-border))",
+                      borderRadius: "var(--radius-card)",
+                      boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
+                    }}
+                  >
+                    {/* Existing labels */}
+                    {boardLabels.length === 0 ? (
+                      <p style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", margin: "0 0 8px" }}>
+                        No labels yet.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                        {boardLabels.map((label) => {
+                          const assigned = localCard.labels.some((l) => l.id === label.id)
+
+                          // Inline editor for this label
+                          if (editingLabelId === label.id) {
+                            return (
+                              <div
+                                key={label.id}
+                                style={{
+                                  display: "flex", flexDirection: "column", gap: 8,
+                                  padding: 10,
+                                  background: "oklch(var(--color-paper-2))",
+                                  border: "1px solid oklch(var(--color-accent) / 0.5)",
+                                  borderRadius: 8,
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: editLabelColor, flexShrink: 0 }} />
+                                  <span style={{ flex: 1, fontSize: "0.625rem", fontWeight: 700, color: "oklch(var(--color-ink-3))", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                    Edit label
+                                  </span>
+                                </div>
+                                <input
+                                  value={editLabelName}
+                                  onChange={(e) => setEditLabelName(e.target.value)}
+                                  maxLength={32}
+                                  autoFocus
+                                  placeholder="Label name"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") { e.preventDefault(); handleSaveLabelEdit(label) }
+                                    if (e.key === "Escape") cancelEditLabel()
+                                  }}
+                                  style={{
+                                    width: "100%", boxSizing: "border-box",
+                                    padding: "6px 8px", borderRadius: "var(--radius-input)",
+                                    border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))",
+                                    color: "oklch(var(--color-ink))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", outline: "none",
+                                  }}
+                                />
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  {LABEL_COLORS.map((c) => (
+                                    <button
+                                      key={c.value}
+                                      type="button"
+                                      aria-label={c.name}
+                                      onClick={() => setEditLabelColor(c.value)}
+                                      style={{
+                                        width: 20, height: 20, borderRadius: "50%", background: c.value,
+                                        border: editLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid oklch(var(--color-border))",
+                                        cursor: "pointer", padding: 0, flexShrink: 0,
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button
+                                    onClick={() => handleSaveLabelEdit(label)}
+                                    disabled={labelBusy || !editLabelName.trim()}
+                                    style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-accent))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: labelBusy || !editLabelName.trim() ? "not-allowed" : "pointer", opacity: labelBusy || !editLabelName.trim() ? 0.55 : 1 }}
+                                  >
+                                    {labelBusy ? "Saving…" : "Save"}
+                                  </button>
+                                  <button
+                                    onClick={cancelEditLabel}
+                                    disabled={labelBusy}
+                                    style={{ flex: 1, padding: "6px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "oklch(var(--color-paper))", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          // Delete confirmation for this label
+                          if (confirmDeleteLabelId === label.id) {
+                            return (
+                              <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: 6, background: "oklch(var(--color-error) / 0.08)", borderRadius: 6 }}>
+                                <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-2))" }}>
+                                  Delete "{label.name}"?
+                                </span>
+                                <button
+                                  onClick={() => handleDeleteLabel(label.id)}
+                                  disabled={labelBusy}
+                                  style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "none", background: "oklch(var(--color-error))", color: "#fff", fontSize: "var(--text-xs)", fontWeight: 600, fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                >
+                                  {labelBusy ? "…" : "Delete"}
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteLabelId(null)}
+                                  disabled={labelBusy}
+                                  style={{ padding: "4px 8px", borderRadius: "var(--radius-button)", border: "1px solid oklch(var(--color-border))", background: "none", color: "oklch(var(--color-ink-2))", fontSize: "var(--text-xs)", fontFamily: "var(--font-body)", cursor: "pointer" }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )
+                          }
+
+                          // Normal row: toggle assignment + edit + delete
+                          return (
+                            <div key={label.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                              <button
+                                onClick={() => handleLabelToggle(label)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8, flex: 1,
+                                  background: assigned ? "oklch(var(--color-paper-2))" : "none",
+                                  border: "none", borderRadius: 4,
+                                  padding: "4px 6px", cursor: "pointer", textAlign: "left",
+                                }}
+                              >
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: label.color, flexShrink: 0 }} />
+                                <span style={{ flex: 1, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))" }}>
+                                  {label.name}
+                                </span>
+                                {assigned && (
+                                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-accent))" }}>✓</span>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => startEditLabel(label)}
+                                aria-label={`Edit label ${label.name}`}
+                                style={labelIconBtnStyle}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-paper-3))"; e.currentTarget.style.color = "oklch(var(--color-ink))" }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(var(--color-ink-3))" }}
+                              >
+                                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                  <path d="M9.5 2.5l2 2L5 11l-2.5.5L3 9l6.5-6.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => { setEditingLabelId(null); setConfirmDeleteLabelId(label.id) }}
+                                aria-label={`Delete label ${label.name}`}
+                                style={{ ...labelIconBtnStyle, color: "oklch(var(--color-error))" }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(var(--color-error) / 0.12)" }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+                              >
+                                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                  <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3 3.5l.5 8a1 1 0 001 1h5a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Create label inline form */}
+                    <div style={{ borderTop: "1px solid oklch(var(--color-border))", paddingTop: 8 }}>
+                      <p style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-3))", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        Create label
+                      </p>
+                      <form onSubmit={handleCreateLabel} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input
+                          value={newLabelName}
+                          onChange={(e) => setNewLabelName(e.target.value)}
+                          placeholder="Label name"
+                          maxLength={32}
+                          style={{
+                            padding: "5px 8px",
+                            borderRadius: "var(--radius-input)",
+                            border: "1px solid oklch(var(--color-border))",
+                            background: "oklch(var(--color-paper-2))",
+                            color: "oklch(var(--color-ink))",
+                            fontSize: "var(--text-xs)",
+                            fontFamily: "var(--font-body)",
+                            outline: "none",
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {LABEL_COLORS.map((c) => (
+                            <button
+                              key={c.value}
+                              type="button"
+                              title={c.name}
+                              onClick={() => setNewLabelColor(c.value)}
+                              style={{
+                                width: 18, height: 18, borderRadius: "50%",
+                                background: c.value,
+                                border: newLabelColor === c.value ? "2px solid oklch(var(--color-ink))" : "2px solid transparent",
+                                cursor: "pointer", padding: 0,
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={creatingLabel || !newLabelName.trim()}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: "var(--radius-button)",
+                            border: "none",
+                            background: "oklch(var(--color-accent))",
+                            color: "#fff",
+                            fontSize: "var(--text-xs)",
+                            fontWeight: 600,
+                            cursor: creatingLabel || !newLabelName.trim() ? "not-allowed" : "pointer",
+                            opacity: creatingLabel || !newLabelName.trim() ? 0.55 : 1,
+                            fontFamily: "var(--font-body)",
+                          }}
+                        >
+                          {creatingLabel ? "Creating…" : "Create & assign"}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+                  </div>
+                )}
+              </div>
+
+              {/* Watchers */}
+              {user && (
+                <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+                  <WatchersSection cardId={localCard.id} currentUserId={user.id} assigneeId={localCard.assigneeId} />
+                </div>
+              )}
+
+              {/* Dependencies */}
+              <div style={{ paddingTop: 16, borderTop: "1px solid oklch(var(--color-border))" }}>
+                <DependenciesSection cardId={localCard.id} boardId={boardId} canEdit={effectiveCanEdit} onChanged={() => void refreshBlocked()} />
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Blocked-completion warning */}
         {showBlockedWarning && (
