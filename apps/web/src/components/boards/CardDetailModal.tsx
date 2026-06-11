@@ -894,6 +894,8 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                 >
                   <option value="">Unassigned</option>
                   {members.map((m) => (
+                    // value must be the User.id (m.userId), NOT the WorkspaceMember record id (m.id)
+                    // The backend validates assigneeId against workspaceMember.userId
                     <option key={m.id} value={m.userId}>
                       {m.name ?? m.email}
                     </option>
@@ -991,6 +993,11 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
 
                   {/* Mobile label popover — fixed centered */}
                   {labelPopoverOpen && (
+                    <>
+                    <div
+                      style={{ position: "fixed", inset: 0, zIndex: 399 }}
+                      onClick={() => setLabelPopoverOpen(false)}
+                    />
                     <div
                       style={{
                         position: "fixed",
@@ -1221,6 +1228,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
                         </form>
                       </div>
                     </div>
+                    </>
                   )}
                 </div>
               )}
