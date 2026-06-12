@@ -270,6 +270,18 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
           {cards.map((card) => (
             <CardItem key={card.id} card={card} listName={list.name} isDoneList={isDoneList(list.name)} blocked={blockedCardIds?.has(card.id) ?? false} minHeight={cardSlotHeight} isViewer={isViewer} onCardClick={isViewer ? undefined : onCardClick} hideDescription={hideDescription} mobile={mobile} />
           ))}
+          {cards.length === 0 && (
+            <div
+              aria-hidden="true"
+              style={{
+                border: "1.5px dashed oklch(var(--color-border))",
+                borderRadius: "var(--radius-card)",
+                minHeight: cardSlotHeight ?? 80,
+                display: "flex",
+                pointerEvents: "none",
+              }}
+            />
+          )}
         </SortableContext>
       </div>
 
