@@ -17,20 +17,32 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   // Public app URL used to build invite links. Must be set in production.
   APP_URL: z.string().url().default("http://localhost:5173"),
-  // File storage: 'local' uses disk (dev), 'r2' uses Cloudflare R2 (prod)
-  STORAGE_PROVIDER: z.enum(["local", "r2"]).default("local"),
+  // File storage: 'local' = disk (dev), 'r2' = Cloudflare R2, 'cloudinary' = Cloudinary (prod)
+  STORAGE_PROVIDER: z.enum(["local", "r2", "cloudinary"]).default("local"),
   // Required when STORAGE_PROVIDER=r2
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET_NAME: z.string().optional(),
   R2_PUBLIC_DOMAIN: z.string().optional(),
+  // Required when STORAGE_PROVIDER=cloudinary
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.STORAGE_PROVIDER === "r2") {
     const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME", "R2_PUBLIC_DOMAIN"] as const
     for (const key of required) {
       if (!data[key]) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} is required when STORAGE_PROVIDER=r2`, path: [key] })
+      }
+    }
+  }
+  if (data.STORAGE_PROVIDER === "cloudinary") {
+    const required = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"] as const
+    for (const key of required) {
+      if (!data[key]) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} is required when STORAGE_PROVIDER=cloudinary`, path: [key] })
       }
     }
   }

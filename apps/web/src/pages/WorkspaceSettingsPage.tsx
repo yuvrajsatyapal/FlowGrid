@@ -69,6 +69,28 @@ const dangerBtn: React.CSSProperties = {
   transition: "background 150ms ease, border-color 150ms ease",
 }
 
+const ghostBtn: React.CSSProperties = {
+  padding: "5px 11px",
+  borderRadius: "var(--radius-button)",
+  border: "1px solid oklch(var(--color-border))",
+  background: "transparent",
+  color: "oklch(var(--color-ink-2))",
+  fontSize: "var(--text-xs)",
+  cursor: "pointer",
+  fontFamily: "var(--font-body)",
+}
+
+const dangerGhostBtn: React.CSSProperties = {
+  padding: "5px 11px",
+  borderRadius: "var(--radius-button)",
+  border: "1px solid oklch(var(--color-error) / 0.4)",
+  background: "transparent",
+  color: "oklch(var(--color-error))",
+  fontSize: "var(--text-xs)",
+  cursor: "pointer",
+  fontFamily: "var(--font-body)",
+}
+
 type SaveStatus = "idle" | "saving" | "saved" | "error"
 
 // ── Delete confirmation modal ──────────────────────────────────────────────────
@@ -477,68 +499,57 @@ export default function WorkspaceSettingsPage() {
 
                   {/* Logo upload */}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "20px" }}>
-                    {/* Badge */}
+                    {/* Badge — clickable to upload */}
                     <div
                       style={{
-                        width: 70, height: 70, borderRadius: "18px",
+                        width: 56, height: 56, borderRadius: "14px",
                         background: detail?.logoUrl ? "transparent" : (COLOR_GRADIENTS[selectedColor] ?? selectedColor),
                         flexShrink: 0, overflow: "hidden",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         border: "2px solid oklch(var(--color-border))",
+                        cursor: logoUploading ? "default" : "pointer",
+                        opacity: logoUploading ? 0.6 : 1,
                       }}
+                      onClick={() => !logoUploading && logoFileInputRef.current?.click()}
+                      title="Click to change logo"
                     >
                       {detail?.logoUrl ? (
                         <img src={detail.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
-                        <span style={{ fontSize: "26px", fontWeight: 700, color: "#fff" }}>{wsInitials}</span>
+                        <span style={{ fontSize: "20px", fontWeight: 700, color: "#fff" }}>{wsInitials}</span>
                       )}
                     </div>
 
-                    {/* Upload box + caption */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "2px", borderRadius: "18px" }}>
-                      <button
-                        type="button"
-                        onClick={() => logoFileInputRef.current?.click()}
-                        disabled={logoUploading}
-                        style={{
-                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                          gap: "4px",
-                          width: "55px", height: "40px", padding: "0 12px",
-                          borderRadius: "var(--radius-card)",
-                          border: "1.5px dashed oklch(var(--color-border))",
-                          background: "oklch(var(--color-paper))",
-                          cursor: logoUploading ? "not-allowed" : "pointer",
-                          opacity: logoUploading ? 0.6 : 1,
-                          transition: "border-color 150ms ease, background 150ms ease",
-                          fontFamily: "var(--font-body)",
-                        }}
-                        onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.borderColor = "oklch(var(--color-accent))"; e.currentTarget.style.background = "oklch(var(--color-accent-muted))" } }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "oklch(var(--color-border))"; e.currentTarget.style.background = "oklch(var(--color-paper))" }}
-                      >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ color: "oklch(var(--color-ink-3))" }}>
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="17 8 12 3 7 8" />
-                          <line x1="12" y1="3" x2="12" y2="15" />
-                        </svg>
-                      </button>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginLeft: "5px" }}>
-                        {detail?.logoUrl ? (
+                    {/* Buttons + hint */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={logoUploading}
+                          style={{ ...ghostBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
+                        >
+                          {logoUploading ? "Uploading…" : "Upload logo"}
+                        </button>
+                        {detail?.logoUrl && (
                           <button
                             type="button"
                             onClick={handleRemoveLogo}
                             disabled={logoUploading}
-                            style={{ background: "none", border: "none", padding: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))", cursor: logoUploading ? "not-allowed" : "pointer", fontFamily: "var(--font-body)" }}
+                            style={{ ...dangerGhostBtn, opacity: logoUploading ? 0.5 : 1, cursor: logoUploading ? "not-allowed" : "pointer" }}
                           >
                             Remove
                           </button>
-                        ) : (
-                          <p style={{ margin: 0, paddingTop: "2px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                            PNG or JPG, max 2 MB.
-                          </p>
                         )}
                       </div>
-                      {logoError && <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{logoError}</p>}
+                      <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                        PNG or JPG, max 2 MB
+                      </p>
+                      {logoError && (
+                        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{logoError}</p>
+                      )}
                     </div>
+
                     <input
                       ref={logoFileInputRef}
                       type="file"

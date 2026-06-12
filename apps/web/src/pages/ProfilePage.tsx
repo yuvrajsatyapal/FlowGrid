@@ -37,23 +37,13 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   boxSizing: "border-box",
 }
-const primaryBtn: React.CSSProperties = {
-  padding: "8px 18px",
-  borderRadius: "var(--radius-button)",
-  border: "none",
-  background: "oklch(var(--color-accent))",
-  color: "#fff",
-  fontSize: "var(--text-sm)",
-  fontWeight: 500,
-  cursor: "pointer",
-}
 const ghostBtn: React.CSSProperties = {
-  padding: "7px 14px",
+  padding: "5px 11px",
   borderRadius: "var(--radius-button)",
   border: "1px solid oklch(var(--color-border))",
   background: "transparent",
   color: "oklch(var(--color-ink-2))",
-  fontSize: "var(--text-sm)",
+  fontSize: "var(--text-xs)",
   cursor: "pointer",
 }
 const dangerGhostBtn: React.CSSProperties = {
@@ -66,29 +56,31 @@ export default function ProfilePage() {
   const { user, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const windowWidth = useWindowWidth()
-  const isSmall = windowWidth < 480   // iPhone SE and similar
-  const isMobile = windowWidth < 768  // all phones
+  const isSmall = windowWidth < 480
+  const isMobile = windowWidth < 768
 
   const [name, setName] = useState(user?.name ?? "")
   const [nameFocused, setNameFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
   const [saveSuccess, setSaveSuccess] = useState(false)
+  // Tracks the last successfully saved name to avoid redundant API calls
+  const savedNameRef = useRef(user?.name ?? "")
 
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState("")
 
-  const handleSaveName = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
+  const saveName = async (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === savedNameRef.current) return
     setSaving(true)
     setSaveError("")
     setSaveSuccess(false)
     try {
       const updated = await usersApi.updateName(trimmed)
       updateUser({ name: updated.name })
-      setName(updated.name ?? "")
+      savedNameRef.current = updated.name ?? trimmed
+      setName(updated.name ?? trimmed)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 2500)
     } catch (err: unknown) {
@@ -167,7 +159,7 @@ export default function ProfilePage() {
         </div>
         <div style={{ ...sectionBody, padding: isMobile ? "16px" : "20px" }}>
           {/* Avatar row */}
-          <div style={{ display: "flex", alignItems: "center", gap: isSmall ? "12px" : "16px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: isSmall ? "12px" : "16px", marginBottom: "20px" }}>
             <div
               style={{
                 width: 56,
@@ -229,8 +221,8 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* Name form */}
-          <form onSubmit={handleSaveName} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {/* Name field — auto-saves on blur or Enter */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label htmlFor="profile-name" style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink-2))" }}>
                 Display name
@@ -239,9 +231,10 @@ export default function ProfilePage() {
                 id="profile-name"
                 type="text"
                 value={name}
-                onChange={(e) => { setName(e.target.value); setSaveSuccess(false) }}
+                onChange={(e) => { setName(e.target.value); setSaveSuccess(false); setSaveError("") }}
                 onFocus={() => setNameFocused(true)}
-                onBlur={() => setNameFocused(false)}
+                onBlur={() => { setNameFocused(false); saveName(name) }}
+                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
                 disabled={saving}
                 maxLength={100}
                 style={{
@@ -251,6 +244,15 @@ export default function ProfilePage() {
                   boxShadow: nameFocused ? "0 0 0 3px oklch(var(--color-accent-muted))" : "none",
                 }}
               />
+              {saving && (
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Saving…</span>
+              )}
+              {saveSuccess && (
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Saved</span>
+              )}
+              {saveError && (
+                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{saveError}</span>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -267,31 +269,7 @@ export default function ProfilePage() {
                 Signed in with Google — email can't be changed here.
               </p>
             </div>
-
-            {saveError && (
-              <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{saveError}</p>
-            )}
-
-            <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: "12px" }}>
-              <button
-                type="submit"
-                disabled={saving || name.trim().length === 0}
-                style={{
-                  ...primaryBtn,
-                  ...(isMobile && { width: "100%", padding: "10px 18px" }),
-                  opacity: saving || name.trim().length === 0 ? 0.5 : 1,
-                  cursor: saving || name.trim().length === 0 ? "not-allowed" : "pointer",
-                }}
-                onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "oklch(var(--color-accent-hover))" }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "oklch(var(--color-accent))" }}
-              >
-                {saving ? "Saving…" : "Save changes"}
-              </button>
-              {saveSuccess && (
-                <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Saved</span>
-              )}
-            </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
