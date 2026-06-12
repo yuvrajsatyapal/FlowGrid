@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
+import { useWindowWidth } from "../hooks/useWindowWidth"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ function DeleteDialog({
 
 export default function WorkspaceSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const isCompact = useWindowWidth() < 768
   const navigate = useNavigate()
   const { updateWorkspace, removeWorkspace, workspaces } = useWorkspaceStore()
 
@@ -394,17 +396,17 @@ export default function WorkspaceSettingsPage() {
           position: "sticky", top: 0, zIndex: 40,
           background: "oklch(var(--color-paper-2))",
           borderBottom: "1px solid oklch(var(--color-border))",
-          padding: "10px 36px",
+          padding: isCompact ? "10px 16px" : "10px 36px",
           display: "flex", alignItems: "center", gap: "12px",
         }}
       >
         {/* Breadcrumb */}
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-3))" }}>
-          <Link to={`/${workspaceId}`} style={{ color: "oklch(var(--color-ink-3))", textDecoration: "none" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "6px", fontSize: "var(--text-sm)", color: "oklch(var(--color-ink-3))", whiteSpace: "nowrap" }}>
+          <Link to={`/${workspaceId}`} style={{ color: "oklch(var(--color-ink-3))", textDecoration: "none", flexShrink: 0 }}>
             FlowGrid
           </Link>
-          <span>›</span>
-          <span style={{ color: "oklch(var(--color-ink-2))", fontWeight: 500 }}>Workspace Settings</span>
+          <span style={{ flexShrink: 0 }}>›</span>
+          <span style={{ color: "oklch(var(--color-ink-2))", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Workspace Settings</span>
         </div>
 
         {/* Save status */}
@@ -428,7 +430,12 @@ export default function WorkspaceSettingsPage() {
         {isOwner && (
           <button
             onClick={() => setShowDeleteDialog(true)}
-            style={dangerBtn}
+            style={{
+              ...dangerBtn,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              ...(isCompact ? { padding: "5px 10px", fontSize: "var(--text-xs)" } : {}),
+            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "oklch(var(--color-error))"
               e.currentTarget.style.borderColor = "oklch(var(--color-error))"

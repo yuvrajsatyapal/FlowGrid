@@ -1,7 +1,19 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { usersApi } from "../api/users"
 import { getInitials, getAvatarBg } from "../utils/avatar"
+
+function useWindowWidth() {
+  const [width, setWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  )
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth)
+    window.addEventListener("resize", handler, { passive: true })
+    return () => window.removeEventListener("resize", handler)
+  }, [])
+  return width
+}
 
 const sectionCard: React.CSSProperties = {
   border: "1px solid oklch(var(--color-border))",
@@ -53,6 +65,9 @@ const dangerGhostBtn: React.CSSProperties = {
 export default function ProfilePage() {
   const { user, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const windowWidth = useWindowWidth()
+  const isSmall = windowWidth < 480   // iPhone SE and similar
+  const isMobile = windowWidth < 768  // all phones
 
   const [name, setName] = useState(user?.name ?? "")
   const [nameFocused, setNameFocused] = useState(false)
@@ -121,8 +136,10 @@ export default function ProfilePage() {
   return (
     <div
       style={{
-        padding: "32px 36px",
+        padding: isSmall ? "20px 16px" : isMobile ? "24px 20px" : "32px 36px",
         maxWidth: "560px",
+        width: "100%",
+        boxSizing: "border-box",
         color: "oklch(var(--color-ink))",
         fontFamily: "var(--font-body)",
       }}
@@ -148,9 +165,9 @@ export default function ProfilePage() {
         <div style={sectionHeader}>
           <h2 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600 }}>Your profile</h2>
         </div>
-        <div style={sectionBody}>
+        <div style={{ ...sectionBody, padding: isMobile ? "16px" : "20px" }}>
           {/* Avatar row */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isSmall ? "12px" : "16px", marginBottom: "20px" }}>
             <div
               style={{
                 width: 56,
@@ -176,7 +193,7 @@ export default function ProfilePage() {
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -255,12 +272,13 @@ export default function ProfilePage() {
               <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{saveError}</p>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", flexDirection: isMobile ? "column" : "row", gap: "12px" }}>
               <button
                 type="submit"
                 disabled={saving || name.trim().length === 0}
                 style={{
                   ...primaryBtn,
+                  ...(isMobile && { width: "100%", padding: "10px 18px" }),
                   opacity: saving || name.trim().length === 0 ? 0.5 : 1,
                   cursor: saving || name.trim().length === 0 ? "not-allowed" : "pointer",
                 }}

@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
+import * as XLSX from "xlsx"
 import { workspacesApi, type WorkspaceMember } from "../api/workspaces"
 import { invitesApi, type WorkspaceInviteRecord } from "../api/invites"
 import { usersApi, type UserSearchResult } from "../api/users"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
 import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
+import { useWindowWidth } from "../hooks/useWindowWidth"
 import type { Role } from "@flowgrid/types"
 
 const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "MEMBER", "VIEWER"]
@@ -16,6 +18,7 @@ const ROLE_LABELS: Record<Role, string> = {
   MEMBER: "Member",
   VIEWER: "Viewer",
 }
+
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -340,11 +343,114 @@ function MemberMenu({ memberId, role, onRoleChange, onRemove, canManage }: {
   )
 }
 
+// ── Role dropdown (mobile) ──────────────────────────────────────────────────────
+// Native <select> popups render detached/overlapping in mobile device emulation.
+// This custom dropdown anchors the option list directly under the trigger.
+
+function RoleSelect({ value, onChange, disabled = false, containerStyle }: {
+  value: Role
+  onChange: (role: Role) => void
+  disabled?: boolean
+  containerStyle?: React.CSSProperties
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div style={{ position: "relative", flex: "0 0 auto", ...containerStyle }}>
+      {/* Trigger */}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label="Invite role"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => { if (!disabled) setOpen((v) => !v) }}
+        style={{
+          ...selectStyle,
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          textAlign: "left",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {ROLE_LABELS[value]}
+        </span>
+        <span aria-hidden="true" style={{ flexShrink: 0, color: "oklch(var(--color-ink-3))", fontSize: 9 }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 399 }} onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              minWidth: "100%",
+              zIndex: 400,
+              background: "oklch(var(--color-paper))",
+              border: "1px solid oklch(var(--color-border))",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "0 8px 28px oklch(0% 0 0 / 0.14)",
+              padding: 6,
+            }}
+          >
+            {ASSIGNABLE_ROLES.map((r) => {
+              const isSel = r === value
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  role="option"
+                  aria-selected={isSel}
+                  onClick={() => { onChange(r); setOpen(false) }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "9px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: isSel ? "oklch(var(--color-paper-2))" : "transparent",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "1rem",
+                    fontFamily: "var(--font-body)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSel) e.currentTarget.style.background = "oklch(var(--color-paper-2))"
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSel) e.currentTarget.style.background = "transparent"
+                  }}
+                >
+                  <span style={{ flex: 1 }}>{ROLE_LABELS[r]}</span>
+                  {isSel && (
+                    <span style={{ color: "oklch(var(--color-accent))", flexShrink: 0, fontSize: "var(--text-sm)" }}>✓</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function WorkspaceMembersPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { user } = useAuth()
+  const windowWidth = useWindowWidth()
+  const isMobile = windowWidth < 640
 
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [invites, setInvites] = useState<WorkspaceInviteRecord[]>([])
@@ -545,25 +651,21 @@ export default function WorkspaceMembersPage() {
     }
   }
 
-  function handleExportCsv() {
-    const rows = [
-      "Name,Email,Role,Status",
-      ...members.map((m) => {
-        const status = m.userId === user?.id || m.online ? "Active" : "Inactive"
-        return `${m.name ?? ""},${m.email},${m.role},${status}`
-      }),
-    ]
-    const blob = new Blob([rows.join("\n")], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "members.csv"
-    a.click()
-    URL.revokeObjectURL(url)
+  function handleExport() {
+    const data = members.map((m) => ({
+      Name: m.name ?? "",
+      Email: m.email,
+      Role: ROLE_LABELS[m.role],
+      "Joined Date": new Date(m.createdAt).toLocaleDateString(),
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Members")
+    XLSX.writeFile(wb, "members.xlsx")
   }
 
   return (
-    <div style={{ padding: "32px 36px", maxWidth: "960px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
+    <div style={{ padding: isMobile ? "18px 16px 32px" : "32px 36px", maxWidth: "960px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
 
       {/* Page header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
@@ -575,12 +677,12 @@ export default function WorkspaceMembersPage() {
             Manage workspace access and roles ({members.length} total)
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={handleExportCsv} style={secondaryBtn as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", width: isMobile ? "100%" : "auto" }}>
+          <button onClick={handleExport} style={{ ...secondaryBtn, flex: isMobile ? 1 : undefined, justifyContent: "center" } as React.CSSProperties}>
             {DOWNLOAD_ICON}
-            Export CSV
+            Export
           </button>
-          <Link to={`/${workspaceId}/settings`} style={secondaryBtn}>
+          <Link to={`/${workspaceId}/settings`} style={{ ...secondaryBtn, flex: isMobile ? 1 : undefined, justifyContent: "center" }}>
             {GEAR_ICON}
             Team Settings
           </Link>
@@ -588,9 +690,9 @@ export default function WorkspaceMembersPage() {
       </div>
 
       {/* Stat cards row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: windowWidth < 960 ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "12px", marginBottom: "24px" }}>
         <MemberStat label="Total Members" value={members.length} iconType="total" />
-        <MemberStat label="Workspace Owners" value={members.filter((m) => m.role === "OWNER").length} iconType="owner" />
+        <MemberStat label={isMobile ? "Owner" : "Workspace Owners"} value={members.filter((m) => m.role === "OWNER").length} iconType="owner" />
         <MemberStat label="Pending Invites" value={invites.length} iconType="pending" />
         <MemberStat label="Active Now" value={onlineCount} iconType="active" />
       </div>
@@ -604,7 +706,7 @@ export default function WorkspaceMembersPage() {
           <div style={{ padding: "16px 20px" }}>
             <form onSubmit={handleInvite} style={{ display: "flex", gap: "8px", flexWrap: "wrap" as const }}>
               {/* User search input */}
-              <div style={{ flex: "1 1 200px", minWidth: "180px", position: "relative" }}>
+              <div style={{ flex: isMobile ? "1 1 100%" : "1 1 200px", minWidth: isMobile ? "100%" : "180px", position: "relative" }}>
                 <input
                   type="text"
                   placeholder="Search by name or email…"
@@ -687,10 +789,8 @@ export default function WorkspaceMembersPage() {
                   </div>
                 )}
               </div>
-              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} disabled={inviting} style={selectStyle}>
-                {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-              </select>
-              <button type="submit" disabled={inviting || !selectedUser} style={{ ...primaryBtn, opacity: (inviting || !selectedUser) ? 0.6 : 1 }}>
+              <RoleSelect value={inviteRole} onChange={setInviteRole} disabled={inviting} containerStyle={isMobile ? { flex: 3 } : undefined} />
+              <button type="submit" disabled={inviting || !selectedUser} style={{ ...primaryBtn, ...(isMobile && { flex: 2 }), opacity: (inviting || !selectedUser) ? 0.6 : 1 }}>
                 {inviting ? "Sending…" : "Send invite"}
               </button>
             </form>
@@ -704,10 +804,10 @@ export default function WorkspaceMembersPage() {
 
       {/* Active Members */}
       <div style={{ ...sectionCard, marginBottom: "24px", overflow: "visible" }}>
-        <div style={{ ...sectionHeader, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+        <div style={{ ...sectionHeader, display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", gap: isMobile ? "10px" : "12px" }}>
           <h2 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600 }}>Active Members</h2>
           {/* Search */}
-          <div style={{ position: "relative", maxWidth: "220px" }}>
+          <div style={{ position: "relative", maxWidth: isMobile ? "100%" : "220px" }}>
             <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "oklch(var(--color-ink-3))", display: "flex" }}>
               {SEARCH_ICON}
             </span>
@@ -733,6 +833,83 @@ export default function WorkspaceMembersPage() {
               // The current viewer always holds an active socket connection.
               const isOnline = isCurrentUser || member.online
 
+              const avatar = (
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    overflow: "hidden",
+                    background: member.avatarUrl ? "transparent" : getAvatarBg(member.id),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {member.avatarUrl ? (
+                    <img src={member.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>{getInitials(member.name ?? member.email)}</span>
+                  )}
+                </div>
+              )
+
+              const statusPill = (
+                <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0, minWidth: 64 }}>
+                  <div
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: isOnline ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))",
+                    }}
+                  />
+                  <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
+                    {isOnline ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              )
+
+              const menu = (
+                <MemberMenu
+                  memberId={member.id}
+                  role={member.role}
+                  onRoleChange={handleRoleChange}
+                  onRemove={handleRemove}
+                  canManage={canModify}
+                />
+              )
+
+              // Mobile: stacked card block — name never truncates, badge/status drop below.
+              if (isMobile) {
+                return (
+                  <div
+                    key={member.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: isLast ? "none" : "1px solid oklch(var(--color-border))",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      {avatar}
+                      <p style={{ flex: 1, minWidth: 0, margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, wordBreak: "break-word" }}>
+                        {member.name ?? member.email}
+                        {isCurrentUser && <span style={{ marginLeft: 6, fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>(you)</span>}
+                      </p>
+                      {menu}
+                    </div>
+                    {member.name && (
+                      <p style={{ margin: "6px 0 0 48px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))", wordBreak: "break-word" }}>{member.email}</p>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "8px 0 0 48px" }}>
+                      <RoleBadge role={member.role} />
+                      {statusPill}
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={member.id}
@@ -744,26 +921,7 @@ export default function WorkspaceMembersPage() {
                     borderBottom: isLast ? "none" : "1px solid oklch(var(--color-border))",
                   }}
                 >
-                  {/* Avatar */}
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      overflow: "hidden",
-                      background: member.avatarUrl ? "transparent" : getAvatarBg(member.id),
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {member.avatarUrl ? (
-                      <img src={member.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>{getInitials(member.name ?? member.email)}</span>
-                    )}
-                  </div>
+                  {avatar}
 
                   {/* Name + email */}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -780,28 +938,10 @@ export default function WorkspaceMembersPage() {
                   <RoleBadge role={member.role} />
 
                   {/* Online/offline status */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0, minWidth: 64 }}>
-                    <div
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: isOnline ? "oklch(var(--color-success))" : "oklch(var(--color-ink-3))",
-                      }}
-                    />
-                    <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                      {isOnline ? "Active" : "Inactive"}
-                    </span>
-                  </div>
+                  {statusPill}
 
                   {/* Overflow menu */}
-                  <MemberMenu
-                    memberId={member.id}
-                    role={member.role}
-                    onRoleChange={handleRoleChange}
-                    onRemove={handleRemove}
-                    canManage={canModify}
-                  />
+                  {menu}
                 </div>
               )
             })}
@@ -866,27 +1006,56 @@ export default function WorkspaceMembersPage() {
                 const isExpired = expiresDate < new Date()
                 const didResend = resendSuccess[invite.id] ?? false
                 const displayName = invite.invitee.name ?? invite.invitee.email
+
+                const inviteAvatar = (
+                  <div style={{
+                    width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                    overflow: "hidden", background: invite.invitee.avatarUrl ? "transparent" : getAvatarBg(invite.invitee.id),
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {invite.invitee.avatarUrl
+                      ? <img src={invite.invitee.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <span style={{ fontSize: "11px", fontWeight: 600, color: "#fff" }}>{getInitials(displayName)}</span>
+                    }
+                  </div>
+                )
+                const inviteMeta = (
+                  <p style={{ margin: "2px 0 0", fontSize: "var(--text-xs)", color: isExpired ? "oklch(var(--color-error))" : "oklch(var(--color-ink-3))", wordBreak: "break-word" }}>
+                    {invite.invitee.email} · {isExpired ? "Expired" : `Expires ${expiresDate.toLocaleDateString()}`}
+                  </p>
+                )
+
+                // Mobile: stacked block — meta + badge below name, actions on their own full-width row.
+                if (isMobile) {
+                  return (
+                    <div
+                      key={invite.id}
+                      style={{ padding: "14px 16px", borderBottom: "1px solid oklch(var(--color-border))", opacity: isExpired ? 0.7 : 1 }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        {inviteAvatar}
+                        <p style={{ flex: 1, minWidth: 0, margin: 0, fontSize: "var(--text-sm)", fontWeight: 500, wordBreak: "break-word" }}>{displayName}</p>
+                      </div>
+                      <div style={{ margin: "0 0 0 44px" }}>{inviteMeta}</div>
+                      <div style={{ margin: "8px 0 0 44px" }}><RoleBadge role={invite.role} /></div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", margin: "10px 0 0 44px" }}>
+                        {didResend && <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-success))" }}>Sent!</span>}
+                        <button onClick={() => { void handleResend(invite.id) }} style={{ ...ghostBtn, flex: 1 }}>Resend</button>
+                        <button onClick={() => { void handleRevoke(invite.id) }} style={{ ...dangerGhostBtn, flex: 1 }}>Revoke</button>
+                      </div>
+                    </div>
+                  )
+                }
+
                 return (
                   <div
                     key={invite.id}
                     style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: "1px solid oklch(var(--color-border))", opacity: isExpired ? 0.7 : 1 }}
                   >
-                    {/* Invitee avatar */}
-                    <div style={{
-                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                      overflow: "hidden", background: invite.invitee.avatarUrl ? "transparent" : getAvatarBg(invite.invitee.id),
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      {invite.invitee.avatarUrl
-                        ? <img src={invite.invitee.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <span style={{ fontSize: "11px", fontWeight: 600, color: "#fff" }}>{getInitials(displayName)}</span>
-                      }
-                    </div>
+                    {inviteAvatar}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 500 }}>{displayName}</p>
-                      <p style={{ margin: "2px 0 0", fontSize: "var(--text-xs)", color: isExpired ? "oklch(var(--color-error))" : "oklch(var(--color-ink-3))" }}>
-                        {invite.invitee.email} · {isExpired ? "Expired" : `Expires ${expiresDate.toLocaleDateString()}`}
-                      </p>
+                      {inviteMeta}
                     </div>
                     <RoleBadge role={invite.role} />
                     <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>

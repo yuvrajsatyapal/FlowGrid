@@ -11,6 +11,7 @@ import {
 } from "recharts"
 import * as XLSX from "xlsx"
 import { useAnalytics } from "../hooks/useAnalytics"
+import { useWindowWidth } from "../hooks/useWindowWidth"
 import type { Priority } from "@flowgrid/types"
 
 const PERIOD_OPTIONS = [
@@ -103,11 +104,12 @@ function Trend({ pct }: { pct: number }) {
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, trendPct, iconType }: {
+function StatCard({ label, value, trendPct, iconType, compact = false }: {
   label: string
   value: number
   trendPct: number
   iconType: "cards" | "boards" | "members" | "activities"
+  compact?: boolean
 }) {
   return (
     <div
@@ -115,7 +117,7 @@ function StatCard({ label, value, trendPct, iconType }: {
         background: "oklch(var(--color-paper-2))",
         border: "1px solid oklch(var(--color-border))",
         borderRadius: "var(--radius-card)",
-        padding: "20px 24px",
+        padding: compact ? "16px 18px" : "20px 24px",
         display: "flex",
         flexDirection: "column",
         gap: "4px",
@@ -355,10 +357,105 @@ function Avatar({ name, avatarUrl, size = 32 }: { name: string | null; avatarUrl
   )
 }
 
+// ── Period dropdown (mobile) ────────────────────────────────────────────────────
+// Native <select> popups render detached/overlapping in mobile device emulation.
+// This custom dropdown anchors the option list directly under the trigger.
+
+function PeriodSelect({ value, onChange }: { value: number; onChange: (days: number) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = PERIOD_OPTIONS.find((o) => o.days === value)
+
+  return (
+    <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <button
+        type="button"
+        aria-label="Time period"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 12px",
+          borderRadius: "var(--radius-input)",
+          border: "1px solid oklch(var(--color-border))",
+          background: "oklch(var(--color-paper-2))",
+          color: "oklch(var(--color-ink-2))",
+          fontSize: "var(--text-sm)",
+          fontFamily: "var(--font-body)",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selected?.label ?? "Select period"}
+        </span>
+        <span aria-hidden="true" style={{ flexShrink: 0, color: "oklch(var(--color-ink-3))", fontSize: 10 }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 399 }} onClick={() => setOpen(false)} />
+          <div
+            role="listbox"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              right: 0,
+              zIndex: 400,
+              background: "oklch(var(--color-paper))",
+              border: "1px solid oklch(var(--color-border))",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "0 8px 24px oklch(0% 0 0 / 0.18)",
+              padding: 4,
+              overflow: "hidden",
+            }}
+          >
+            {PERIOD_OPTIONS.map((o) => {
+              const isSel = o.days === value
+              return (
+                <button
+                  key={o.days}
+                  type="button"
+                  role="option"
+                  aria-selected={isSel}
+                  onClick={() => { onChange(o.days); setOpen(false) }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: isSel ? "oklch(var(--color-paper-2))" : "transparent",
+                    color: "oklch(var(--color-ink))",
+                    fontSize: "var(--text-sm)",
+                    fontFamily: "var(--font-body)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ flex: 1 }}>{o.label}</span>
+                  {isSel && <span style={{ color: "oklch(var(--color-accent))", flexShrink: 0 }}>✓</span>}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const isMobile = useWindowWidth() < 640
   const [days, setDays] = useState(30)
   const { data, isLoading, isError } = useAnalytics(workspaceId, days)
 
@@ -437,10 +534,10 @@ export default function AnalyticsPage() {
   }))
 
   return (
-    <div style={{ padding: "32px 40px", display: "flex", flexDirection: "column", gap: "28px", fontFamily: "var(--font-body)" }}>
+    <div style={{ padding: isMobile ? "18px 16px 28px" : "32px 40px", display: "flex", flexDirection: "column", gap: isMobile ? "24px" : "28px", fontFamily: "var(--font-body)" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
         <div>
           <p
             style={{
@@ -471,62 +568,79 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Right cluster */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, flexWrap: "wrap" }}>
+        <div style={{
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
+          gap: "10px",
+          flexShrink: 0,
+          flexWrap: isMobile ? "nowrap" : "wrap",
+          width: isMobile ? "100%" : "auto",
+        }}>
           <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
             {CLOCK_ICON} Last updated: Just now
           </span>
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            style={{
-              padding: "6px 10px",
-              borderRadius: "var(--radius-input)",
-              border: "1px solid oklch(var(--color-border))",
-              background: "oklch(var(--color-paper-2))",
-              color: "oklch(var(--color-ink-2))",
-              fontSize: "var(--text-sm)",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-              outline: "none",
-            }}
-          >
-            {PERIOD_OPTIONS.map((o) => (
-              <option key={o.days} value={o.days}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleExport}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              borderRadius: "var(--radius-button)",
-              border: "none",
-              background: "oklch(var(--color-accent))",
-              color: "#fff",
-              fontSize: "var(--text-sm)",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            {DOWNLOAD_ICON}
-            Export
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", width: isMobile ? "100%" : "auto" }}>
+            {isMobile ? (
+              <PeriodSelect value={days} onChange={setDays} />
+            ) : (
+              <select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "var(--radius-input)",
+                  border: "1px solid oklch(var(--color-border))",
+                  background: "oklch(var(--color-paper-2))",
+                  color: "oklch(var(--color-ink-2))",
+                  fontSize: "var(--text-sm)",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                  outline: "none",
+                }}
+              >
+                {PERIOD_OPTIONS.map((o) => (
+                  <option key={o.days} value={o.days}>{o.label}</option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={handleExport}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: isMobile ? "8px 16px" : "7px 14px",
+                borderRadius: "var(--radius-button)",
+                border: "none",
+                background: "oklch(var(--color-accent))",
+                color: "#fff",
+                fontSize: "var(--text-sm)",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "var(--font-body)",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {DOWNLOAD_ICON}
+              Export
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Totals row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-        <StatCard label="Total Cards" value={data.totals.totalCards} trendPct={data.totals.cardsTrendPct} iconType="cards" />
-        <StatCard label="Boards" value={data.totals.totalBoards} trendPct={data.totals.boardsTrendPct} iconType="boards" />
-        <StatCard label="Members" value={data.totals.totalMembers} trendPct={data.totals.membersTrendPct} iconType="members" />
-        <StatCard label="Activities" value={data.totals.totalActivities} trendPct={data.totals.activitiesTrendPct} iconType="activities" />
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+        <StatCard label="Total Cards" value={data.totals.totalCards} trendPct={data.totals.cardsTrendPct} iconType="cards" compact={isMobile} />
+        <StatCard label="Boards" value={data.totals.totalBoards} trendPct={data.totals.boardsTrendPct} iconType="boards" compact={isMobile} />
+        <StatCard label="Members" value={data.totals.totalMembers} trendPct={data.totals.membersTrendPct} iconType="members" compact={isMobile} />
+        <StatCard label="Activities" value={data.totals.totalActivities} trendPct={data.totals.activitiesTrendPct} iconType="activities" compact={isMobile} />
       </div>
 
       {/* Charts grid — priority narrower, board wider */}
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "340px 1fr", gap: "16px" }}>
 
         {/* Cards by priority — donut */}
         <ChartCard title="Cards by Priority" isEmpty={!hasPriorityData} emptyMsg="No cards yet — create some to see priority breakdown.">

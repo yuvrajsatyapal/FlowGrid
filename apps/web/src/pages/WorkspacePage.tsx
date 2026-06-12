@@ -590,7 +590,10 @@ export default function WorkspacePage() {
     <>
       <div
         style={{
-          padding: "32px 36px",
+          // Mobile: 16px sides so content lines up with the app-bar icons
+          // (12px bar padding + 6px button inset ≈ 16px) and cards use the
+          // full width. Desktop keeps its roomier padding.
+          padding: isMobile ? "18px 16px 32px" : "32px 36px",
           color: "oklch(var(--color-ink))",
           fontFamily: "var(--font-body)",
         }}
@@ -603,7 +606,9 @@ export default function WorkspacePage() {
             justifyContent: "space-between",
             gap: "16px",
             flexWrap: "wrap",
-            marginBottom: "28px",
+            // Tighter on big screens so the bottom-aligned action buttons sit
+            // close to the board-count/view-toggle row below them.
+            marginBottom: isMobile ? "28px" : "12px",
           }}
         >
           <div>
@@ -668,8 +673,19 @@ export default function WorkspacePage() {
               )}
           </div>
 
-          {workspaceId && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          {workspaceId && !isMobile && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexShrink: 0,
+                // Drop the buttons to the bottom of the header so they sit just
+                // above the board-count/view-toggle cluster, filling the empty
+                // space on the right. Hidden entirely on mobile.
+                alignSelf: "flex-end",
+              }}
+            >
               <Link to={`/${workspaceId}/members`} style={inviteBtn}>
                 {MEMBERS_ICON}
                 Invite Members

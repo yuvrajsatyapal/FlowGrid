@@ -685,7 +685,7 @@ export default function BoardPage() {
       <div
         style={{
           background: coverBg,
-          padding: headerIsSmall ? "10px 14px" : headerIsCompact ? "14px 20px" : "20px 28px",
+          padding: headerIsSmall ? "10px 16px" : headerIsCompact ? "14px 20px" : "20px 28px",
           display: "flex",
           alignItems: "center",
           gap: headerIsSmall ? "6px" : "10px",
