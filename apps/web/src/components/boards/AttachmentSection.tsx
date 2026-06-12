@@ -18,6 +18,25 @@ const EXT_ICON: Record<string, string> = {
   txt: "📃", csv: "📊", json: "📃", xml: "📃",
 }
 
+// Returns a download-ready URL for the attachment.
+// Cloudinary: inserts fl_attachment flag so the CDN sets Content-Disposition: attachment.
+// Legacy localhost URLs (pre-migration): returns null — file no longer available.
+function getDownloadUrl(url: string): string | null {
+  if (url.includes("res.cloudinary.com")) {
+    const marker = "/upload/"
+    const idx = url.indexOf(marker)
+    if (idx !== -1) {
+      return url.slice(0, idx + marker.length) + "fl_attachment/" + url.slice(idx + marker.length)
+    }
+    return url
+  }
+  // Legacy local storage URL — file was stored on disk and is no longer available
+  if (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1") || url.includes("/uploads/")) {
+    return null
+  }
+  return url
+}
+
 function fileIcon(name: string, mimeType: string | null): string {
   if (mimeType?.startsWith("image/")) return "🖼"
   const ext = name.split(".").pop()?.toLowerCase() ?? ""
@@ -276,6 +295,7 @@ interface RowProps {
 
 function AttachmentRow({ attachment, canEdit, onDelete }: RowProps) {
   const isImage = attachment.mimeType?.startsWith("image/")
+  const downloadUrl = getDownloadUrl(attachment.url)
 
   return (
     <div
@@ -334,25 +354,44 @@ function AttachmentRow({ attachment, canEdit, onDelete }: RowProps) {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <a
-          href={attachment.url}
-          download={attachment.name}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            padding: "3px 7px",
-            borderRadius: "var(--radius-input)",
-            border: "1px solid oklch(var(--color-border))",
-            background: "oklch(var(--color-paper))",
-            color: "oklch(var(--color-ink-2))",
-            fontSize: "var(--text-xs)",
-            textDecoration: "none",
-            lineHeight: 1.5,
-          }}
-          title="Download"
-        >
-          ↓
-        </a>
+        {downloadUrl ? (
+          <a
+            href={downloadUrl}
+            download={attachment.name}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              padding: "3px 7px",
+              borderRadius: "var(--radius-input)",
+              border: "1px solid oklch(var(--color-border))",
+              background: "oklch(var(--color-paper))",
+              color: "oklch(var(--color-ink-2))",
+              fontSize: "var(--text-xs)",
+              textDecoration: "none",
+              lineHeight: 1.5,
+            }}
+            title="Download"
+          >
+            ↓
+          </a>
+        ) : (
+          <span
+            style={{
+              padding: "3px 7px",
+              borderRadius: "var(--radius-input)",
+              border: "1px solid oklch(var(--color-border))",
+              background: "oklch(var(--color-paper-2))",
+              color: "oklch(var(--color-ink-3))",
+              fontSize: "var(--text-xs)",
+              lineHeight: 1.5,
+              cursor: "not-allowed",
+              opacity: 0.5,
+            }}
+            title="File no longer available — was uploaded before cloud storage migration. Please re-upload."
+          >
+            ↓
+          </span>
+        )}
         {canEdit && (
           <button
             onClick={onDelete}

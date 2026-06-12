@@ -1,5 +1,4 @@
 import "dotenv/config"
-import path from "path"
 import express from "express"
 import helmet from "helmet"
 import cors from "cors"
@@ -35,16 +34,6 @@ const app = express()
 const httpServer = createServer(app)
 
 initSocket(httpServer)
-
-// Serve uploaded files in local dev (R2 serves directly from CDN in prod)
-if (env.STORAGE_PROVIDER === "local") {
-  app.use("/uploads", express.static(path.join(__dirname, "../uploads"), {
-    setHeaders: (res) => {
-      res.setHeader("Content-Disposition", "attachment")
-      res.setHeader("X-Content-Type-Options", "nosniff")
-    },
-  }))
-}
 
 // Security headers — Helmet must come before CORS so CSP doesn't conflict
 app.use(helmet({

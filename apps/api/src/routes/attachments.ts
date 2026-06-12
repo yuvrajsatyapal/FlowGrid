@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma"
 import { validateJWT } from "../middleware/auth"
 import { canWrite } from "../lib/roles"
 import { storage, keyFromUrl } from "../lib/storage"
+import logger from "../lib/logger"
 
 const router = Router()
 
@@ -295,9 +296,19 @@ router.post("/delete", validateJWT, async (req, res) => {
       return
     }
 
-    // Delete storage object first, then DB record
+    // Delete from Cloudinary first, then DB record
     const key = keyFromUrl(attachment.url)
-    await storage.delete(key).catch(() => {})
+    try {
+      await storage.delete(key)
+    } catch (err) {
+      // Log but continue — DB record is still removed so the UI stays consistent.
+      // Check server logs if Cloudinary files appear to linger.
+      logger.warn("Failed to delete attachment from Cloudinary storage", {
+        attachmentId,
+        key,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
     await prisma.attachment.deleteMany({ where: { id: attachmentId } })
 
     res.json({ success: true })
