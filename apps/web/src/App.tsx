@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider } from "./contexts/AuthContext"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import ProtectedRoute from "./components/auth/ProtectedRoute"
+import PublicRoute from "./components/auth/PublicRoute"
 import AppLayout from "./components/layout/AppLayout"
 import LoginPage from "./pages/LoginPage"
 import AuthCallbackPage from "./pages/AuthCallbackPage"
@@ -25,11 +26,11 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Landing */}
-          <Route path="/" element={<LandingPage />} />
-
-          {/* Public */}
-          <Route path="/login" element={<LoginPage />} />
+          {/* Public — redirect to /dashboard if already authenticated */}
+          <Route element={<PublicRoute />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           {/* Invite accept — handles auth redirect internally */}
           <Route path="/invite/accept" element={<InviteAcceptPage />} />
