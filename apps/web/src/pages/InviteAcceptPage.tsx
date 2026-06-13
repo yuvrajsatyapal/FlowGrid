@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "../contexts/AuthContext"
 import { invitesApi } from "../api/invites"
-import { workspacesApi } from "../api/workspaces"
-import { useWorkspaceStore } from "../stores/workspaceStore"
+import { workspaceKeys } from "../features/workspace/queries/keys"
 import type { Role } from "@flowgrid/types"
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -22,10 +22,36 @@ export default function InviteAcceptPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const { setWorkspaces } = useWorkspaceStore()
+  const qc = useQueryClient()
   const [pageState, setPageState] = useState<PageState>({ status: "loading" })
 
   const token = searchParams.get("token")
+
+  // Accept-on-mount is a mutation (not a read). The API call lives in mutationFn,
+  // out of useEffect; the effect only fires it once via firedRef.
+  const acceptInvite = useMutation({
+    mutationFn: (inviteToken: string) => invitesApi.accept(inviteToken),
+    onSuccess: (result) => {
+      // Refresh the workspace list so the new workspace appears in the sidebar
+      void qc.invalidateQueries({ queryKey: workspaceKeys.list() })
+      setPageState({ status: "success", workspaceId: result.workspaceId, workspaceName: result.workspaceName, role: result.role })
+    },
+    onError: (err: Error) => {
+      const msg = err.message || "Failed to accept invite"
+      // Map backend error codes to user-friendly states
+      if (msg.includes("INVITE_EXPIRED") || msg.toLowerCase().includes("expired")) {
+        setPageState({ status: "error", code: "INVITE_EXPIRED", message: "Invite expired. Ask the workspace owner to resend." })
+      } else if (msg.includes("EMAIL_MISMATCH") || msg.toLowerCase().includes("different email")) {
+        setPageState({ status: "error", code: "EMAIL_MISMATCH", message: "This invite was sent to a different email address." })
+      } else if (msg.includes("INVITE_INVALID") || msg.toLowerCase().includes("no longer valid")) {
+        setPageState({ status: "error", code: "INVITE_INVALID", message: "This invite is no longer valid." })
+      } else {
+        setPageState({ status: "error", code: "UNKNOWN", message: msg })
+      }
+    },
+  })
+
+  const firedRef = useRef(false)
 
   useEffect(() => {
     if (authLoading) return
@@ -41,31 +67,10 @@ export default function InviteAcceptPage() {
       return
     }
 
-    invitesApi
-      .accept(token)
-      .then(async (result) => {
-        // Refresh workspace list so the new workspace appears in the sidebar
-        try {
-          const updated = await workspacesApi.list()
-          setWorkspaces(updated)
-        } catch {
-          // Non-fatal — workspace list will refresh on next navigation
-        }
-        setPageState({ status: "success", workspaceId: result.workspaceId, workspaceName: result.workspaceName, role: result.role })
-      })
-      .catch((err: Error) => {
-        const msg = err.message || "Failed to accept invite"
-        // Map backend error codes to user-friendly states
-        if (msg.includes("INVITE_EXPIRED") || msg.toLowerCase().includes("expired")) {
-          setPageState({ status: "error", code: "INVITE_EXPIRED", message: "Invite expired. Ask the workspace owner to resend." })
-        } else if (msg.includes("EMAIL_MISMATCH") || msg.toLowerCase().includes("different email")) {
-          setPageState({ status: "error", code: "EMAIL_MISMATCH", message: "This invite was sent to a different email address." })
-        } else if (msg.includes("INVITE_INVALID") || msg.toLowerCase().includes("no longer valid")) {
-          setPageState({ status: "error", code: "INVITE_INVALID", message: "This invite is no longer valid." })
-        } else {
-          setPageState({ status: "error", code: "UNKNOWN", message: msg })
-        }
-      })
+    // Run-once guard: accept exactly one time even if the effect re-runs.
+    if (firedRef.current) return
+    firedRef.current = true
+    acceptInvite.mutate(token)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAuthenticated, token])
 

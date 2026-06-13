@@ -3,9 +3,10 @@ import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
 import type { ListSummary } from "../../api/lists"
-import { listsApi } from "../../api/lists"
 import type { CardSummary } from "../../api/cards"
-import { cardsApi } from "../../api/cards"
+import { useRenameList } from "../../features/board/mutations/useRenameList"
+import { useDeleteList } from "../../features/board/mutations/useDeleteList"
+import { useCreateCard } from "../../features/board/mutations/useCreateCard"
 import CardItem from "./CardItem"
 import CreateCardInline from "./CreateCardInline"
 
@@ -13,9 +14,6 @@ interface Props {
   list: ListSummary
   canEdit: boolean
   cards: CardSummary[]
-  onRenamed: (id: string, name: string) => void
-  onDeleted: (id: string) => void
-  onCardCreated: (listId: string, card: CardSummary) => void
   onCardClick?: (cardId: string) => void
   width?: number
   /** Height each card occupies so a full list (5 cards) fills the column top-to-bottom */
@@ -32,7 +30,7 @@ function isDoneList(name: string): boolean {
   return lower.includes("done") || lower.includes("complete") || lower.includes("finished") || lower.includes("closed")
 }
 
-export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted, onCardCreated, onCardClick, width = 272, cardSlotHeight, blockedCardIds, isViewer = false, hideDescription = false, mobile = false }: Props) {
+export default function ListColumn({ list, canEdit, cards, onCardClick, width = 272, cardSlotHeight, blockedCardIds, isViewer = false, hideDescription = false, mobile = false }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState(list.name)
   const [saving, setSaving] = useState(false)
@@ -40,6 +38,10 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
   const [deleteError, setDeleteError] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const renameList = useRenameList(list.boardId)
+  const deleteList = useDeleteList(list.boardId)
+  const createCard = useCreateCard(list.boardId)
 
   const { setNodeRef: setDropRef } = useDroppable({ id: list.id })
 
@@ -56,8 +58,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
     }
     setSaving(true)
     try {
-      const updated = await listsApi.update(list.id, trimmed)
-      onRenamed(list.id, updated.name)
+      await renameList.mutateAsync({ id: list.id, name: trimmed })
       setRenaming(false)
     } catch {
       setNameInput(list.name)
@@ -72,8 +73,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
     setDeleting(true)
     setDeleteError("")
     try {
-      await listsApi.deleteList(list.id)
-      onDeleted(list.id)
+      await deleteList.mutateAsync({ id: list.id })
     } catch (err) {
       setDeleteError((err as Error).message || "Failed to delete list")
     } finally {
@@ -82,8 +82,7 @@ export default function ListColumn({ list, canEdit, cards, onRenamed, onDeleted,
   }
 
   const handleCreateCard = async (title: string) => {
-    const card = await cardsApi.create(list.id, title)
-    onCardCreated(list.id, card)
+    await createCard.mutateAsync({ listId: list.id, title })
   }
 
   const isFull = cards.length >= MAX_CARDS_PER_LIST

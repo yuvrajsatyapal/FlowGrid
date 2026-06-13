@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { workspacesApi } from "../../api/workspaces"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
+import { useWorkspaceList } from "../../features/workspace/queries/useWorkspaceList"
+import { addWorkspaceToCache } from "../../features/workspace/queries/workspaceListCache"
 import type { WorkspaceSummary } from "../../api/workspaces"
 
 const CHEVRON_DOWN = (
@@ -64,7 +67,9 @@ function WorkspaceBadge({ name, logoUrl, color }: { name: string; logoUrl?: stri
 }
 
 export default function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, setActiveWorkspace, addWorkspace } = useWorkspaceStore()
+  const { activeWorkspace, setActiveWorkspace } = useWorkspaceStore()
+  const workspaces = useWorkspaceList().data ?? []
+  const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState("")
@@ -116,7 +121,7 @@ export default function WorkspaceSwitcher() {
     setCreateError("")
     try {
       const workspace = await workspacesApi.create({ name })
-      addWorkspace(workspace)
+      addWorkspaceToCache(qc, workspace)
       setActiveWorkspace(workspace)
       closeCreate()
       navigate(`/${workspace.id}`)

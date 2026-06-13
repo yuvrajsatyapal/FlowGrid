@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useParams, useNavigate, Link } from "react-router-dom"
-import { useWorkspaceStore } from "../stores/workspaceStore"
 import { workspacesApi, type WorkspaceDetail } from "../api/workspaces"
+import { useWorkspaceDetail } from "../features/workspace/queries/useWorkspaceDetail"
+import { useWorkspaceList } from "../features/workspace/queries/useWorkspaceList"
+import { updateWorkspaceInCache, removeWorkspaceFromCache } from "../features/workspace/queries/workspaceListCache"
+import { workspaceKeys } from "../features/workspace/queries/keys"
 import { useWindowWidth } from "../hooks/useWindowWidth"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -200,11 +204,14 @@ export default function WorkspaceSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const isCompact = useWindowWidth() < 768
   const navigate = useNavigate()
-  const { updateWorkspace, removeWorkspace, workspaces } = useWorkspaceStore()
+  const qc = useQueryClient()
+  const workspaces = useWorkspaceList().data ?? []
 
-  const [detail, setDetail] = useState<WorkspaceDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState("")
+  // Server state: the workspace detail is owned by React Query (Phase 4A).
+  const workspaceQuery = useWorkspaceDetail(workspaceId)
+  const detail = workspaceQuery.data ?? null
+  const loading = workspaceQuery.isLoading
+  const loadError = workspaceQuery.isError ? ((workspaceQuery.error as Error).message || "Failed to load workspace") : ""
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -234,25 +241,22 @@ export default function WorkspaceSettingsPage() {
     if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
   }, [])
 
-  // ── Load workspace ────────────────────────────────────────────────────────────
+  // ── Seed the editable form draft from the query (once per workspace) ───────────
+  // Server-state → editable-form synchronization (not data fetching). loadedRef
+  // guards against re-seeding when the detail cache changes after a save.
   useEffect(() => {
-    if (!workspaceId) return
     loadedRef.current = false
-    setLoading(true)
-    setLoadError("")
-    workspacesApi
-      .getOne(workspaceId)
-      .then((ws) => {
-        setDetail(ws)
-        setName(ws.name)
-        setDescription(ws.description ?? "")
-        setSelectedColor(ws.color ?? "blue")
-        savedValuesRef.current = { name: ws.name, description: ws.description ?? "" }
-        loadedRef.current = true
-      })
-      .catch((err: Error) => setLoadError(err.message || "Failed to load workspace"))
-      .finally(() => setLoading(false))
   }, [workspaceId])
+
+  useEffect(() => {
+    const ws = workspaceQuery.data
+    if (!ws || loadedRef.current) return
+    setName(ws.name)
+    setDescription(ws.description ?? "")
+    setSelectedColor(ws.color ?? "blue")
+    savedValuesRef.current = { name: ws.name, description: ws.description ?? "" }
+    loadedRef.current = true
+  }, [workspaceQuery.data])
 
   // ── Autosave ─────────────────────────────────────────────────────────────────
   const performSave = useCallback(
@@ -265,11 +269,11 @@ export default function WorkspaceSettingsPage() {
           name: n.trim(),
           description: d.trim() || null,
         })
-        setDetail((prev) =>
+        qc.setQueryData<WorkspaceDetail>(workspaceKeys.detail(workspaceId), (prev) =>
           prev ? { ...prev, name: updated.name, description: updated.description } : prev,
         )
         setDescription(updated.description ?? "")
-        updateWorkspace(workspaceId, { name: updated.name })
+        updateWorkspaceInCache(qc, workspaceId, { name: updated.name })
         savedValuesRef.current = { name: updated.name, description: updated.description ?? "" }
         setSaveStatus("saved")
         if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
@@ -279,7 +283,7 @@ export default function WorkspaceSettingsPage() {
         setSaveError((err as Error).message || "Failed to save")
       }
     },
-    [workspaceId, updateWorkspace],
+    [workspaceId, qc],
   )
 
   // Debounce: 700 ms after last keystroke
@@ -316,8 +320,8 @@ export default function WorkspaceSettingsPage() {
     setLogoError("")
     try {
       const updated = await workspacesApi.uploadLogo(workspaceId, file)
-      setDetail((prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev))
-      updateWorkspace(workspaceId, { logoUrl: updated.logoUrl ?? undefined })
+      qc.setQueryData<WorkspaceDetail>(workspaceKeys.detail(workspaceId), (prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev))
+      updateWorkspaceInCache(qc, workspaceId, { logoUrl: updated.logoUrl ?? undefined })
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
       setLogoError(axiosErr?.response?.data?.error?.message ?? "Failed to upload logo")
@@ -332,8 +336,8 @@ export default function WorkspaceSettingsPage() {
     setLogoError("")
     try {
       const updated = await workspacesApi.removeLogo(workspaceId)
-      setDetail((prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev))
-      updateWorkspace(workspaceId, { logoUrl: updated.logoUrl ?? undefined })
+      qc.setQueryData<WorkspaceDetail>(workspaceKeys.detail(workspaceId), (prev) => (prev ? { ...prev, logoUrl: updated.logoUrl } : prev))
+      updateWorkspaceInCache(qc, workspaceId, { logoUrl: updated.logoUrl ?? undefined })
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } }
       setLogoError(axiosErr?.response?.data?.error?.message ?? "Failed to remove logo")
@@ -353,28 +357,28 @@ export default function WorkspaceSettingsPage() {
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000)
     } catch {
       setSelectedColor(prevColor)
-      updateWorkspace(workspaceId, { color: prevColor })
+      updateWorkspaceInCache(qc, workspaceId, { color: prevColor })
     } finally {
       setColorSaving(false)
     }
-  }, [workspaceId, updateWorkspace])
+  }, [workspaceId, qc])
 
   const handleSaveColor = useCallback((color: string) => {
     if (!workspaceId) return
     const prevColor = selectedColor
     setSelectedColor(color)
-    updateWorkspace(workspaceId, { color })
+    updateWorkspaceInCache(qc, workspaceId, { color })
     void commitColor(color, prevColor)
-  }, [workspaceId, selectedColor, updateWorkspace, commitColor])
+  }, [workspaceId, selectedColor, qc, commitColor])
 
   const handleCustomColorChange = useCallback((color: string) => {
     if (!workspaceId) return
     const prevColor = selectedColor
     setSelectedColor(color)
-    updateWorkspace(workspaceId, { color })
+    updateWorkspaceInCache(qc, workspaceId, { color })
     if (colorDebounceRef.current) clearTimeout(colorDebounceRef.current)
     colorDebounceRef.current = setTimeout(() => void commitColor(color, prevColor), 500)
-  }, [workspaceId, selectedColor, updateWorkspace, commitColor])
+  }, [workspaceId, selectedColor, qc, commitColor])
 
   // ── Delete handler ────────────────────────────────────────────────────────────
   const handleDelete = async () => {
@@ -382,7 +386,7 @@ export default function WorkspaceSettingsPage() {
     setDeleting(true)
     try {
       await workspacesApi.deleteWorkspace(workspaceId)
-      removeWorkspace(workspaceId)
+      removeWorkspaceFromCache(qc, workspaceId)
       const remaining = workspaces.filter((w) => w.id !== workspaceId)
       navigate(remaining.length > 0 ? `/${remaining[0].id}` : "/onboarding", { replace: true })
     } catch (err: unknown) {

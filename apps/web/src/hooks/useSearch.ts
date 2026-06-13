@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { searchApi } from "../api/search"
 import type { CardSearchResult } from "@flowgrid/types"
 
@@ -38,46 +39,41 @@ export interface UseSearchReturn {
 
 export function useSearch(workspaceId: string): UseSearchReturn {
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<CardSearchResult[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent)
 
-  // Stable ref to avoid stale workspaceId in debounced callback
-  const workspaceIdRef = useRef(workspaceId)
+  const trimmed = query.trim()
+
+  // Debounce the raw input into debouncedQuery — no fetch here (the query owns it).
   useEffect(() => {
-    workspaceIdRef.current = workspaceId
-  }, [workspaceId])
-
-  useEffect(() => {
-    const trimmed = query.trim()
-
-    if (trimmed.length < MIN_QUERY_LENGTH) {
-      setResults([])
-      setError(null)
-      setIsLoading(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    const timer = setTimeout(async () => {
-      try {
-        const response = await searchApi.search(trimmed, workspaceIdRef.current)
-        setResults(response.cards)
-        saveRecent(trimmed)
-        setRecentSearches(loadRecent())
-      } catch (err) {
-        setError((err as Error).message ?? "Search failed")
-        setResults([])
-      } finally {
-        setIsLoading(false)
-      }
-    }, DEBOUNCE_MS)
-
+    const timer = setTimeout(() => setDebouncedQuery(trimmed), DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [query])
+  }, [trimmed])
+
+  const debouncedTrimmed = debouncedQuery.trim()
+  const enabled = debouncedTrimmed.length >= MIN_QUERY_LENGTH
+
+  const searchQuery = useQuery({
+    queryKey: ["search", workspaceId, debouncedTrimmed],
+    queryFn: () => searchApi.search(debouncedTrimmed, workspaceId),
+    enabled,
+    staleTime: 30_000,
+  })
+
+  // Persist recent searches after a successful fetch (React Query v5 has no onSuccess).
+  useEffect(() => {
+    if (searchQuery.isSuccess && enabled) {
+      saveRecent(debouncedTrimmed)
+      setRecentSearches(loadRecent())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery.isSuccess, searchQuery.dataUpdatedAt])
+
+  // Below the minimum length → no results, no error, not loading (empty handling).
+  const results: CardSearchResult[] = trimmed.length < MIN_QUERY_LENGTH ? [] : (searchQuery.data?.cards ?? [])
+  // Loading from the first keystroke (while debouncing) through fetch completion.
+  const isLoading = trimmed.length >= MIN_QUERY_LENGTH && (debouncedTrimmed !== trimmed || searchQuery.isFetching)
+  const error = searchQuery.isError ? ((searchQuery.error as Error).message ?? "Search failed") : null
 
   const clearRecentSearches = useCallback(() => {
     try {

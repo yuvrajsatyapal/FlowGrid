@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTheme } from "../../contexts/ThemeContext"
 import { useWorkspaceStore } from "../../stores/workspaceStore"
-import { workspacesApi } from "../../api/workspaces"
+import { useWorkspaceList } from "../../features/workspace/queries/useWorkspaceList"
 import WorkspaceSwitcher from "./WorkspaceSwitcher"
 import { SearchModal } from "../search/SearchModal"
 import { useNotifications } from "../../hooks/useNotifications"
@@ -480,8 +480,8 @@ function SidebarContent({
 
 export default function AppLayout() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { workspaces, activeWorkspace, setWorkspaces, setActiveWorkspace, setLoading } =
-    useWorkspaceStore()
+  const { activeWorkspace, setActiveWorkspace } = useWorkspaceStore()
+  const workspaces = useWorkspaceList().data ?? []
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const isMobile = useIsMobile()
@@ -528,34 +528,17 @@ export default function AppLayout() {
     }
   }, [])
 
-  // Load workspaces on first mount
+  // Keep the active workspace valid as the list loads and the URL changes.
+  // Replaces the former Zustand setWorkspaces auto-sync + mount default + URL-sync:
+  // prefer the URL's workspace, else keep the current selection if still valid,
+  // else default to the first. The list itself is loaded by useWorkspaceList.
   useEffect(() => {
-    if (workspaces.length > 0) return
-    setLoading(true)
-    workspacesApi
-      .list()
-      .then((list) => {
-        setWorkspaces(list)
-        if (!activeWorkspace && list.length > 0) {
-          const target = workspaceId ? (list.find((w) => w.id === workspaceId) ?? list[0]) : list[0]
-          setActiveWorkspace(target)
-        }
-      })
-      .catch(() => {
-        // Silently fail — workspace list is best-effort; user can reload
-      })
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Sync activeWorkspace when URL workspaceId changes
-  useEffect(() => {
-    if (!workspaceId || workspaces.length === 0) return
-    const match = workspaces.find((w) => w.id === workspaceId)
-    if (match && match.id !== activeWorkspace?.id) {
-      setActiveWorkspace(match)
-    }
-  }, [workspaceId, workspaces, activeWorkspace, setActiveWorkspace])
+    if (workspaces.length === 0) return
+    const urlMatch = workspaceId ? workspaces.find((w) => w.id === workspaceId) : undefined
+    const stillValid = activeWorkspace ? workspaces.find((w) => w.id === activeWorkspace.id) : undefined
+    const next = urlMatch ?? stillValid ?? workspaces[0]
+    if (next && next.id !== activeWorkspace?.id) setActiveWorkspace(next)
+  }, [workspaces, workspaceId, activeWorkspace, setActiveWorkspace])
 
   // Global Cmd+K / Ctrl+K shortcut
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { AnimatePresence } from "framer-motion"
 import { useParams, Link, useSearchParams } from "react-router-dom"
 import {
@@ -12,25 +12,34 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import { arrayMove } from "@dnd-kit/sortable"
-import { boardsApi, type BoardDetail, type BoardAccessMember } from "../api/boards"
-import { listsApi, type ListSummary } from "../api/lists"
-import { cardsApi, type CardSummary } from "../api/cards"
+import { type ListSummary } from "../api/lists"
+import { type CardSummary } from "../api/cards"
 import ListColumn from "../components/boards/ListColumn"
 import CreateListInline from "../components/boards/CreateListInline"
 import CardItem from "../components/boards/CardItem"
 import CardDetailModal from "../components/boards/CardDetailModal"
 import BoardPresence from "../components/boards/BoardPresence"
+import BoardAccessPanel from "../components/boards/BoardAccessPanel"
 import BoardCalendarView from "../components/boards/BoardCalendarView"
 import BoardTimelineView from "../components/boards/BoardTimelineView"
 import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal"
-import { useBoardSocket } from "../hooks/useBoardSocket"
-import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
+import { useBoardPresence } from "../features/board/presence/useBoardPresence"
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts"
 import { useWindowWidth } from "../hooks/useWindowWidth"
-import { cardDependenciesApi } from "../api/cardDependencies"
 import { computeBlockedCardIds } from "../utils/dependencies"
+import { useQueryClient } from "@tanstack/react-query"
+import { useBoardDetail } from "../features/board/queries/useBoardDetail"
+import { useBoardLists } from "../features/board/queries/useBoardLists"
+import { useBoardCards } from "../features/board/queries/useBoardCards"
+import { useBoardDependencyGraph } from "../features/board/queries/useBoardDependencyGraph"
+import { useBoardMembers } from "../features/board/queries/useBoardMembers"
+import { useReorderCards } from "../features/board/mutations/useReorderCards"
+import { useMoveCard } from "../features/board/mutations/useMoveCard"
+import { useCreateList } from "../features/board/mutations/useCreateList"
+import { useCardCacheSync } from "../features/board/cache/useCardCacheSync"
+import { useBoardRealtimeSync } from "../features/board/cache/useBoardRealtimeSync"
+import { boardKeys } from "../features/board/queries/keys"
 import { MAX_CARDS_PER_LIST } from "@flowgrid/types"
-import { workspacesApi } from "../api/workspaces"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
 
@@ -86,30 +95,42 @@ export default function BoardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
 
-  const [board, setBoard] = useState<BoardDetail | null>(null)
-  const [lists, setLists] = useState<ListSummary[]>([])
-  const [boardCards, setBoardCards] = useState<Record<string, CardSummary[]>>({})
+  const qc = useQueryClient()
+
   const [activeCard, setActiveCard] = useState<CardSummary | null>(null)
   const [openCardId, setOpenCardId] = useState<string | null>(null)
-  const [loadingBoard, setLoadingBoard] = useState(true)
-  const [loadingLists, setLoadingLists] = useState(true)
-  const [error, setError] = useState("")
-  const [listsError, setListsError] = useState("")
+
+  // Server state — owned by TanStack Query (read-only here). All writes go through
+  // mutation hooks (Phase 3c) and useBoardRealtimeSync (Phase 3d); no setter shims.
+  const boardQuery = useBoardDetail(boardId)
+  const board = boardQuery.data ?? null
+  const loadingBoard = boardQuery.isLoading
+  const error = boardQuery.isError ? ((boardQuery.error as Error).message || "Board not found") : ""
+
+  const listsQuery = useBoardLists(boardId)
+  const lists = listsQuery.data ?? []
+  const listsError = listsQuery.isError ? ((listsQuery.error as Error).message || "Failed to load lists") : ""
+
+  const listIds = lists.map((l) => l.id)
+  const cardsQuery = useBoardCards(boardId, listIds)
+  const boardCards = cardsQuery.data ?? {}
+  const loadingLists =
+    listsQuery.isLoading ||
+    cardsQuery.isLoading ||
+    (lists.length > 0 && cardsQuery.data === undefined && !cardsQuery.isError)
   const [boardView, setBoardView] = useState<BoardView>("kanban")
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
-  // Board Access panel (PRIVATE boards only)
+  // Board Access panel (PRIVATE boards only) — managed by BoardAccessPanel.
   const [accessPanelOpen, setAccessPanelOpen] = useState(false)
-  const [boardMembers, setBoardMembers] = useState<BoardAccessMember[]>([])
-  const [loadingBoardMembers, setLoadingBoardMembers] = useState(false)
-  const [allWsMembers, setAllWsMembers] = useState<{ userId: string; name: string | null; email: string; avatarUrl: string | null }[]>([])
-  // Global online presence (logged-in users), seeded from listMembers().online and kept
-  // live via the workspace socket — drives the green "online" dot in the header cluster.
-  const [onlineMemberIds, setOnlineMemberIds] = useState<Set<string>>(new Set())
-  const [addMemberSearch, setAddMemberSearch] = useState("")
-  const [addingMember, setAddingMember] = useState<string | null>(null)
-  const [removingMember, setRemovingMember] = useState<string | null>(null)
-  const [accessError, setAccessError] = useState("")
+  // boardMembers feeds the header avatar cluster; the access panel owns its own copy.
+  const boardMembers = useBoardMembers(boardId).data ?? []
+  const reorderCards = useReorderCards(boardId ?? "")
+  const moveCard = useMoveCard(boardId ?? "")
+  const createList = useCreateList(boardId ?? "")
+  const cardCache = useCardCacheSync(boardId ?? "")
+  // Presence (workspace member roster + live online ids) — owned by useBoardPresence.
+  const { allWsMembers, onlineMemberIds, reload: reloadPresence } = useBoardPresence(workspaceId)
 
   // Transient banner shown when a card-cap rule blocks an action (e.g. drag into a full list)
   const [capNotice, setCapNotice] = useState("")
@@ -128,16 +149,17 @@ export default function BoardPage() {
   const kanbanRef = useRef<HTMLDivElement>(null)
 
   // Dependency graph → set of blocked card ids (for the 🔒 Blocked badge)
-  const [blockedCardIds, setBlockedCardIds] = useState<Set<string>>(new Set())
-  const refreshDepGraph = useCallback(async () => {
-    if (!boardId) return
-    try {
-      const graph = await cardDependenciesApi.boardGraph(boardId)
-      setBlockedCardIds(computeBlockedCardIds(graph.edges, graph.completedCardIds))
-    } catch { /* non-critical */ }
-  }, [boardId])
-
-  useEffect(() => { void refreshDepGraph() }, [refreshDepGraph])
+  const depGraphQuery = useBoardDependencyGraph(boardId)
+  const blockedCardIds = useMemo(
+    () =>
+      depGraphQuery.data
+        ? computeBlockedCardIds(depGraphQuery.data.edges, depGraphQuery.data.completedCardIds)
+        : new Set<string>(),
+    [depGraphQuery.data],
+  )
+  const refreshDepGraph = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: boardKeys.depGraph(boardId ?? "") })
+  }, [qc, boardId])
 
   const windowWidth = useWindowWidth()
   const headerIsSmall = windowWidth < 640
@@ -167,125 +189,23 @@ export default function BoardPage() {
     board?.visibility === "PRIVATE" &&
     (board.createdById === user?.id || board.role === "OWNER" || board.role === "ADMIN")
 
-  const loadBoardAccess = useCallback(async () => {
-    if (!boardId) return
-    setLoadingBoardMembers(true)
-    setAccessError("")
-    try {
-      const [members, wsMembers] = await Promise.all([
-        boardsApi.listMembers(boardId),
-        workspaceId ? workspacesApi.listMembers(workspaceId) : Promise.resolve([]),
-      ])
-      setBoardMembers(members)
-      setAllWsMembers(wsMembers.map((m) => ({ userId: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl })))
-      setOnlineMemberIds(new Set(wsMembers.filter((m) => m.online).map((m) => m.userId)))
-    } catch (err) {
-      setAccessError((err as Error).message || "Failed to load board members")
-    } finally {
-      setLoadingBoardMembers(false)
-    }
-  }, [boardId, workspaceId])
-
-  // Load members eagerly so the header avatar cluster shows the full membership
-  // (all board members, online or offline), and refresh when the access panel opens.
+  // Refresh the member roster + board-members query when the access panel opens.
   useEffect(() => {
-    if (boardId) void loadBoardAccess()
-  }, [boardId, loadBoardAccess])
-
-  useEffect(() => {
-    if (accessPanelOpen) void loadBoardAccess()
-  }, [accessPanelOpen, loadBoardAccess])
-
-  async function handleAddMember(userId: string) {
-    if (!boardId) return
-    setAddingMember(userId)
-    setAccessError("")
-    try {
-      const added = await boardsApi.addMember(boardId, userId)
-      setBoardMembers((prev) => [...prev, added])
-    } catch (err) {
-      setAccessError((err as Error).message || "Failed to add member")
-    } finally {
-      setAddingMember(null)
+    if (accessPanelOpen) {
+      void reloadPresence()
+      void qc.invalidateQueries({ queryKey: boardKeys.members(boardId ?? "") })
     }
-  }
-
-  async function handleRemoveMember(userId: string) {
-    if (!boardId) return
-    setRemovingMember(userId)
-    setAccessError("")
-    try {
-      await boardsApi.removeMember(boardId, userId)
-      setBoardMembers((prev) => prev.filter((m) => m.userId !== userId))
-    } catch (err) {
-      setAccessError((err as Error).message || "Failed to remove member")
-    } finally {
-      setRemovingMember(null)
-    }
-  }
-
-  const boardMemberIds = new Set(boardMembers.map((m) => m.userId))
-  const filteredAddCandidates = allWsMembers.filter((m) => {
-    if (boardMemberIds.has(m.userId)) return false
-    const q = addMemberSearch.toLowerCase()
-    return (m.name ?? "").toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
-  })
+  }, [accessPanelOpen, reloadPresence, qc, boardId])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   )
 
-  const loadCards = useCallback(async (listIds: string[]) => {
-    const results = await Promise.allSettled(
-      listIds.map((id) => cardsApi.list(id).then((cards) => ({ id, cards }))),
-    )
-    setBoardCards((prev) => {
-      const next = { ...prev }
-      for (const r of results) {
-        if (r.status === "fulfilled") next[r.value.id] = r.value.cards
-      }
-      return next
-    })
-  }, [])
-
-  const loadLists = useCallback(
-    async (bid: string) => {
-      setLoadingLists(true)
-      setListsError("")
-      try {
-        const data = await listsApi.list(bid)
-        setLists(data)
-        await loadCards(data.map((l) => l.id))
-      } catch (err) {
-        setListsError((err as Error).message || "Failed to load lists")
-      } finally {
-        setLoadingLists(false)
-      }
-    },
-    [loadCards],
-  )
-
+  // Board / lists / cards now load via TanStack Query (useBoardDetail/useBoardLists/
+  // useBoardCards). Reset column pagination when switching boards.
   useEffect(() => {
-    if (!boardId) return
-    setLoadingBoard(true)
-    setError("")
-    setBoard(null)
-    setLists([])
-    setBoardCards({})
     setListPage(0)
-    boardsApi
-      .getOne(boardId)
-      .then((b) => {
-        setBoard(b)
-        loadLists(boardId)
-      })
-      .catch((err: unknown) => {
-        setError((err as Error).message || "Board not found")
-        setLoadingBoard(false)
-        setLoadingLists(false)
-      })
-      .finally(() => setLoadingBoard(false))
-  }, [boardId, loadLists])
+  }, [boardId])
 
   // Deep-link: open a specific card when arriving via ?card=<id> (e.g. from the Inbox).
   // Runs once cards are loaded; clears the param so closing the modal doesn't reopen it.
@@ -373,46 +293,8 @@ export default function BoardPage() {
     if (listPage > totalListPages - 1) setListPage(totalListPages - 1)
   }, [listPage, totalListPages])
 
-  const handleCardUpdated = useCallback((updated: CardSummary) => {
-    setBoardCards((prev) => {
-      const listCards = prev[updated.listId]
-      if (!listCards) return prev
-      return {
-        ...prev,
-        [updated.listId]: listCards.map((c) => (c.id === updated.id ? updated : c)),
-      }
-    })
-    // Completion may have changed → recompute blocked badges
-    void refreshDepGraph()
-  }, [refreshDepGraph])
-
-  // Label rename/recolor → update that label on every card across the board
-  const handleLabelUpdated = useCallback((label: { id: string; name: string; color: string }) => {
-    setBoardCards((prev) => {
-      const next: Record<string, CardSummary[]> = {}
-      for (const [lid, cards] of Object.entries(prev)) {
-        next[lid] = cards.map((c) => ({
-          ...c,
-          labels: c.labels.map((l) => (l.id === label.id ? { ...l, name: label.name, color: label.color } : l)),
-        }))
-      }
-      return next
-    })
-  }, [])
-
-  // Label deletion → strip that label from every card across the board
-  const handleLabelDeleted = useCallback((labelId: string) => {
-    setBoardCards((prev) => {
-      const next: Record<string, CardSummary[]> = {}
-      for (const [lid, cards] of Object.entries(prev)) {
-        next[lid] = cards.map((c) => ({
-          ...c,
-          labels: c.labels.filter((l) => l.id !== labelId),
-        }))
-      }
-      return next
-    })
-  }, [])
+  // Card update / label propagation cache reconciliation now lives in
+  // useCardCacheSync (cardCache.applyCardUpdate / applyLabelUpdate / applyLabelDelete).
 
   // ─── DnD helpers ────────────────────────────────────────────────────────────
 
@@ -446,12 +328,14 @@ export default function BoardPage() {
       const newIndex = items.findIndex((c) => c.id === overId)
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
 
-      const reordered = arrayMove(items, oldIndex, newIndex)
-      setBoardCards((prev) => ({ ...prev, [sourceListId]: reordered }))
-      cardsApi.reorder(sourceListId, reordered.map((c) => c.id)).catch(() => {
-        // Rollback on failure
-        setBoardCards((prev) => ({ ...prev, [sourceListId]: items }))
-      })
+      // Compute the new id order directly (no intermediate card-array build).
+      // Optimistic reorder + rollback handled by the mutation hook (no invalidate).
+      const orderedIds = arrayMove(
+        items.map((c) => c.id),
+        oldIndex,
+        newIndex,
+      )
+      reorderCards.mutate({ listId: sourceListId, orderedIds })
     } else {
       const sourceCards = boardCards[sourceListId]
       const destCards = boardCards[destListId]
@@ -476,22 +360,8 @@ export default function BoardPage() {
         listId: destListId,
       })
 
-      setBoardCards((prev) => ({
-        ...prev,
-        [sourceListId]: newSourceCards,
-        [destListId]: newDestCards,
-      }))
-
-      cardsApi
-        .move(activeId, destListId, newDestCards.map((c) => c.id))
-        .catch(() => {
-          // Rollback on failure
-          setBoardCards((prev) => ({
-            ...prev,
-            [sourceListId]: sourceCards,
-            [destListId]: destCards,
-          }))
-        })
+      // Optimistic cross-list move + rollback handled by the mutation hook (no invalidate).
+      moveCard.mutate({ cardId: activeId, sourceListId, destListId, newSourceCards, newDestCards })
     }
   }
 
@@ -501,126 +371,15 @@ export default function BoardPage() {
 
   const handleCreateList = async (name: string) => {
     if (!boardId) return
-    const newList = await listsApi.create(boardId, name)
-    // Guard against the socket onListCreated handler having already inserted this list
-    // (socket event from the server arrives before the HTTP response in most cases)
-    setLists((prev) => prev.some((l) => l.id === newList.id) ? prev : [...prev, newList])
-    setBoardCards((prev) => prev[newList.id] ? prev : { ...prev, [newList.id]: [] })
+    // Optimistic-free create + idempotent insert handled by the mutation hook.
+    await createList.mutateAsync({ name })
   }
-
-  const handleRenamed = (id: string, name: string) => {
-    setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)))
-  }
-
-  const handleDeleted = (id: string) => {
-    setLists((prev) => prev.filter((l) => l.id !== id))
-    setBoardCards((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }
-
-  const handleCardCreated = (listId: string, card: CardSummary) => {
-    // Guard against the socket onCardCreated handler having already inserted this card
-    setBoardCards((prev) => {
-      const existing = prev[listId] ?? []
-      if (existing.some((c) => c.id === card.id)) return prev
-      return { ...prev, [listId]: [...existing, card] }
-    })
-  }
-
-  // ─── Real-time presence — keep the header's online dots live (logged-in status) ──
-  useWorkspaceSocket(workspaceId, {
-    onMemberOnline: ({ userId: id }) => setOnlineMemberIds((prev) => {
-      if (prev.has(id)) return prev
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    }),
-    onMemberOffline: ({ userId: id }) => setOnlineMemberIds((prev) => {
-      if (!prev.has(id)) return prev
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    }),
-  })
 
   // ─── Real-time socket ────────────────────────────────────────────────────────
 
-  useBoardSocket(boardId, {
-    onCardCreated: (card) => {
-      // Dedup: sender already added the card via local handleCardCreated; skip if present
-      setBoardCards((prev) => {
-        const existing = prev[card.listId] ?? []
-        if (existing.some((c) => c.id === card.id)) return prev
-        return { ...prev, [card.listId]: [...existing, card] }
-      })
-    },
-    onCardUpdated: (card) => {
-      setBoardCards((prev) => {
-        const listCards = prev[card.listId]
-        if (!listCards) return prev
-        return { ...prev, [card.listId]: listCards.map((c) => (c.id === card.id ? card : c)) }
-      })
-      void refreshDepGraph()
-    },
-    onCardMoved: (card) => {
-      setBoardCards((prev) => {
-        const next: Record<string, CardSummary[]> = {}
-        for (const [lid, cards] of Object.entries(prev)) {
-          next[lid] = cards.filter((c) => c.id !== card.id)
-        }
-        next[card.listId] = [...(next[card.listId] ?? []), card]
-        return next
-      })
-    },
-    onCardDeleted: ({ id }) => {
-      setBoardCards((prev) => {
-        const next: Record<string, CardSummary[]> = {}
-        for (const [lid, cards] of Object.entries(prev)) {
-          next[lid] = cards.filter((c) => c.id !== id)
-        }
-        return next
-      })
-      void refreshDepGraph()
-    },
-    onCardReordered: ({ listId, cardIds }) => {
-      setBoardCards((prev) => {
-        const existing = prev[listId]
-        if (!existing) return prev
-        const byId: Record<string, CardSummary> = {}
-        for (const c of existing) byId[c.id] = c
-        const reordered = cardIds.map((id) => byId[id]).filter((c): c is CardSummary => !!c)
-        return { ...prev, [listId]: reordered }
-      })
-    },
-    onListCreated: (list) => {
-      // Dedup: sender already added the list via local handleCreateList
-      setLists((prev) => {
-        if (prev.some((l) => l.id === list.id)) return prev
-        return [...prev, list]
-      })
-      setBoardCards((prev) => {
-        if (prev[list.id]) return prev
-        return { ...prev, [list.id]: [] }
-      })
-    },
-    onListUpdated: (list) => {
-      setLists((prev) => prev.map((l) => (l.id === list.id ? list : l)))
-    },
-    onListReordered: ({ lists: reordered }) => {
-      setLists(reordered)
-    },
-    onListDeleted: ({ id }) => {
-      setLists((prev) => prev.filter((l) => l.id !== id))
-      setBoardCards((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-    },
-  })
+  // Card/list socket reconciliation → query cache (idempotent + version-guarded).
+  // Replaces the former inline useBoardSocket handlers and their dedup guards.
+  useBoardRealtimeSync(boardId)
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -878,169 +637,12 @@ export default function BoardPage() {
                 </button>
 
                 {accessPanelOpen && board.visibility === "PRIVATE" && (
-                  <>
-                    {/* Click-outside backdrop */}
-                    <div
-                      onClick={() => setAccessPanelOpen(false)}
-                      style={{ position: "fixed", inset: 0, zIndex: 49 }}
-                    />
-                    {/* Dropdown panel */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 8px)",
-                        right: 0,
-                        zIndex: 50,
-                        width: 480,
-                        maxWidth: "calc(100vw - 32px)",
-                        background: "oklch(var(--color-paper))",
-                        border: "1px solid oklch(var(--color-border))",
-                        borderRadius: "var(--radius-card)",
-                        boxShadow: "0 8px 32px oklch(0% 0 0 / 0.16)",
-                        padding: "16px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 16,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <h3 style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 600, color: "oklch(var(--color-ink))" }}>
-                          Board Access
-                        </h3>
-                        <button
-                          onClick={() => setAccessPanelOpen(false)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "oklch(var(--color-ink-3))", fontSize: 18, lineHeight: 1, padding: "2px 4px" }}
-                          aria-label="Close board access panel"
-                        >
-                          ×
-                        </button>
-                      </div>
-
-                      {accessError && (
-                        <p style={{ margin: 0, fontSize: "var(--text-xs)", color: "oklch(var(--color-error))" }}>{accessError}</p>
-                      )}
-
-                      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                        {/* Current members */}
-                        <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 8 }}>
-                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            Current members
-                          </span>
-                          {loadingBoardMembers ? (
-                            <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>Loading…</span>
-                          ) : boardMembers.length === 0 ? (
-                            <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>No members yet</span>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              {boardMembers.map((m) => (
-                                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <div
-                                    style={{
-                                      width: 26, height: 26, borderRadius: "50%",
-                                      background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      overflow: "hidden", flexShrink: 0,
-                                    }}
-                                  >
-                                    {m.avatarUrl
-                                      ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                      : <span style={{ fontSize: 9, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
-                                    }
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {m.name ?? m.email}
-                                    </div>
-                                    <div style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>{m.role.toLowerCase()}</div>
-                                  </div>
-                                  {m.userId !== board.createdById && (
-                                    <button
-                                      onClick={() => void handleRemoveMember(m.userId)}
-                                      disabled={removingMember === m.userId}
-                                      aria-label={`Remove ${m.name ?? m.email}`}
-                                      style={{
-                                        background: "none", border: "none", cursor: removingMember === m.userId ? "not-allowed" : "pointer",
-                                        color: "oklch(var(--color-error))", fontSize: "var(--text-xs)", padding: "2px 6px",
-                                        borderRadius: "var(--radius-badge)", opacity: removingMember === m.userId ? 0.5 : 1,
-                                      }}
-                                    >
-                                      {removingMember === m.userId ? "…" : "Remove"}
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Add members */}
-                        <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 8 }}>
-                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "oklch(var(--color-ink-2))", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            Add members
-                          </span>
-                          <input
-                            type="text"
-                            placeholder="Search workspace members…"
-                            value={addMemberSearch}
-                            onChange={(e) => setAddMemberSearch(e.target.value)}
-                            style={{
-                              padding: "6px 10px", borderRadius: "var(--radius-input)",
-                              border: "1px solid oklch(var(--color-border))",
-                              background: "oklch(var(--color-paper-2))",
-                              color: "oklch(var(--color-ink))", fontSize: "var(--text-sm)",
-                              fontFamily: "var(--font-body)", outline: "none",
-                            }}
-                          />
-                          <div style={{ maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                            {filteredAddCandidates.length === 0 ? (
-                              <span style={{ fontSize: "var(--text-xs)", color: "oklch(var(--color-ink-3))" }}>
-                                {addMemberSearch ? "No members match" : "All workspace members already have access"}
-                              </span>
-                            ) : (
-                              filteredAddCandidates.map((m) => (
-                                <div key={m.userId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <div
-                                    style={{
-                                      width: 24, height: 24, borderRadius: "50%",
-                                      background: m.avatarUrl ? "transparent" : getAvatarBg(m.userId),
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      overflow: "hidden", flexShrink: 0,
-                                    }}
-                                  >
-                                    {m.avatarUrl
-                                      ? <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                      : <span style={{ fontSize: 8, fontWeight: 700, color: "#fff" }}>{getInitials(m.name ?? m.email)}</span>
-                                    }
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: "var(--text-sm)", color: "oklch(var(--color-ink))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {m.name ?? m.email}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => void handleAddMember(m.userId)}
-                                    disabled={addingMember === m.userId}
-                                    aria-label={`Add ${m.name ?? m.email}`}
-                                    style={{
-                                      padding: "3px 10px", borderRadius: "var(--radius-badge)",
-                                      border: "1px solid oklch(var(--color-accent))",
-                                      background: "transparent", color: "oklch(var(--color-accent))",
-                                      fontSize: "var(--text-xs)", fontWeight: 500,
-                                      cursor: addingMember === m.userId ? "not-allowed" : "pointer",
-                                      opacity: addingMember === m.userId ? 0.5 : 1,
-                                      fontFamily: "var(--font-body)",
-                                    }}
-                                  >
-                                    {addingMember === m.userId ? "…" : "Add"}
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  <BoardAccessPanel
+                    boardId={boardId ?? ""}
+                    boardCreatorId={board.createdById}
+                    allWsMembers={allWsMembers}
+                    onClose={() => setAccessPanelOpen(false)}
+                  />
                 )}
             </div>
           )}
@@ -1132,9 +734,6 @@ export default function BoardPage() {
                     canEdit={canEdit}
                     isViewer={isViewer}
                     cards={boardCards[item.list.id] ?? []}
-                    onRenamed={handleRenamed}
-                    onDeleted={handleDeleted}
-                    onCardCreated={handleCardCreated}
                     onCardClick={isViewer ? undefined : (id) => setOpenCardId(id)}
                     width={colWidth}
                     cardSlotHeight={headerIsCompact ? undefined : cardSlotHeight}
@@ -1233,19 +832,9 @@ export default function BoardPage() {
             listName={lists.find((l) => l.id === openCard.listId)?.name}
             listColor={lists.find((l) => l.id === openCard.listId)?.color}
             onClose={() => { setOpenCardId(null); void refreshDepGraph() }}
-            onCardUpdated={handleCardUpdated}
-            onLabelUpdated={handleLabelUpdated}
-            onLabelDeleted={handleLabelDeleted}
-            onCardDeleted={(id) => {
-              setBoardCards((prev) => {
-                const next: Record<string, CardSummary[]> = {}
-                for (const [lid, cards] of Object.entries(prev)) {
-                  next[lid] = cards.filter((c) => c.id !== id)
-                }
-                return next
-              })
-              setOpenCardId(null)
-            }}
+            onCardUpdated={cardCache.applyCardUpdate}
+            onLabelUpdated={cardCache.applyLabelUpdate}
+            onLabelDeleted={cardCache.applyLabelDelete}
           />
         )}
       </AnimatePresence>

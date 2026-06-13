@@ -13,6 +13,8 @@ import { workspacesApi, type WorkspaceMember } from "../../api/workspaces"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
 import { useAuth } from "../../contexts/AuthContext"
 import { useWindowWidth } from "../../hooks/useWindowWidth"
+import { useUpdateCard } from "../../features/board/mutations/useUpdateCard"
+import { useDeleteCard } from "../../features/board/mutations/useDeleteCard"
 import { AttachmentSection } from "./AttachmentSection"
 import ChecklistSection from "./ChecklistSection"
 import DependenciesSection from "./DependenciesSection"
@@ -28,7 +30,6 @@ interface Props {
   listColor?: string
   onClose: () => void
   onCardUpdated: (updated: CardSummary) => void
-  onCardDeleted?: (id: string) => void
   /** Propagate a label rename/recolor to every card on the board */
   onLabelUpdated?: (label: LabelSummary) => void
   /** Propagate a label deletion to every card on the board */
@@ -113,9 +114,11 @@ const labelIconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, listName, listColor, onClose, onCardUpdated, onCardDeleted, onLabelUpdated, onLabelDeleted }: Props) {
+export default function CardDetailModal({ card, boardId, workspaceId, canEdit, userRole, listName, listColor, onClose, onCardUpdated, onLabelUpdated, onLabelDeleted }: Props) {
   const { user } = useAuth()
   const [localCard, setLocalCard] = useState<CardSummary>(card)
+  const updateCard = useUpdateCard(boardId)
+  const deleteCard = useDeleteCard(boardId)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [saveError, setSaveError] = useState("")
   const [deleting, setDeleting] = useState(false)
@@ -177,7 +180,9 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
   // ─── Load sidebar data ────────────────────────────────────────────────────
 
   useEffect(() => {
+    // eslint-disable-next-line no-restricted-syntax -- deferred: CardDetailModal sidebar data (member/label pickers) not yet on React Query; see migration plan.
     workspacesApi.listMembers(workspaceId).then(setMembers).catch(() => setMembers([]))
+    // eslint-disable-next-line no-restricted-syntax -- deferred: board labels for the label picker not yet on React Query; see migration plan.
     labelsApi.list(boardId).then(setBoardLabels).catch(() => setBoardLabels([]))
   }, [workspaceId, boardId])
 
@@ -193,15 +198,14 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
     setSaveState("saving")
     setSaveError("")
     try {
-      const updated = await cardsApi.update(localCard.id, fields)
+      const updated = await updateCard.mutateAsync({ cardId: localCard.id, fields })
       setLocalCard(updated)
-      onCardUpdated(updated)
       showSaved()
     } catch (err: unknown) {
       setSaveState("error")
       setSaveError((err as Error).message || "Failed to save")
     }
-  }, [localCard.id, onCardUpdated])
+  }, [localCard.id, updateCard])
 
   // ─── Escape key + backdrop ────────────────────────────────────────────────
 
@@ -230,14 +234,13 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
     if (deleting) return
     setDeleting(true)
     try {
-      await cardsApi.deleteCard(localCard.id)
-      onCardDeleted?.(localCard.id)
+      await deleteCard.mutateAsync({ cardId: localCard.id })
       onClose()
     } catch (err: unknown) {
       setDeleting(false)
       alert((err as Error).message || "Failed to delete card")
     }
-  }, [deleting, localCard.id, onCardDeleted, onClose])
+  }, [deleting, localCard.id, deleteCard, onClose])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -312,6 +315,7 @@ export default function CardDetailModal({ card, boardId, workspaceId, canEdit, u
       if (descDebounceRef.current) {
         clearTimeout(descDebounceRef.current)
         if (pendingDescRef.current !== null) {
+          // eslint-disable-next-line no-restricted-syntax -- teardown flush: fire-and-forget save on unmount; a hook mutation can't run during cleanup.
           void cardsApi.update(localCard.id, { description: pendingDescRef.current })
         }
       }

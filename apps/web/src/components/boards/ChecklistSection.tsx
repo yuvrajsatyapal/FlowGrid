@@ -1,5 +1,9 @@
-import { useEffect, useState, useCallback } from "react"
-import { checklistsApi, type Checklist, type ChecklistItem } from "../../api/checklists"
+import { useState } from "react"
+import type { ChecklistItem } from "../../api/checklists"
+import { useCardChecklists } from "../../features/card/queries/useCardChecklists"
+import { useToggleChecklistItem } from "../../features/card/mutations/useToggleChecklistItem"
+import { useDeleteChecklistItem } from "../../features/card/mutations/useDeleteChecklistItem"
+import { useAddChecklistItem } from "../../features/card/mutations/useAddChecklistItem"
 
 interface Props {
   cardId: string
@@ -13,20 +17,14 @@ const CHECK_ICON = (
   </svg>
 )
 
-const DEFAULT_CHECKLIST_TITLE = "Checklist"
-
 export default function ChecklistSection({ cardId, canEdit, canToggle = canEdit }: Props) {
-  const [checklists, setChecklists] = useState<Checklist[]>([])
   const [newItem, setNewItem] = useState("")
-  const [adding, setAdding] = useState(false)
 
-  const load = useCallback(async () => {
-    try {
-      setChecklists(await checklistsApi.list(cardId))
-    } catch { /* silent */ }
-  }, [cardId])
-
-  useEffect(() => { void load() }, [load])
+  const checklists = useCardChecklists(cardId).data ?? []
+  const toggleItem = useToggleChecklistItem(cardId)
+  const deleteItemMutation = useDeleteChecklistItem(cardId)
+  const addItem = useAddChecklistItem(cardId)
+  const adding = addItem.isPending
 
   // Flatten all items into a single checkable list (no checklist nesting shown to the user)
   const items: ChecklistItem[] = checklists.flatMap((cl) => cl.items)
@@ -34,40 +32,19 @@ export default function ChecklistSection({ cardId, canEdit, canToggle = canEdit 
   const done = items.filter((i) => i.checked).length
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
 
-  async function handleToggle(item: ChecklistItem) {
-    const updated = await checklistsApi.updateItem(item.id, { checked: !item.checked })
-    setChecklists((prev) =>
-      prev.map((cl) => ({ ...cl, items: cl.items.map((i) => (i.id === item.id ? updated : i)) })),
-    )
+  // Optimistic: the cache flips/removes immediately and rolls back if the server rejects.
+  function handleToggle(item: ChecklistItem) {
+    toggleItem.mutate({ item })
   }
 
-  async function handleDelete(item: ChecklistItem) {
-    await checklistsApi.deleteItem(item.id)
-    setChecklists((prev) =>
-      prev.map((cl) => ({ ...cl, items: cl.items.filter((i) => i.id !== item.id) })),
-    )
+  function handleDelete(item: ChecklistItem) {
+    deleteItemMutation.mutate({ item })
   }
 
-  async function handleAdd() {
+  function handleAdd() {
     const text = newItem.trim()
     if (!text || adding) return
-    setAdding(true)
-    try {
-      // Add to the card's existing checklist, creating a single default one if none exists.
-      let target = checklists[0]
-      if (!target) {
-        target = await checklistsApi.create(cardId, DEFAULT_CHECKLIST_TITLE)
-        setChecklists((prev) => [...prev, target])
-      }
-      const targetId = target.id
-      const item = await checklistsApi.addItem(targetId, text)
-      setChecklists((prev) =>
-        prev.map((cl) => (cl.id === targetId ? { ...cl, items: [...cl.items, item] } : cl)),
-      )
-      setNewItem("")
-    } finally {
-      setAdding(false)
-    }
+    addItem.mutate({ text }, { onSuccess: () => setNewItem("") })
   }
 
   const inputStyle: React.CSSProperties = {

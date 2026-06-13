@@ -1,12 +1,18 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useParams, Link } from "react-router-dom"
 import * as XLSX from "xlsx"
-import { workspacesApi, type WorkspaceMember } from "../api/workspaces"
-import { invitesApi, type WorkspaceInviteRecord } from "../api/invites"
 import { usersApi, type UserSearchResult } from "../api/users"
 import { useAuth } from "../contexts/AuthContext"
 import { getInitials, getAvatarBg } from "../utils/avatar"
-import { useWorkspaceSocket } from "../hooks/useWorkspaceSocket"
+import { useWorkspaceMembers } from "../features/workspace/queries/useWorkspaceMembers"
+import { useWorkspaceInvites } from "../features/workspace/queries/useWorkspaceInvites"
+import { useUpdateMemberRole } from "../features/workspace/mutations/useUpdateMemberRole"
+import { useRemoveMember } from "../features/workspace/mutations/useRemoveMember"
+import { useCreateInvite } from "../features/workspace/mutations/useCreateInvite"
+import { useResendInvite } from "../features/workspace/mutations/useResendInvite"
+import { useRevokeInvite } from "../features/workspace/mutations/useRevokeInvite"
+import { useWorkspacePresenceSync } from "../features/workspace/realtime/useWorkspacePresenceSync"
 import { useWindowWidth } from "../hooks/useWindowWidth"
 import type { Role } from "@flowgrid/types"
 
@@ -452,28 +458,51 @@ export default function WorkspaceMembersPage() {
   const windowWidth = useWindowWidth()
   const isMobile = windowWidth < 640
 
-  const [members, setMembers] = useState<WorkspaceMember[]>([])
-  const [invites, setInvites] = useState<WorkspaceInviteRecord[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(true)
-  const [loadingInvites, setLoadingInvites] = useState(true)
-  const [membersError, setMembersError] = useState("")
-  const [invitesError, setInvitesError] = useState("")
+  const membersQuery = useWorkspaceMembers(workspaceId)
+  const members = membersQuery.data ?? []
+  const loadingMembers = membersQuery.isLoading
+  const membersError = membersQuery.isError ? ((membersQuery.error as Error).message || "Failed to load members") : ""
+
+  const currentUserMember = members.find((m) => m.userId === user?.id)
+  const canManage = currentUserMember?.role === "OWNER" || currentUserMember?.role === "ADMIN"
+
+  const invitesQuery = useWorkspaceInvites(workspaceId, canManage)
+  const invites = invitesQuery.data ?? []
+  const loadingInvites = invitesQuery.isLoading
+  const invitesError = invitesQuery.isError ? ((invitesQuery.error as Error).message || "Failed to load invites") : ""
+
+  useWorkspacePresenceSync(workspaceId)
+
+  const updateRole = useUpdateMemberRole(workspaceId ?? "")
+  const removeMember = useRemoveMember(workspaceId ?? "")
+  const createInvite = useCreateInvite(workspaceId ?? "")
+  const resendInvite = useResendInvite(workspaceId ?? "")
+  const revokeInvite = useRevokeInvite(workspaceId ?? "")
+
   const [memberSearch, setMemberSearch] = useState("")
 
   // Invite form — user search based (invitee must have an account)
   const [inviteSearch, setInviteSearch] = useState("")
-  const [inviteSearchResults, setInviteSearchResults] = useState<UserSearchResult[]>([])
-  const [inviteSearchLoading, setInviteSearchLoading] = useState(false)
+  const [debouncedInviteSearch, setDebouncedInviteSearch] = useState("")
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
+
+  // Invite user-search: React Query keyed on the debounced term (no fetch in effect).
+  const userSearchEnabled = !selectedUser && !!workspaceId && debouncedInviteSearch.length >= 2
+  const userSearchQuery = useQuery({
+    queryKey: ["user-search", workspaceId ?? "", debouncedInviteSearch],
+    queryFn: () => usersApi.search(debouncedInviteSearch, workspaceId as string),
+    enabled: userSearchEnabled,
+    staleTime: 30_000,
+  })
+  const inviteSearchResults: UserSearchResult[] = userSearchEnabled ? (userSearchQuery.data ?? []) : []
+  const inviteSearchLoading =
+    !selectedUser && inviteSearch.length >= 2 && (debouncedInviteSearch !== inviteSearch || userSearchQuery.isFetching)
   const [inviteRole, setInviteRole] = useState<Role>("MEMBER")
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState("")
   const [resendSuccess, setResendSuccess] = useState<Record<string, boolean>>({})
-
-  const currentUserMember = members.find((m) => m.userId === user?.id)
-  const canManage = currentUserMember?.role === "OWNER" || currentUserMember?.role === "ADMIN"
 
   // The current viewer always holds an active socket connection, so count them as online.
   const onlineCount = members.filter((m) => m.userId === user?.id || m.online).length
@@ -494,80 +523,9 @@ export default function WorkspaceMembersPage() {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     })
 
-  // Real-time presence — update online state immediately when members connect/disconnect
-  useWorkspaceSocket(workspaceId, {
-    onMemberOnline: ({ userId: onlineId }) => {
-      setMembers((prev) => prev.map((m) => (m.userId === onlineId ? { ...m, online: true } : m)))
-    },
-    onMemberOffline: ({ userId: offlineId }) => {
-      setMembers((prev) => prev.map((m) => (m.userId === offlineId ? { ...m, online: false } : m)))
-    },
-  })
-
-  const fetchMembers = useCallback(async () => {
-    if (!workspaceId) return
-    setLoadingMembers(true)
-    try {
-      const data = await workspacesApi.listMembers(workspaceId)
-      setMembers(data)
-    } catch (err: unknown) {
-      setMembersError((err as Error).message || "Failed to load members")
-    } finally {
-      setLoadingMembers(false)
-    }
-  }, [workspaceId])
-
-  const fetchInvites = useCallback(async () => {
-    if (!workspaceId || !canManage) return
-    setLoadingInvites(true)
-    try {
-      const data = await invitesApi.list(workspaceId)
-      setInvites(data)
-    } catch (err: unknown) {
-      setInvitesError((err as Error).message || "Failed to load invites")
-    } finally {
-      setLoadingInvites(false)
-    }
-  }, [workspaceId, canManage])
-
-  useEffect(() => { void fetchMembers() }, [fetchMembers])
-  useEffect(() => { void fetchInvites() }, [fetchInvites])
-
-  // Keep online/offline status and invite list fresh without flashing the loading state.
-  const silentRefreshMembers = useCallback(async () => {
-    if (!workspaceId) return
-    try {
-      const data = await workspacesApi.listMembers(workspaceId)
-      setMembers(data)
-    } catch {
-      // Non-critical — keep showing the last known status
-    }
-  }, [workspaceId])
-
-  const silentRefreshInvites = useCallback(async () => {
-    if (!workspaceId || !canManage) return
-    try {
-      const data = await invitesApi.list(workspaceId)
-      setInvites(data)
-    } catch {
-      // Non-critical
-    }
-  }, [workspaceId, canManage])
-
-  useEffect(() => {
-    const refresh = () => { void silentRefreshMembers(); void silentRefreshInvites() }
-    const interval = setInterval(refresh, 30_000)
-    window.addEventListener("focus", refresh)
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener("focus", refresh)
-    }
-  }, [silentRefreshMembers, silentRefreshInvites])
-
   const handleRoleChange = async (memberId: string, newRole: Role) => {
     try {
-      const updated = await workspacesApi.updateMember(memberId, newRole)
-      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: updated.role } : m)))
+      await updateRole.mutateAsync({ memberId, role: newRole })
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to update role")
     }
@@ -575,35 +533,29 @@ export default function WorkspaceMembersPage() {
 
   const handleRemove = async (memberId: string) => {
     try {
-      await workspacesApi.removeMember(memberId)
-      setMembers((prev) => prev.filter((m) => m.id !== memberId))
+      await removeMember.mutateAsync({ memberId })
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to remove member")
     }
   }
 
-  // Debounce user search as the admin types
+  // Debounce the raw input into debouncedInviteSearch (no fetch — the query owns it).
   useEffect(() => {
     if (selectedUser) return
-    if (!workspaceId || inviteSearch.length < 2) {
-      setInviteSearchResults([])
+    if (inviteSearch.length < 2) {
+      setDebouncedInviteSearch("")
       setShowDropdown(false)
       return
     }
-    const t = setTimeout(async () => {
-      setInviteSearchLoading(true)
-      try {
-        const results = await usersApi.search(inviteSearch, workspaceId)
-        setInviteSearchResults(results)
-        setShowDropdown(true)
-      } catch {
-        setInviteSearchResults([])
-      } finally {
-        setInviteSearchLoading(false)
-      }
-    }, 300)
+    const t = setTimeout(() => setDebouncedInviteSearch(inviteSearch), 300)
     return () => clearTimeout(t)
-  }, [inviteSearch, workspaceId, selectedUser])
+  }, [inviteSearch, selectedUser])
+
+  // Open the dropdown once results arrive.
+  useEffect(() => {
+    if (userSearchQuery.isSuccess && userSearchEnabled) setShowDropdown(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userSearchQuery.isSuccess, userSearchQuery.dataUpdatedAt])
 
   const handleSelectUser = (u: UserSearchResult) => {
     setSelectedUser(u)
@@ -619,11 +571,10 @@ export default function WorkspaceMembersPage() {
     setInviteError("")
     setInviteSuccess("")
     try {
-      await invitesApi.create(workspaceId, selectedUser.id, inviteRole)
+      await createInvite.mutateAsync({ userId: selectedUser.id, role: inviteRole })
       setInviteSuccess(`Invite sent to ${selectedUser.name ?? selectedUser.email}`)
       setSelectedUser(null)
       setInviteSearch("")
-      void fetchInvites()
     } catch (err: unknown) {
       setInviteError((err as Error).message || "Failed to send invite")
     } finally {
@@ -633,9 +584,8 @@ export default function WorkspaceMembersPage() {
 
   const handleResend = async (inviteId: string) => {
     try {
-      const result = await invitesApi.resend(inviteId)
+      await resendInvite.mutateAsync({ inviteId })
       setResendSuccess((prev) => ({ ...prev, [inviteId]: true }))
-      setInvites((prev) => prev.map((i) => i.id === inviteId ? { ...i, ...result.invite } : i))
       setTimeout(() => setResendSuccess((prev) => ({ ...prev, [inviteId]: false })), 3000)
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to resend invite")
@@ -644,8 +594,7 @@ export default function WorkspaceMembersPage() {
 
   const handleRevoke = async (inviteId: string) => {
     try {
-      await invitesApi.revoke(inviteId)
-      setInvites((prev) => prev.filter((i) => i.id !== inviteId))
+      await revokeInvite.mutateAsync({ inviteId })
     } catch (err: unknown) {
       alert((err as Error).message || "Failed to revoke invite")
     }

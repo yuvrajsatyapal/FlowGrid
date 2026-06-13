@@ -1,12 +1,8 @@
-import { useEffect, useState, useCallback } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { notificationsApi, type NotificationPage } from "../api/notifications"
+import { useEffect, useState } from "react"
 import { boardsApi } from "../api/boards"
 import { invitesApi } from "../api/invites"
-import { NOTIFICATIONS_KEY } from "../hooks/useNotifications"
+import { useNotifications } from "../hooks/useNotifications"
 import type { AppNotification, NotificationType } from "@flowgrid/types"
-
-const PAGE_SIZE = 20
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -181,104 +177,40 @@ type FilterType = "all" | "unread"
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const queryClient = useQueryClient()
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [total, setTotal] = useState(0)
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState("")
+  // Single source of truth: the shared notifications infinite query (Phase I).
+  // Realtime + pagination + mark-read all flow through useNotifications' cache;
+  // InboxPage no longer mirrors anything into local state.
+  const {
+    notifications,
+    total,
+    unreadCount,
+    isLoading: loading,
+    error: queryError,
+    hasMore,
+    isFetchingMore: loadingMore,
+    loadMore,
+    refetch,
+    markRead,
+    markAllRead,
+  } = useNotifications()
+  const error = queryError ? ((queryError as Error).message || "Failed to load notifications") : ""
+
   const [filter, setFilter] = useState<FilterType>("all")
 
-  // Real-time: watch the shared query cache that useNotifications (in AppLayout)
-  // keeps up-to-date via the socket. When a new notification is prepended there,
-  // mirror it into this page's local state so the list updates without a reload.
-  useEffect(() => {
-    return queryClient.getQueryCache().subscribe((event) => {
-      if (event.type !== "updated") return
-      const keys = event.query.queryKey
-      if (!Array.isArray(keys) || keys[0] !== NOTIFICATIONS_KEY[0]) return
-      const cached = queryClient.getQueryData<NotificationPage>(NOTIFICATIONS_KEY)
-      if (!cached?.notifications.length) return
-      const newest = cached.notifications[0]
-      setNotifications((prev) => {
-        if (prev.some((n) => n.id === newest.id)) return prev
-        return [newest, ...prev]
-      })
-      setTotal(cached.total)
-      setUnreadCount(cached.unreadCount)
-    })
-  }, [queryClient])
-
-  // Keep the sidebar badge (which reads the shared query) in sync after mutations.
-  const syncSidebar = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY })
-  }, [queryClient])
-
-  const fetchPage = useCallback(async (offset: number) => {
-    const page = await notificationsApi.list(offset, PAGE_SIZE)
-    setTotal(page.total)
-    setUnreadCount(page.unreadCount)
-    setNotifications((prev) => (offset === 0 ? page.notifications : [...prev, ...page.notifications]))
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError("")
-    notificationsApi
-      .list(0, PAGE_SIZE)
-      .then((page) => {
-        if (!active) return
-        setNotifications(page.notifications)
-        setTotal(page.total)
-        setUnreadCount(page.unreadCount)
-      })
-      .catch((err: unknown) => { if (active) setError((err as Error).message || "Failed to load notifications") })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [])
-
-  const handleLoadMore = async () => {
-    setLoadingMore(true)
-    try {
-      await fetchPage(notifications.length)
-    } catch {
-      // best-effort
-    } finally {
-      setLoadingMore(false)
-    }
+  const handleLoadMore = () => {
+    void loadMore()
   }
 
-  const handleMarkRead = async (id: string) => {
-    // Optimistic
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-    setUnreadCount((c) => Math.max(0, c - 1))
-    try {
-      await notificationsApi.markRead(id)
-      syncSidebar()
-    } catch {
-      // Revert on failure
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)))
-      setUnreadCount((c) => c + 1)
-    }
+  const handleMarkRead = (id: string) => {
+    void markRead(id)
   }
 
-  const handleMarkAllRead = async () => {
+  const handleMarkAllRead = () => {
     if (unreadCount === 0) return
-    const prev = notifications
-    setNotifications((list) => list.map((n) => ({ ...n, read: true })))
-    setUnreadCount(0)
-    try {
-      await notificationsApi.markAllRead()
-      syncSidebar()
-    } catch {
-      setNotifications(prev)
-    }
+    void markAllRead()
   }
 
   const visible = filter === "unread" ? notifications.filter((n) => !n.read) : notifications
-  const hasMore = notifications.length < total
 
   return (
     <div style={{ padding: "32px 36px", maxWidth: "760px", color: "oklch(var(--color-ink))", fontFamily: "var(--font-body)" }}>
@@ -416,9 +348,9 @@ export default function InboxPage() {
                         <InviteActions
                           n={n}
                           onSettled={() => {
-                            // Mark read + refresh to get updated inviteStatus from server
+                            // Mark read + refetch to get updated inviteStatus from server
                             if (!n.read) void handleMarkRead(n.id)
-                            syncSidebar()
+                            void refetch()
                           }}
                         />
                       </div>

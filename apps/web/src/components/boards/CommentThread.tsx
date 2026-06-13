@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import type { Socket } from "socket.io-client"
-import type { CommentResponse } from "@flowgrid/types"
-import { commentsApi } from "../../api/comments"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
+import { useCardComments } from "../../features/card/queries/useCardComments"
+import { useAddComment } from "../../features/card/mutations/useAddComment"
+import { useUpdateComment } from "../../features/card/mutations/useUpdateComment"
+import { useDeleteComment } from "../../features/card/mutations/useDeleteComment"
+import { useCommentRealtimeSync } from "../../features/card/realtime/useCommentRealtimeSync"
 
 interface Props {
   cardId: string
@@ -26,52 +29,23 @@ function formatRelativeTime(iso: string): string {
 }
 
 export function CommentThread({ cardId, currentUserId, currentUserRole, socket }: Props) {
-  const [comments, setComments] = useState<CommentResponse[]>([])
-  const [total, setTotal] = useState(0)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const canModerate = currentUserRole === "OWNER" || currentUserRole === "ADMIN"
 
-  // Real-time comment sync — subscribe to socket events for this card
-  useEffect(() => {
-    if (!socket) return
+  const commentsQuery = useCardComments(cardId)
+  const comments = commentsQuery.data?.items ?? []
+  const total = commentsQuery.data?.total ?? 0
+  const loadError = commentsQuery.isError ? ((commentsQuery.error as Error).message || "Failed to load comments.") : null
 
-    const handleCreated = (comment: CommentResponse) => {
-      if (comment.cardId !== cardId) return
-      // Dedup: sender already added the comment locally on API success.
-      // setTotal is called outside the updater (React rule: updaters must be pure).
-      // On the dedup path total may drift by 1; it self-corrects on next load.
-      setComments((prev) => {
-        if (prev.some((c) => c.id === comment.id)) return prev
-        return [...prev, comment]
-      })
-      setTotal((t) => t + 1)
-    }
+  // Real-time comment sync — socket events drive the query cache (idempotent upsert)
+  useCommentRealtimeSync(cardId, socket)
 
-    const handleUpdated = (comment: CommentResponse) => {
-      if (comment.cardId !== cardId) return
-      setComments((prev) => prev.map((c) => (c.id === comment.id ? comment : c)))
-    }
-
-    const handleDeleted = ({ id, cardId: eventCardId }: { id: string; cardId: string }) => {
-      if (eventCardId !== cardId) return
-      setComments((prev) => prev.filter((c) => c.id !== id))
-      setTotal((t) => Math.max(0, t - 1))
-    }
-
-    socket.on("comment:created", handleCreated)
-    socket.on("comment:updated", handleUpdated)
-    socket.on("comment:deleted", handleDeleted)
-
-    return () => {
-      socket.off("comment:created", handleCreated)
-      socket.off("comment:updated", handleUpdated)
-      socket.off("comment:deleted", handleDeleted)
-    }
-  }, [socket, cardId])
+  const addComment = useAddComment(cardId)
+  const updateComment = useUpdateComment(cardId)
+  const deleteComment = useDeleteComment(cardId)
+  const submitting = addComment.isPending
 
   // New comment editor
   const newEditor = useEditor({
@@ -113,47 +87,21 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
     }
   }, [editingId, editEditor, comments])
 
-  const load = useCallback(async () => {
-    try {
-      const page = await commentsApi.list(cardId)
-      setComments(page.items)
-      setTotal(page.total)
-    } catch (err) {
-      setLoadError((err as Error).message || "Failed to load comments.")
-    }
-  }, [cardId])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
   const handleSubmit = async () => {
     if (!newEditor || newEditorIsEmpty || submitting) return
-    setSubmitting(true)
     setSubmitError(null)
     try {
-      const comment = await commentsApi.create(cardId, newEditor.getHTML())
-      // The server emits the socket event BEFORE returning the HTTP response,
-      // so handleCreated (above) typically fires and adds the comment first.
-      // Guard here so whichever path wins the race, the other is a no-op.
-      setComments((prev) => {
-        if (prev.some((c) => c.id === comment.id)) return prev
-        return [...prev, comment]
-      })
-      setTotal((t) => t + 1)
+      await addComment.mutateAsync({ content: newEditor.getHTML() })
       newEditor.commands.clearContent()
     } catch (err) {
       setSubmitError((err as Error).message || "Failed to post comment.")
-    } finally {
-      setSubmitting(false)
     }
   }
 
   const handleEdit = async (id: string) => {
     if (!editEditor || editEditor.isEmpty) return
     try {
-      const updated = await commentsApi.update(id, editEditor.getHTML())
-      setComments((prev) => prev.map((c) => (c.id === id ? updated : c)))
+      await updateComment.mutateAsync({ id, content: editEditor.getHTML() })
       setEditingId(null)
     } catch (err) {
       setSubmitError((err as Error).message || "Failed to update comment.")
@@ -162,9 +110,7 @@ export function CommentThread({ cardId, currentUserId, currentUserRole, socket }
 
   const handleDelete = async (id: string) => {
     try {
-      await commentsApi.delete(id)
-      setComments((prev) => prev.filter((c) => c.id !== id))
-      setTotal((t) => t - 1)
+      await deleteComment.mutateAsync({ id })
     } catch (err) {
       setSubmitError((err as Error).message || "Failed to delete comment.")
     }
