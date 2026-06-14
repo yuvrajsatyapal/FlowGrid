@@ -420,7 +420,7 @@ function RoleSelect({ value, onChange, disabled = false, containerStyle }: {
                     alignItems: "center",
                     gap: 8,
                     padding: "9px 10px",
-                    borderRadius: 6,
+                    borderRadius: "var(--radius-card)",
                     border: "none",
                     background: isSel ? "oklch(var(--color-paper-2))" : "transparent",
                     color: "oklch(var(--color-ink))",

@@ -299,7 +299,7 @@ function DonutChart({ data }: { data: { label: string; count: number; color: str
           top: tooltip.y - 36,
           background: "oklch(var(--color-paper))",
           border: "1px solid oklch(var(--color-border))",
-          borderRadius: "8px",
+          borderRadius: "var(--radius-modal)",
           padding: "6px 12px",
           boxShadow: "0 4px 12px oklch(0% 0 0 / 0.12)",
           display: "flex",
@@ -429,7 +429,7 @@ function PeriodSelect({ value, onChange }: { value: number; onChange: (days: num
                     alignItems: "center",
                     gap: 8,
                     padding: "8px 10px",
-                    borderRadius: 6,
+                    borderRadius: "var(--radius-card)",
                     border: "none",
                     background: isSel ? "oklch(var(--color-paper-2))" : "transparent",
                     color: "oklch(var(--color-ink))",
@@ -659,7 +659,7 @@ export default function AnalyticsPage() {
                   if (!active || !payload?.length) return null
                   const d = payload[0].payload as { fullName: string; count: number }
                   return (
-                    <div style={{ background: "oklch(var(--color-paper))", border: "1px solid oklch(var(--color-border))", borderRadius: "6px", padding: "8px 12px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))", boxShadow: "0 2px 8px oklch(0% 0 0 / 0.08)" }}>
+                    <div style={{ background: "oklch(var(--color-paper))", border: "1px solid oklch(var(--color-border))", borderRadius: "var(--radius-card)", padding: "8px 12px", fontSize: "var(--text-xs)", color: "oklch(var(--color-ink))", boxShadow: "0 2px 8px oklch(0% 0 0 / 0.08)" }}>
                       <span style={{ fontWeight: 600 }}>{d.fullName}</span>
                       <span style={{ marginLeft: "8px", color: "oklch(var(--color-accent))" }}>{d.count}</span>
                     </div>

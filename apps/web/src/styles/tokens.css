@@ -89,12 +89,12 @@
   --shadow-pop: 0 20px 40px oklch(0% 0 0 / 0.4);
   --display-tracking: -0.02em;
 
-  /* Rounded, glassy shapes */
-  --radius-card: 14px;
-  --radius-button: 8px;
-  --radius-badge: 6px;
-  --radius-input: 8px;
-  --radius-modal: 16px;
+  /* Sharp shapes — match light mode exactly */
+  --radius-card: 4px;
+  --radius-button: 2px;
+  --radius-badge: 2px;
+  --radius-input: 2px;
+  --radius-modal: 8px;
 }
 
 /* ── Typography ── */

@@ -1,9 +1,11 @@
+import { useState } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { motion } from "framer-motion"
 import type { Priority } from "@flowgrid/types"
 import type { CardSummary } from "../../api/cards"
 import { getInitials, getAvatarBg } from "../../utils/avatar"
+import { useTheme } from "../../contexts/ThemeContext"
 
 interface Props {
   card: CardSummary
@@ -98,6 +100,18 @@ function AssigneeAvatar({ id, name, avatarUrl }: { id: string; name: string | nu
 
 export default function CardItem({ card, isDoneList = false, blocked = false, minHeight, overlay = false, isViewer = false, hideDescription = false, mobile = false, onCardClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
+  const { theme } = useTheme()
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Derive border color as a plain string so React owns it — avoids framer-motion
+  // re-render conflicts where the `border` shorthand in the style prop would
+  // clobber an imperatively set borderColor on each animation frame.
+  const canHover = !overlay && !isDragging && !isViewer && !mobile
+  const borderColor = isHovered && canHover
+    ? theme === "dark"
+      ? "oklch(55% 0.235 263)"   // electric blue accent
+      : "oklch(53% 0.170 34)"    // coral accent
+    : "oklch(var(--color-border))"
 
   const firstLabel = card.labels[0] ?? null
   const prioritySuffix = card.priority !== "NONE" ? ` — ${card.priority.toLowerCase()} priority` : ""
@@ -139,7 +153,7 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
         style={{
           background: "oklch(var(--color-paper))",
           borderRadius: "var(--radius-card)",
-          border: "1px solid oklch(var(--color-border))",
+          border: `1px solid ${borderColor}`,
           padding: "13px 14px 14px",
           flex: overlay ? undefined : 1,
           minHeight: overlay ? undefined : resolvedMinHeight,
@@ -153,16 +167,8 @@ export default function CardItem({ card, isDoneList = false, blocked = false, mi
           gap: 8,
           overflow: "hidden",
         }}
-        onMouseEnter={(e) => {
-          // No hover affordance on phones — touch has no hover, and a single highlighted
-          // card makes its flat neighbours look mismatched. Cards stay visually uniform.
-          if (overlay || isDragging || isViewer || mobile) return
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = "oklch(var(--color-accent-muted))"
-        }}
-        onMouseLeave={(e) => {
-          if (overlay || isDragging || isViewer || mobile) return
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = ""
-        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         {/* Two-column body: left content + right stats/avatar */}
         <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 0 }}>

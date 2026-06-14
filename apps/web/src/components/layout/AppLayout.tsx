@@ -167,7 +167,7 @@ function NavItem({
     alignItems: "center",
     gap: "9px",
     padding: "7px 10px",
-    borderRadius: "6px",
+    borderRadius: "var(--radius-card)",
     border: "none",
     background: isActive ? "oklch(var(--color-accent-muted))" : "transparent",
     color: isActive ? "oklch(var(--color-accent))" : "oklch(var(--color-ink-2))",
@@ -322,7 +322,7 @@ function SidebarContent({
             gap: "9px",
             width: "100%",
             padding: "7px 10px",
-            borderRadius: "6px",
+            borderRadius: "var(--radius-card)",
             border: "none",
             background: "transparent",
             color: "oklch(var(--color-ink-2))",
@@ -420,7 +420,7 @@ function SidebarContent({
           aria-label="Profile settings"
           style={{
             padding: "5px",
-            borderRadius: "5px",
+            borderRadius: "var(--radius-button)",
             border: "none",
             background: "transparent",
             color: "oklch(var(--color-ink-3))",
@@ -450,7 +450,7 @@ function SidebarContent({
           aria-label="Sign out"
           style={{
             padding: "5px",
-            borderRadius: "5px",
+            borderRadius: "var(--radius-button)",
             border: "none",
             background: "transparent",
             color: "oklch(var(--color-ink-3))",
@@ -612,7 +612,7 @@ export default function AppLayout() {
             aria-controls="mobile-sidebar-drawer"
             style={{
               padding: "6px",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-button)",
               border: "none",
               background: "transparent",
               color: "oklch(var(--color-ink-2))",
@@ -682,7 +682,7 @@ export default function AppLayout() {
                   autoFocus
                   style={{
                     padding: "6px",
-                    borderRadius: "6px",
+                    borderRadius: "var(--radius-button)",
                     border: "none",
                     background: "transparent",
                     color: "oklch(var(--color-ink-3))",
@@ -724,7 +724,7 @@ export default function AppLayout() {
             right: "12px",
             zIndex: 201,
             padding: "6px",
-            borderRadius: "6px",
+            borderRadius: "var(--radius-button)",
             border: "none",
             background: "transparent",
             color: "oklch(var(--color-ink-2))",
